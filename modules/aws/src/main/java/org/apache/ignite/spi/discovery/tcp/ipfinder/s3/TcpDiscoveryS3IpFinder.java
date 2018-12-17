@@ -21,8 +21,11 @@ import com.amazonaws.AmazonClientException;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.regions.Region;
+import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.S3ClientOptions;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
@@ -34,6 +37,7 @@ import java.util.StringTokenizer;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
+import org.apache.commons.lang.StringUtils;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.IgniteInterruptedCheckedException;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
@@ -126,9 +130,22 @@ public class TcpDiscoveryS3IpFinder extends TcpDiscoveryIpFinderAdapter {
     @GridToStringExclude
     private AWSCredentialsProvider credProvider;
 
+    @GridToStringExclude
+	private String endpoint;
     /**
-     * Constructor.
+    @GridToStringExclude
+	private Regions region;
      */
+    @GridToStringExclude
+	private Regions region;
+    @GridToStringExclude
+    private boolean withPathStyleAccess; 
+    public boolean isWithPathStyleAccess() {
+		return withPathStyleAccess;
+	}
+	public void setWithPathStyleAccess(boolean withPathStyleAccess) {
+		this.withPathStyleAccess = withPathStyleAccess;
+	}
     public TcpDiscoveryS3IpFinder() {
         setShared(true);
     }
@@ -256,6 +273,34 @@ public class TcpDiscoveryS3IpFinder extends TcpDiscoveryIpFinderAdapter {
         return sb.toString();
     }
 
+	/**
+	 * Set the AWS region we are targeting
+	 *
+	 * @param region
+	 *         Defines the AWS region to target.
+	 *
+	 * @see com.amazonaws.regions.Regions
+	 */
+	public void setRegion(Regions region) {
+		this.region = region;
+	}
+
+
+	/**
+	 * Get aws region we are targeting (e.g. US_WEST_1)
+	 */
+	public Regions getRegion() {
+		return this.region;
+	}
+	
+	public String getEndpoint() {
+		return endpoint;
+	}
+
+
+	public void setEndpoint(String endpoint) {
+		this.endpoint = endpoint;
+	}
     /**
      * Amazon s3 client initialization.
      *
@@ -281,6 +326,16 @@ public class TcpDiscoveryS3IpFinder extends TcpDiscoveryIpFinderAdapter {
 
                 s3 = createAmazonS3Client();
 
+        		if (getRegion() != null) {
+        			Region regionEnum = Region.getRegion(getRegion());
+        			s3.setRegion(regionEnum);
+        		}
+        		if (StringUtils.isNotBlank(getEndpoint())) {
+        			s3.setEndpoint(getEndpoint());
+        		}
+                if (this.withPathStyleAccess){
+                	s3.setS3ClientOptions(new S3ClientOptions().withPathStyleAccess(true));
+                }
                 if (!s3.doesBucketExist(bucketName)) {
                     try {
                         s3.createBucket(bucketName);
