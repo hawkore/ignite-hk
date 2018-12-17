@@ -17,6 +17,10 @@
 
 package org.apache.ignite.internal.processors.query.h2.opt;
 
+import static org.apache.ignite.cache.CacheMode.PARTITIONED;
+import static org.apache.ignite.internal.processors.query.h2.opt.GridH2KeyValueRowOnheap.DEFAULT_COLUMNS_COUNT;
+import static org.apache.ignite.internal.processors.query.h2.opt.GridH2KeyValueRowOnheap.KEY_COL;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -24,11 +28,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteInterruptedException;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
@@ -36,6 +40,7 @@ import org.apache.ignite.internal.processors.cache.persistence.CacheDataRow;
 import org.apache.ignite.internal.processors.cache.query.QueryTable;
 import org.apache.ignite.internal.processors.query.IgniteSQLException;
 import org.apache.ignite.internal.processors.query.QueryField;
+import org.apache.ignite.internal.processors.query.h2.H2Utils;
 import org.apache.ignite.internal.processors.query.h2.database.H2RowFactory;
 import org.apache.ignite.internal.processors.query.h2.database.H2TreeIndex;
 import org.apache.ignite.internal.processors.query.h2.twostep.GridMapQueryExecutor;
@@ -58,10 +63,6 @@ import org.h2.table.TableBase;
 import org.h2.table.TableType;
 import org.h2.value.DataType;
 import org.jetbrains.annotations.Nullable;
-
-import static org.apache.ignite.cache.CacheMode.PARTITIONED;
-import static org.apache.ignite.internal.processors.query.h2.opt.GridH2KeyValueRowOnheap.DEFAULT_COLUMNS_COUNT;
-import static org.apache.ignite.internal.processors.query.h2.opt.GridH2KeyValueRowOnheap.KEY_COL;
 
 /**
  * H2 Table implementation.
@@ -429,11 +430,11 @@ public class GridH2Table extends TableBase {
      *
      * @return Primary key.
      */
-    private GridH2IndexBase pk() {
+    public GridH2IndexBase pk() {
         return (GridH2IndexBase)idxs.get(2);
     }
 
-    /**
+   /**
      * Updates table for given key. If value is null then row with given key will be removed from table,
      * otherwise value and expiration time will be updated or new row will be added.
      *
@@ -548,8 +549,14 @@ public class GridH2Table extends TableBase {
         boolean replaced = idx.putx(row);
 
         // Row was not replaced, need to remove manually.
-        if (!replaced && prevRow != null)
-            idx.removex(prevRow);
+        if (!replaced && prevRow != null){
+            boolean advancedSpatial = F.eq(H2Utils.ADVANCED_SPATIAL_IDX_CLS, idx.getClass().getName());
+            boolean advancedLucene = F.eq(H2Utils.ADVANCED_LUCENE_IDX_CLS, idx.getClass().getName());
+            //on advanced lucene and spatial we must not remove index prevRow!! data will be lost
+        	if (!advancedSpatial && !advancedLucene){
+        		idx.removex(prevRow);
+        	}
+         }
     }
 
     /**
@@ -897,7 +904,57 @@ public class GridH2Table extends TableBase {
 
         return null;
     }
+    
+    /**
+     * Change columns visibility
+     *
+     * @param cols Columns to add.
+     * @param ifNotExists Ignore this command if {@code cols} has size of 1 and column with given name already exists.
+     */
+    public boolean changeColumnsVisibility(List<QueryField> queryFields) {
 
+        lock(true);
+        
+        boolean changed = false;
+        
+        try {
+
+            Column[] newCols = getColumns();
+            
+            Map<String, QueryField> cols = new HashMap<>();
+            
+            queryFields.forEach(col-> cols.put(col.name(), col));
+            
+            for (int i=0; i < newCols.length; i++){
+                
+                Column c = newCols[i];
+                
+                QueryField f = cols.get(c.getName());
+                
+                if (f != null && c.getVisible() != (!f.isHidden())){
+                    c.setVisible(!f.isHidden());
+                    changed |= true;
+                }
+            }
+            
+            if (changed){
+                
+                setColumns(newCols);//ordered columns
+    
+                desc.refreshMetadataFromTypeDescriptor(null);
+    
+                setModified();
+            }
+        }
+        finally {
+            unlock(true);
+        }
+        return changed;
+    }
+    
+    
+    
+    
     /**
      * Add new columns to this table.
      *
@@ -929,7 +986,9 @@ public class GridH2Table extends TableBase {
 
                 try {
                     Column c = new Column(col.name(), DataType.getTypeFromClass(Class.forName(col.typeName())));
-
+                    
+                    c.setVisible(!col.isHidden());
+                    
                     c.setNullable(col.isNullable());
 
                     newCols[pos++] = c;
@@ -939,9 +998,9 @@ public class GridH2Table extends TableBase {
                 }
             }
 
-            setColumns(newCols);
+            setColumns(newCols);//ordered columns
 
-            desc.refreshMetadataFromTypeDescriptor();
+            desc.refreshMetadataFromTypeDescriptor(null);
 
             setModified();
         }
@@ -998,7 +1057,7 @@ public class GridH2Table extends TableBase {
 
             setColumns(newCols);
 
-            desc.refreshMetadataFromTypeDescriptor();
+            desc.refreshMetadataFromTypeDescriptor(null);
 
             for (Index idx : getIndexes()) {
                 if (idx instanceof GridH2IndexBase)

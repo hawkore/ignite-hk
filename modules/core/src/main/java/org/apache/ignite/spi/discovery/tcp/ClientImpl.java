@@ -2550,7 +2550,9 @@ class ClientImpl extends TcpDiscoveryImpl {
 
             this.sock = sock;
 
-            this.in = new BufferedInputStream(sock.getInputStream());
+            int rcvBufSize = sock.getReceiveBufferSize();
+            
+            this.in = new BufferedInputStream(sock.getInputStream(), rcvBufSize > 0 ? rcvBufSize : 8192);
         }
 
         /**

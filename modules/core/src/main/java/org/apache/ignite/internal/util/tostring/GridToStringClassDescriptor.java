@@ -22,6 +22,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import org.apache.ignite.internal.util.typedef.internal.U;
+
 /**
  * Simple class descriptor containing simple and fully qualified class names as well as
  * the list of class fields.
@@ -43,7 +45,7 @@ class GridToStringClassDescriptor {
         assert cls != null;
 
         fqn = cls.getName();
-        sqn = cls.getSimpleName();
+        sqn = U.getSimpleClassName(cls);
     }
 
     /**

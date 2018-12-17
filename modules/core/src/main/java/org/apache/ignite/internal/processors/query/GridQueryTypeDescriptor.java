@@ -18,9 +18,8 @@
 package org.apache.ignite.internal.processors.query;
 
 import java.util.Map;
+
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.internal.processors.cache.CacheObject;
-import org.apache.ignite.internal.util.lang.GridMapEntry;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -125,12 +124,6 @@ public interface GridQueryTypeDescriptor {
      */
     public String valueTypeName();
 
-    /**
-     * Returns {@code true} if string representation of value should be indexed as text.
-     *
-     * @return If string representation of value should be full-text indexed.
-     */
-    public boolean valueTextIndex();
 
     /**
      * Returns affinity key field name or {@code null} for default.
@@ -170,6 +163,7 @@ public interface GridQueryTypeDescriptor {
      */
     @Nullable public String valueFieldAlias();
 
+
     /**
      * Performs validation of given key and value against configured constraints.
      * Throws runtime exception if validation fails.
@@ -188,4 +182,17 @@ public interface GridQueryTypeDescriptor {
      * @throws IgniteCheckedException If failed.
      */
     public void setDefaults(Object key, Object val) throws IgniteCheckedException;
+    
+    
+    /**
+     * Set luceneIndexOptions
+     * @param luceneIndexOptions
+     */
+    public void setLuceneIndexOptions(String luceneIndexOptions);
+    
+    /**
+     * Gets lucene index options
+     * @return lucene index options
+     */
+    public String luceneIndexOptions();
 }

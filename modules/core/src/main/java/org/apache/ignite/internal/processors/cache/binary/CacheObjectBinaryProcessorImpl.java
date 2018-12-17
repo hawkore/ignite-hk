@@ -723,7 +723,7 @@ public class CacheObjectBinaryProcessorImpl extends IgniteCacheObjectProcessorIm
         if (obj == null)
             return 0;
 
-        return isBinaryObject(obj) ? ((BinaryObjectEx)obj).typeId() : typeId(obj.getClass().getSimpleName());
+        return isBinaryObject(obj) ? ((BinaryObjectEx)obj).typeId() : typeId(U.getSimpleClassName(obj.getClass()));
     }
 
     /** {@inheritDoc} */

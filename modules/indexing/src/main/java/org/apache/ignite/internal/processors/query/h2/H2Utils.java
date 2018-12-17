@@ -17,6 +17,8 @@
 
 package org.apache.ignite.internal.processors.query.h2;
 
+import static org.apache.ignite.internal.processors.query.h2.IgniteH2Indexing.UPDATE_RESULT_META;
+
 import java.lang.reflect.Constructor;
 import java.sql.Connection;
 import java.sql.ResultSetMetaData;
@@ -24,36 +26,56 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
+import org.apache.ignite.IgniteLogger;
+import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.QueryCursorImpl;
 import org.apache.ignite.internal.processors.query.GridQueryFieldMetadata;
+import org.apache.ignite.internal.processors.query.QueryUtils;
 import org.apache.ignite.internal.processors.query.h2.opt.GridH2IndexBase;
 import org.apache.ignite.internal.processors.query.h2.opt.GridH2RowDescriptor;
 import org.apache.ignite.internal.processors.query.h2.opt.GridH2Table;
+import org.apache.ignite.internal.processors.query.h2.opt.GridLuceneIndex;
+import org.apache.ignite.internal.processors.query.h2.opt.lucene.LuceneQueryUtils;
 import org.apache.ignite.internal.util.GridStringBuilder;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.SB;
+import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.resources.LoggerResource;
 import org.h2.engine.Session;
 import org.h2.jdbc.JdbcConnection;
 import org.h2.result.SortOrder;
 import org.h2.table.IndexColumn;
 import org.h2.value.DataType;
 import org.h2.value.Value;
-
-import static org.apache.ignite.internal.processors.query.h2.IgniteH2Indexing.UPDATE_RESULT_META;
+import org.hawkore.ignite.lucene.builder.index.Index;
 
 /**
  * H2 utility methods.
  */
 public class H2Utils {
-    /** Spatial index class name. */
+   
+    /** Legacy Spatial index class name. */
     private static final String SPATIAL_IDX_CLS =
         "org.apache.ignite.internal.processors.query.h2.opt.GridH2SpatialIndex";
-
+    
+    /** Advanced Spatial index class name. */
+    public static final String ADVANCED_SPATIAL_IDX_CLS =
+        "com.hawkore.ignite.internal.processors.query.h2.opt.AdvancedGridH2SpatialIndex";
+    
+    /** Advanced Lucene Index class name. */
+    public static final String ADVANCED_LUCENE_IDX_CLS =
+        "com.hawkore.ignite.internal.processors.query.h2.opt.AdvancedGridLuceneIndex";
+    
     /** Quotation character. */
     private static final char ESC_CH = '\"';
 
+	/** Logger. */
+	@LoggerResource
+	private static IgniteLogger log;
+    
     /**
      * @param c1 First column.
      * @param c2 Second column.
@@ -101,7 +123,8 @@ public class H2Utils {
      * @return Statement string.
      */
     public static String indexCreateSql(String fullTblName, GridH2IndexBase h2Idx, boolean ifNotExists) {
-        boolean spatial = F.eq(SPATIAL_IDX_CLS, h2Idx.getClass().getName());
+       
+        boolean spatial = F.eq(SPATIAL_IDX_CLS, h2Idx.getClass().getName()) || F.eq(ADVANCED_SPATIAL_IDX_CLS, h2Idx.getClass().getName());
 
         GridStringBuilder sb = new SB("CREATE ")
             .a(spatial ? "SPATIAL " : "")
@@ -160,6 +183,22 @@ public class H2Utils {
     }
 
     /**
+     * Check whether real component class is in classpath.
+     *
+     * @return {@code True} if in classpath.
+     */
+    public static boolean inClassPath(String clsName) {
+        try {
+            Class.forName(clsName);
+
+            return true;
+        }
+        catch (ClassNotFoundException ignore) {
+            return false;
+        }
+    }
+    
+    /**
      * Create spatial index.
      *
      * @param tbl Table.
@@ -168,8 +207,15 @@ public class H2Utils {
      */
     public static GridH2IndexBase createSpatialIndex(GridH2Table tbl, String idxName, IndexColumn[] cols) {
         try {
-            Class<?> cls = Class.forName(SPATIAL_IDX_CLS);
-
+            Class<?> cls = null;
+            
+            //preferable Advanced Spatial Index if available            
+            if (inClassPath(ADVANCED_SPATIAL_IDX_CLS)){
+                cls = Class.forName(ADVANCED_SPATIAL_IDX_CLS);
+            }else{
+                cls = Class.forName(SPATIAL_IDX_CLS);
+            }
+            
             Constructor<?> ctor = cls.getConstructor(
                 GridH2Table.class,
                 String.class,
@@ -184,10 +230,51 @@ public class H2Utils {
             return (GridH2IndexBase)ctor.newInstance(tbl, idxName, segments, cols);
         }
         catch (Exception e) {
-            throw new IgniteException("Failed to instantiate: " + SPATIAL_IDX_CLS, e);
+            throw new IgniteException("Failed to create spatial index", e);
         }
     }
 
+	/**
+	 * Creates an Advanced Lucene Index to support advanced lucene search by SQL
+	 * 
+	 * Only ONE Advanced Lucene index is created per table with name TABLENAME_LUCENE_IDX
+	 * 
+	 * @param tbl Table.
+	 * @return Advanced Grid Lucene Index
+	 */
+	public static GridH2IndexBase createAdvancedLuceneIndex(GridH2Table tbl, String luceneIndexOptions) {
+		try {
+		    
+            Class<?> cls = Class.forName(ADVANCED_LUCENE_IDX_CLS);
+            
+            GridCacheContext cctx = tbl.cache();
+
+            String name = (tbl.getName() + Index.LUCENE_INDEX_NAME_SUFIX).toUpperCase();
+			
+	        final int segments = tbl.rowDescriptor().context().config().getQueryParallelism();
+	        try {
+	            Constructor<?> ctor = cls.getDeclaredConstructor(
+	                GridCacheContext.class,
+	                GridH2Table.class,
+	                String.class,
+	                int.class,
+	                String.class);
+	            
+	            if (!ctor.isAccessible())
+	                ctor.setAccessible(true);
+
+	            return (GridH2IndexBase) ctor.newInstance(cctx, tbl, name, segments, luceneIndexOptions);
+
+			}catch (Exception e){
+			    //this avoid stop cluster, simply notify user
+				U.error(log, "Unable to create Advanced Grid Lucene Index for table " + tbl.getName(), e);
+				return null; 
+			}
+		}
+		catch (Exception e) {
+			throw new IgniteException("Failed to create Advanced Grid Lucene Index for table "+tbl.getName(), e);
+		}
+	}
     /**
      * Add quotes around the name.
      *

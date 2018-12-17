@@ -21,11 +21,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import javax.cache.CacheException;
+
 import org.apache.ignite.cache.QueryIndex;
 import org.apache.ignite.cache.QueryIndexType;
+import org.apache.ignite.cache.query.annotations.QueryTextField;
 import org.apache.ignite.internal.processors.query.GridQueryIndexDescriptor;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
@@ -54,6 +58,9 @@ public class QueryEntityTypeDescriptor {
 
     /** */
     private Set<String> notNullFields = new HashSet<>();
+    
+    /** */
+    private Set<String> hiddenFields = new HashSet<>();
 
     /** Decimal fields information. */
     private Map<String, IgniteBiTuple<Integer, Integer>> decimalInfo = new HashMap<>();
@@ -67,8 +74,6 @@ public class QueryEntityTypeDescriptor {
     /** */
     private Class<?> valCls;
 
-    /** */
-    private boolean valTextIdx;
 
     /**
      * @return Indexes.
@@ -112,22 +117,33 @@ public class QueryEntityTypeDescriptor {
         if (desc == null)
             desc = addIndex(idxName, QueryIndexType.SORTED, QueryIndex.DFLT_INLINE_SIZE);
 
-        desc.addField(field, orderNum, descending);
+        desc.addField(field, orderNum, descending, null);
     }
 
+    /**
+     * Create text index
+     */
+    public void createTextIndex() {
+        if (fullTextIdx == null) {
+            fullTextIdx = new QueryEntityIndexDescriptor(QueryIndexType.FULLTEXT);
+
+            indexes.put(null, fullTextIdx);
+        }
+    }
+    
     /**
      * Adds field to text index.
      *
      * @param field Field name.
      */
-    public void addFieldToTextIndex(String field) {
+    public void addFieldToTextIndex(String field, List<QueryTextField> ann) {
         if (fullTextIdx == null) {
             fullTextIdx = new QueryEntityIndexDescriptor(QueryIndexType.FULLTEXT);
 
             indexes.put(null, fullTextIdx);
         }
 
-        fullTextIdx.addField(field, 0, false);
+        fullTextIdx.addField(field, 0, false, ann);
     }
 
     /**
@@ -191,6 +207,15 @@ public class QueryEntityTypeDescriptor {
     }
 
     /**
+     * Adds a hidden field.
+     *
+     * @param field hidden field.
+     */
+    public void addHiddenField(String field) {
+        hiddenFields.add(field);
+    }
+    
+    /**
      * Adds decimal info.
      *
      * @param field Field.
@@ -207,6 +232,13 @@ public class QueryEntityTypeDescriptor {
         return notNullFields;
     }
 
+    /**
+     * @return hidden fields.
+     */
+    public Set<String> hiddenFields() {
+        return hiddenFields;
+    }
+    
     /**
      * @return Decimal info for fields.
      */
@@ -228,25 +260,16 @@ public class QueryEntityTypeDescriptor {
         return keyProps;
     }
 
-    /**
-     * @return {@code true} If we need to have a fulltext index on value.
-     */
-    public boolean valueTextIndex() {
-        return valTextIdx;
-    }
-
-    /**
-     * Sets if this value should be text indexed.
-     *
-     * @param valTextIdx Flag value.
-     */
-    public void valueTextIndex(boolean valTextIdx) {
-        this.valTextIdx = valTextIdx;
-    }
-
     /** {@inheritDoc} */
     @Override public String toString() {
         return S.toString(QueryEntityTypeDescriptor.class, this);
+    }
+    
+    /**
+     * @return the fullTextIdx
+     */
+    public QueryEntityIndexDescriptor getFullTextIdx() {
+        return fullTextIdx;
     }
 }
 

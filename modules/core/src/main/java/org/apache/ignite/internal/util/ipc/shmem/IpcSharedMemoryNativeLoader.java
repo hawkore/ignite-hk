@@ -23,6 +23,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.lang.reflect.Field;
 import java.net.URL;
 import java.nio.channels.FileLock;
 import java.security.NoSuchAlgorithmException;
@@ -30,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.jar.JarFile;
 import java.util.zip.ZipEntry;
+import org.apache.commons.io.FileUtils;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.util.typedef.X;
@@ -218,7 +220,22 @@ public class IpcSharedMemoryNativeLoader {
 
         String userName = System.getProperty("user.name");
 
-        File tmpDir = new File(tmp, userName);
+        ClassLoader clsLdr = U.detectClassLoader(IpcSharedMemoryNativeLoader.class);
+        File tmpDir = null;
+        String tmpAppDir=null;
+        try{
+        	Field field = clsLdr.getClass().getDeclaredField("appName");
+        	field.setAccessible(true);
+        	tmpAppDir = "ignite-native-"+(String) field.get(clsLdr);
+        	tmpDir = new File(tmp+File.separator+userName, tmpAppDir);
+            if (tmpDir.exists()){
+            	FileUtils.deleteDirectory(tmpDir);
+            }
+            long clsHash = clsLdr.hashCode();
+            tmpDir = new File(tmp+File.separator+userName+File.separator+tmpAppDir, "clsLdr_"+(clsHash*clsHash));
+        }catch (Exception e){
+        	tmpDir = new File(tmp, userName);//original behaviour
+        }
 
         if (!tmpDir.exists())
             //noinspection ResultOfMethodCallIgnored
@@ -332,6 +349,15 @@ public class IpcSharedMemoryNativeLoader {
             if (!U.isWindows())
                 Runtime.getRuntime().exec(new String[] {"chmod", "775", target.getCanonicalPath()}).waitFor();
 
+            try{
+        		NativeLibraries nat = new NativeLibraries();
+	            if (nat.getLoadedLibraries().contains(target.getCanonicalPath()) 
+	            		|| nat.getLoadedLibraries().contains(target.getAbsolutePath()) 
+	            		|| nat.getLoadedLibraries().contains(target.getName())){
+	            	return true;
+	            }
+        	}catch (Exception e){
+        	}
             System.load(target.getPath());
 
             return true;
@@ -378,6 +404,15 @@ public class IpcSharedMemoryNativeLoader {
             if (!U.isWindows())
                 Runtime.getRuntime().exec(new String[] {"chmod", "775", target.getCanonicalPath()}).waitFor();
 
+            try{
+        		NativeLibraries nat = new NativeLibraries();
+	            if (nat.getLoadedLibraries().contains(target.getCanonicalPath()) 
+	            		|| nat.getLoadedLibraries().contains(target.getAbsolutePath()) 
+	            		|| nat.getLoadedLibraries().contains(target.getName())){
+	            	return true;
+	            }
+        	}catch (Exception e){
+        	}
             System.load(target.getPath());
 
             return true;

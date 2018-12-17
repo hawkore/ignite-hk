@@ -52,6 +52,7 @@ import org.apache.ignite.internal.processors.query.GridQueryTypeDescriptor;
 import org.apache.ignite.internal.processors.query.GridRunningQueryInfo;
 import org.apache.ignite.internal.processors.query.QueryField;
 import org.apache.ignite.internal.processors.query.QueryIndexDescriptorImpl;
+import org.apache.ignite.internal.processors.query.QueryTypeDescriptorImpl;
 import org.apache.ignite.internal.processors.query.SqlClientContext;
 import org.apache.ignite.internal.processors.query.schema.SchemaIndexCacheVisitor;
 import org.apache.ignite.internal.util.GridSpinBusyLock;
@@ -377,10 +378,20 @@ public class IgniteClientCacheInitializationFailTest extends GridCommonAbstractT
         @Override public void checkStatementStreamable(PreparedStatement nativeStmt) {
             // No-op.
         }
-
+        
         /** {@inheritDoc} */
         @Override public GridQueryRowCacheCleaner rowCacheCleaner(int cacheGroupId) {
             return null;
         }
+        
+		@Override
+		public void dynamicRegisterQueryEntity(String spaceName, String tblName, QueryTypeDescriptorImpl queryEntity,
+				SchemaIndexCacheVisitor cacheVisitor, boolean forceRebuildIndexes, boolean forceMutateQueryEntity, boolean async) throws IgniteCheckedException {
+		}
+	    @Override
+	    public void dynamicIndexesRebuild(String schemaName, String tblName, List<String> indexNames,
+	        SchemaIndexCacheVisitor cacheVisitor, boolean async) throws IgniteCheckedException{
+	        
+	    }
     }
 }

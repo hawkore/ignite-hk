@@ -103,6 +103,13 @@ namespace Apache.Ignite.Core.Cache.Configuration
         /// </summary>
         public string Name { get; set; }
 
+
+        /// <summary>
+        /// Gets or sets the index lucene index options.
+        /// </summary>
+        public string LuceneIndexOptions { get; set; }
+
+
         /// <summary>
         /// Gets or sets the type of the index.
         /// </summary>
@@ -149,6 +156,8 @@ namespace Apache.Ignite.Core.Cache.Configuration
             var count = reader.ReadInt();
             Fields = count == 0 ? null : Enumerable.Range(0, count).Select(x =>
                 new QueryIndexField(reader.ReadString(), reader.ReadBoolean())).ToList();
+
+            LuceneIndexOptions = reader.ReadString();
         }
 
         /// <summary>
@@ -172,6 +181,8 @@ namespace Apache.Ignite.Core.Cache.Configuration
             }
             else
                 writer.WriteInt(0);
+
+            writer.WriteString(LuceneIndexOptions);
         }
     }
 }

@@ -21,6 +21,7 @@ import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
+
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteUuid;
@@ -34,9 +35,6 @@ class GridCacheQueueItemKey implements Externalizable, QueueItemKey {
 
     /** */
     private IgniteUuid queueId;
-
-    /** */
-    private String queueName;
 
     /** */
     private long idx;
@@ -53,9 +51,8 @@ class GridCacheQueueItemKey implements Externalizable, QueueItemKey {
      * @param queueName Queue name.
      * @param idx Item index.
      */
-    GridCacheQueueItemKey(IgniteUuid queueId, String queueName, long idx) {
+    GridCacheQueueItemKey(IgniteUuid queueId, int queueNameHash, long idx) {
         this.queueId = queueId;
-        this.queueName = queueName;
         this.idx = idx;
     }
 
@@ -73,24 +70,16 @@ class GridCacheQueueItemKey implements Externalizable, QueueItemKey {
         return queueId;
     }
 
-    /**
-     * @return Queue name.
-     */
-    public String queueName() {
-        return queueName;
-    }
 
     /** {@inheritDoc} */
     @Override public void writeExternal(ObjectOutput out) throws IOException {
         U.writeGridUuid(out, queueId);
-        U.writeString(out, queueName);
         out.writeLong(idx);
     }
 
     /** {@inheritDoc} */
     @Override public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
         queueId = U.readGridUuid(in);
-        queueName = U.readString(in);
         idx = in.readLong();
     }
 

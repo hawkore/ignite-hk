@@ -41,6 +41,7 @@ import org.apache.ignite.IgniteSet;
 import org.apache.ignite.binary.BinaryObject;
 import org.apache.ignite.cache.CacheEntryEventSerializableFilter;
 import org.apache.ignite.cluster.ClusterNode;
+import org.apache.ignite.configuration.CollectionConfiguration;
 import org.apache.ignite.internal.IgniteKernal;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
@@ -232,12 +233,13 @@ public class CacheDataStructuresManager extends GridCacheManagerAdapter {
     @Nullable public <T> GridCacheQueueProxy<T> queue(final String name,
         final int cap,
         boolean colloc,
-        final boolean create)
+        final boolean create,
+        CollectionConfiguration cfg)
         throws IgniteCheckedException
     {
         waitInitialization();
-
-        return queue0(name, cap, colloc, create);
+        
+        return queue0(name, cap, colloc, create, cfg);
     }
 
     /**
@@ -252,7 +254,8 @@ public class CacheDataStructuresManager extends GridCacheManagerAdapter {
     @Nullable public <T> GridCacheQueueProxy<T> queue0(final String name,
         final int cap,
         boolean colloc,
-        final boolean create)
+        final boolean create,
+        CollectionConfiguration cfg)
         throws IgniteCheckedException
     {
         cctx.gate().enter();
@@ -294,7 +297,7 @@ public class CacheDataStructuresManager extends GridCacheManagerAdapter {
                                     GridCacheQueueHeader hdr = (GridCacheQueueHeader)e.getValue();
 
                                     for (final GridCacheQueueProxy queue : queuesMap.values()) {
-                                        if (queue.name().equals(key.queueName())) {
+                                        if (queue.delegate().getQueueNameUuid().equals(key.getQueueNameUuid())) {
                                             if (e.getEventType() == REMOVED) {
                                                 GridCacheQueueHeader oldHdr = (GridCacheQueueHeader)e.getOldValue();
 
@@ -327,8 +330,8 @@ public class CacheDataStructuresManager extends GridCacheManagerAdapter {
             GridCacheQueueProxy queue = queuesMap.get(hdr.id());
 
             if (queue == null) {
-                queue = new GridCacheQueueProxy(cctx, cctx.atomic() ? new GridAtomicCacheQueueImpl<>(name, hdr, cctx) :
-                    new GridTransactionalCacheQueueImpl<>(name, hdr, cctx));
+                queue = new GridCacheQueueProxy(cctx, cctx.atomic() ? new GridAtomicCacheQueueImpl<>(name, hdr, cctx, cfg) :
+                    new GridTransactionalCacheQueueImpl<>(name, hdr, cctx, cfg));
 
                 GridCacheQueueProxy old = queuesMap.putIfAbsent(hdr.id(), queue);
 

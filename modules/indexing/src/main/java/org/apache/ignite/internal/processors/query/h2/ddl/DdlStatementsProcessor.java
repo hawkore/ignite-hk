@@ -17,6 +17,9 @@
 
 package org.apache.ignite.internal.processors.query.h2.ddl;
 
+import static org.apache.ignite.internal.processors.query.h2.IgniteH2Indexing.UPDATE_RESULT_META;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlQueryParser.PARAM_WRAP_VALUE;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -25,6 +28,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteCluster;
 import org.apache.ignite.cache.QueryEntity;
@@ -42,10 +46,12 @@ import org.apache.ignite.internal.processors.query.GridQueryTypeDescriptor;
 import org.apache.ignite.internal.processors.query.IgniteSQLException;
 import org.apache.ignite.internal.processors.query.QueryEntityEx;
 import org.apache.ignite.internal.processors.query.QueryField;
+import org.apache.ignite.internal.processors.query.QueryTypeDescriptorImpl;
 import org.apache.ignite.internal.processors.query.QueryUtils;
 import org.apache.ignite.internal.processors.query.h2.H2Utils;
 import org.apache.ignite.internal.processors.query.h2.IgniteH2Indexing;
 import org.apache.ignite.internal.processors.query.h2.opt.GridH2Table;
+import org.apache.ignite.internal.processors.query.h2.opt.lucene.IndexOptions;
 import org.apache.ignite.internal.processors.query.h2.sql.GridSqlAlterTableAddColumn;
 import org.apache.ignite.internal.processors.query.h2.sql.GridSqlAlterTableDropColumn;
 import org.apache.ignite.internal.processors.query.h2.sql.GridSqlColumn;
@@ -79,9 +85,6 @@ import org.h2.command.ddl.DropTable;
 import org.h2.table.Column;
 import org.h2.value.DataType;
 import org.h2.value.Value;
-
-import static org.apache.ignite.internal.processors.query.h2.IgniteH2Indexing.UPDATE_RESULT_META;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlQueryParser.PARAM_WRAP_VALUE;
 
 /**
  * DDL statements processor.<p>
@@ -118,8 +121,11 @@ public class DdlStatementsProcessor {
         IgniteInternalFuture fut = null;
 
         try {
+            
             isDdlOnSchemaSupported(cmd.schemaName());
 
+            ctx.cache().createMissingQueryCaches();
+            
             if (cmd instanceof SqlCreateIndexCommand) {
                 SqlCreateIndexCommand cmd0 = (SqlCreateIndexCommand)cmd;
 
@@ -135,24 +141,49 @@ public class DdlStatementsProcessor {
                 QueryIndex newIdx = new QueryIndex();
 
                 newIdx.setName(cmd0.indexName());
-
-                newIdx.setIndexType(cmd0.spatial() ? QueryIndexType.GEOSPATIAL : QueryIndexType.SORTED);
-
-                LinkedHashMap<String, Boolean> flds = new LinkedHashMap<>();
-
-                // Let's replace H2's table and property names by those operated by GridQueryProcessor.
-                GridQueryTypeDescriptor typeDesc = tbl.rowDescriptor().type();
-
-                for (SqlIndexColumn col : cmd0.columns()) {
-                    GridQueryProperty prop = typeDesc.property(col.name());
-
-                    if (prop == null)
-                        throw new SchemaOperationException(SchemaOperationException.CODE_COLUMN_NOT_FOUND, col.name());
-
-                    flds.put(prop.name(), !col.descending());
+                
+                QueryTypeDescriptorImpl typeDesc = (QueryTypeDescriptorImpl) tbl.rowDescriptor().type();
+                
+                if (cmd0.columns().isEmpty()){
+                    throw new SchemaOperationException(SchemaOperationException.CODE_GENERIC,"Indexed fields must be provided to create index "+ cmd0.indexName());
+                }
+                
+                if (cmd0.fulltext()){
+                    
+                    newIdx.setLuceneIndexOptions(cmd0.luceneIndexOptions());
+                    newIdx.setIndexType(QueryIndexType.FULLTEXT);
+                    
+                    IndexOptions opts = new IndexOptions(cmd0.luceneIndexOptions());
+                    
+                    //validates columns 
+                    List<String> columns = opts.mappedColumns(typeDesc, true);
+                    
+                    for (String col : columns) {
+                        if (!typeDesc.hasField(QueryUtils.normalizeObjectName(col, true)))
+                            throw new SchemaOperationException(SchemaOperationException.CODE_COLUMN_NOT_FOUND, col);
+                    }
+                    
+                }else{
+                    newIdx.setIndexType(cmd0.spatial() ? QueryIndexType.GEOSPATIAL : QueryIndexType.SORTED);
                 }
 
+                LinkedHashMap<String, Boolean> flds = new LinkedHashMap<>();
+                
+                // Let's replace H2's table and property names by those operated by GridQueryProcessor.
+                for (SqlIndexColumn col : cmd0.columns()) {                
+                    if (!cmd0.fulltext()){
+                        GridQueryProperty prop = typeDesc.property(col.name());  
+                        if (prop == null){
+                            throw new SchemaOperationException(SchemaOperationException.CODE_COLUMN_NOT_FOUND, col.name());
+                        }
+                        flds.put(prop.name(), !col.descending());                        
+                    }else{
+                        flds.put(col.name(), !col.descending());
+                    }
+                }
+                
                 newIdx.setFields(flds);
+                
                 newIdx.setInlineSize(cmd0.inlineSize());
 
                 fut = ctx.query().dynamicIndexCreate(tbl.cacheName(), cmd.schemaName(), typeDesc.tableName(),
@@ -181,12 +212,6 @@ public class DdlStatementsProcessor {
                 SqlAlterTableCommand cmd0 = (SqlAlterTableCommand)cmd;
 
                 GridH2Table tbl = idx.dataTable(cmd0.schemaName(), cmd0.tableName());
-
-                if (tbl == null) {
-                    ctx.cache().createMissingQueryCaches();
-
-                    tbl = idx.dataTable(cmd0.schemaName(), cmd0.tableName());
-                }
 
                 if (tbl == null) {
                     throw new SchemaOperationException(SchemaOperationException.CODE_TABLE_NOT_FOUND,
@@ -265,13 +290,15 @@ public class DdlStatementsProcessor {
         try {
             GridSqlStatement stmt0 = new GridSqlQueryParser(false).parse(prepared);
 
+            ctx.cache().createMissingQueryCaches();
+            
             if (stmt0 instanceof GridSqlCreateIndex) {
                 GridSqlCreateIndex cmd = (GridSqlCreateIndex)stmt0;
 
                 isDdlOnSchemaSupported(cmd.schemaName());
 
                 GridH2Table tbl = idx.dataTable(cmd.schemaName(), cmd.tableName());
-
+                
                 if (tbl == null)
                     throw new SchemaOperationException(SchemaOperationException.CODE_TABLE_NOT_FOUND, cmd.tableName());
 
@@ -287,16 +314,25 @@ public class DdlStatementsProcessor {
 
                 LinkedHashMap<String, Boolean> flds = new LinkedHashMap<>();
 
+                if (cmd.index().getFields() == null){
+                    throw new SchemaOperationException(SchemaOperationException.CODE_GENERIC,"Indexed fields must not be null for create index "+ cmd.index().getName());
+                }
+                
                 // Let's replace H2's table and property names by those operated by GridQueryProcessor.
                 GridQueryTypeDescriptor typeDesc = tbl.rowDescriptor().type();
 
                 for (Map.Entry<String, Boolean> e : cmd.index().getFields().entrySet()) {
                     GridQueryProperty prop = typeDesc.property(e.getKey());
 
-                    if (prop == null)
-                        throw new SchemaOperationException(SchemaOperationException.CODE_COLUMN_NOT_FOUND, e.getKey());
-
-                    flds.put(prop.name(), e.getValue());
+                    if (prop == null){
+                        if (!e.getKey().equalsIgnoreCase(QueryUtils.LUCENE_FIELD_NAME) && !e.getKey().equalsIgnoreCase(QueryUtils.LUCENE_SCORE_DOC)){
+                            throw new SchemaOperationException(SchemaOperationException.CODE_COLUMN_NOT_FOUND, e.getKey());
+                        }else{
+                            flds.put(e.getKey(), e.getValue());
+                        }
+                    }else{
+                        flds.put(prop.name(), e.getValue());
+                    }
                 }
 
                 newIdx.setFields(flds);
@@ -310,7 +346,7 @@ public class DdlStatementsProcessor {
                 isDdlOnSchemaSupported(cmd.schemaName());
 
                 GridH2Table tbl = idx.dataTableForIndex(cmd.schemaName(), cmd.indexName());
-
+                
                 if (tbl != null) {
                     isDdlSupported(tbl);
 
@@ -338,6 +374,12 @@ public class DdlStatementsProcessor {
 
                 GridH2Table tbl = idx.dataTable(cmd.schemaName(), cmd.tableName());
 
+                if (tbl == null && cmd.ifNotExists()) {
+                    ctx.cache().createMissingQueryCaches();
+
+                    tbl = idx.dataTable(cmd.schemaName(), cmd.tableName());
+                }
+                
                 if (tbl != null) {
                     if (!cmd.ifNotExists())
                         throw new SchemaOperationException(SchemaOperationException.CODE_TABLE_EXISTS,
@@ -432,7 +474,7 @@ public class DdlStatementsProcessor {
                         QueryField field = new QueryField(col.columnName(),
                             DataType.getTypeClassName(col.column().getType()),
                             col.column().isNullable(), col.defaultValue(),
-                            col.precision(), col.scale());
+                            col.precision(), col.scale(), false);
 
                         cols.add(field);
 

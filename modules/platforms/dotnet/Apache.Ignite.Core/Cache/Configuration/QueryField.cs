@@ -87,6 +87,7 @@ namespace Apache.Ignite.Core.Cache.Configuration
             DefaultValue = reader.ReadObject<object>();
             Precision = reader.ReadInt();
             Scale = reader.ReadInt();
+            Hidden = reader.ReadBoolean();
         }
 
         /// <summary>
@@ -103,6 +104,7 @@ namespace Apache.Ignite.Core.Cache.Configuration
             writer.WriteObject(DefaultValue);
             writer.WriteInt(Precision);
             writer.WriteInt(Scale);
+            writer.WriteBoolean(Hidden);
         }
 
         /// <summary>
@@ -151,6 +153,11 @@ namespace Apache.Ignite.Core.Cache.Configuration
         /// Gets or sets a value indicating whether null value is allowed for the field.
         /// </summary>
         public bool NotNull { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether field is hidden.
+        /// </summary>
+        public bool Hidden { get; set; }
 
         /// <summary>
         /// Gets or sets the default value for the field.

@@ -72,7 +72,15 @@ public class QueryEntityClassProperty {
      * @return Alias.
      */
     public String alias() {
-        return F.isEmpty(alias) ? name : alias;
+        //here we must control parent to avoid field name duplications so 
+        if (parent == null){
+           return  F.isEmpty(alias) ? name : alias;
+        }
+        if (F.isEmpty(alias)){
+            return fullName().replaceAll("\\.", "_");
+        }else{
+            return parent.fullName().replaceAll("\\.", "_") + '_' + alias;
+        }
     }
 
     /**

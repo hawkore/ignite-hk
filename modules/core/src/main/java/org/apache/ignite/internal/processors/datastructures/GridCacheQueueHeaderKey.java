@@ -21,6 +21,8 @@ import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
+import java.util.UUID;
+
 import org.apache.ignite.internal.processors.cache.GridCacheInternal;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
@@ -33,7 +35,7 @@ public class GridCacheQueueHeaderKey implements Externalizable, GridCacheInterna
     private static final long serialVersionUID = 0L;
 
     /** */
-    private String name;
+    private UUID queueNameUuid;
 
     /**
      * Required by {@link Externalizable}.
@@ -46,24 +48,31 @@ public class GridCacheQueueHeaderKey implements Externalizable, GridCacheInterna
      * @param name Queue name.
      */
     public GridCacheQueueHeaderKey(String name) {
-        this.name = name;
+    	queueNameUuid = UUID.nameUUIDFromBytes(name.getBytes());
     }
-
+    
     /**
-     * @return Queue name.
+     * @param name Queue name.
      */
-    public String queueName() {
-        return name;
+    public GridCacheQueueHeaderKey(UUID queueNameUuid) {
+    	this.queueNameUuid = queueNameUuid;
     }
+    
+	/**
+	 * @return the queueNameUuid
+	 */
+	public UUID getQueueNameUuid() {
+		return queueNameUuid;
+	}
 
-    /** {@inheritDoc} */
+	/** {@inheritDoc} */
     @Override public void writeExternal(ObjectOutput out) throws IOException {
-        U.writeString(out, name);
+    	U.writeUuid(out, queueNameUuid);
     }
 
     /** {@inheritDoc} */
     @Override public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
-        name = U.readString(in);
+    	queueNameUuid = U.readUuid(in);
     }
 
     /** {@inheritDoc} */
@@ -76,12 +85,12 @@ public class GridCacheQueueHeaderKey implements Externalizable, GridCacheInterna
 
         GridCacheQueueHeaderKey queueKey = (GridCacheQueueHeaderKey)o;
 
-        return name.equals(queueKey.name);
+        return queueNameUuid.equals(queueKey.queueNameUuid);
     }
 
     /** {@inheritDoc} */
     @Override public int hashCode() {
-        return name.hashCode();
+        return queueNameUuid.hashCode();
     }
 
     /** {@inheritDoc} */

@@ -51,6 +51,16 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 public @interface QuerySqlFunction {
+    
+    /**
+     * Specifies if the function must be registered on PUBLIC schema
+     *
+     * By default true
+     * 
+     * @return if the function must be registered on PUBLIC schema
+     */
+    boolean onPublicSchema() default true;
+    
     /**
      * Specifies alias for the function to be used form SQL queries.
      * If no alias provided method name will be used.
@@ -59,6 +69,14 @@ public @interface QuerySqlFunction {
      */
     String alias() default "";
 
+    
+    /**
+     * Specifies comments for the function.
+     *
+     * @return comments for function.
+     */
+    String comment() default "";
+    
     /**
      * Specifies if the function is deterministic (result depends only on input parameters).
      * <p>

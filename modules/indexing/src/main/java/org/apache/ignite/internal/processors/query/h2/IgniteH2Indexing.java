@@ -17,6 +17,25 @@
 
 package org.apache.ignite.internal.processors.query.h2;
 
+import static org.apache.ignite.IgniteSystemProperties.IGNITE_H2_DEBUG_CONSOLE;
+import static org.apache.ignite.IgniteSystemProperties.IGNITE_H2_DEBUG_CONSOLE_PORT;
+import static org.apache.ignite.IgniteSystemProperties.IGNITE_H2_INDEXING_CACHE_CLEANUP_PERIOD;
+import static org.apache.ignite.IgniteSystemProperties.IGNITE_H2_INDEXING_CACHE_THREAD_USAGE_TIMEOUT;
+import static org.apache.ignite.IgniteSystemProperties.getInteger;
+import static org.apache.ignite.IgniteSystemProperties.getString;
+import static org.apache.ignite.internal.processors.cache.query.GridCacheQueryType.SQL;
+import static org.apache.ignite.internal.processors.cache.query.GridCacheQueryType.SQL_FIELDS;
+import static org.apache.ignite.internal.processors.cache.query.GridCacheQueryType.TEXT;
+import static org.apache.ignite.internal.processors.query.QueryUtils.KEY_FIELD_NAME;
+import static org.apache.ignite.internal.processors.query.QueryUtils.LUCENE_FIELD_NAME;
+import static org.apache.ignite.internal.processors.query.QueryUtils.LUCENE_SCORE_DOC;
+import static org.apache.ignite.internal.processors.query.QueryUtils.VAL_FIELD_NAME;
+import static org.apache.ignite.internal.processors.query.QueryUtils.VER_FIELD_NAME;
+import static org.apache.ignite.internal.processors.query.h2.opt.DistributedJoinMode.OFF;
+import static org.apache.ignite.internal.processors.query.h2.opt.DistributedJoinMode.distributedJoinMode;
+import static org.apache.ignite.internal.processors.query.h2.opt.GridH2QueryType.LOCAL;
+import static org.apache.ignite.internal.processors.query.h2.opt.GridH2QueryType.PREPARE;
+
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
@@ -44,8 +63,11 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
+
 import javax.cache.Cache;
 import javax.cache.CacheException;
+import javax.validation.constraints.NotNull;
+
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteDataStreamer;
 import org.apache.ignite.IgniteException;
@@ -91,6 +113,7 @@ import org.apache.ignite.internal.processors.query.GridRunningQueryInfo;
 import org.apache.ignite.internal.processors.query.IgniteSQLException;
 import org.apache.ignite.internal.processors.query.QueryField;
 import org.apache.ignite.internal.processors.query.QueryIndexDescriptorImpl;
+import org.apache.ignite.internal.processors.query.QueryTypeDescriptorImpl;
 import org.apache.ignite.internal.processors.query.QueryUtils;
 import org.apache.ignite.internal.processors.query.SqlClientContext;
 import org.apache.ignite.internal.processors.query.h2.database.H2RowFactory;
@@ -114,11 +137,11 @@ import org.apache.ignite.internal.processors.query.h2.sql.GridSqlQueryParser;
 import org.apache.ignite.internal.processors.query.h2.sql.GridSqlQuerySplitter;
 import org.apache.ignite.internal.processors.query.h2.sql.GridSqlStatement;
 import org.apache.ignite.internal.processors.query.h2.sys.SqlSystemTableEngine;
+import org.apache.ignite.internal.processors.query.h2.sys.view.SqlSystemView;
 import org.apache.ignite.internal.processors.query.h2.sys.view.SqlSystemViewNodes;
 import org.apache.ignite.internal.processors.query.h2.twostep.GridMapQueryExecutor;
 import org.apache.ignite.internal.processors.query.h2.twostep.GridReduceQueryExecutor;
 import org.apache.ignite.internal.processors.query.h2.twostep.MapQueryLazyWorker;
-import org.apache.ignite.internal.processors.query.h2.sys.view.SqlSystemView;
 import org.apache.ignite.internal.processors.query.schema.SchemaIndexCacheVisitor;
 import org.apache.ignite.internal.processors.query.schema.SchemaIndexCacheVisitorClosure;
 import org.apache.ignite.internal.processors.query.schema.SchemaIndexCacheVisitorImpl;
@@ -127,14 +150,14 @@ import org.apache.ignite.internal.sql.SqlParseException;
 import org.apache.ignite.internal.sql.SqlParser;
 import org.apache.ignite.internal.sql.SqlStrictParseException;
 import org.apache.ignite.internal.sql.command.SqlAlterTableCommand;
-import org.apache.ignite.internal.sql.command.SqlBulkLoadCommand;
 import org.apache.ignite.internal.sql.command.SqlAlterUserCommand;
+import org.apache.ignite.internal.sql.command.SqlBulkLoadCommand;
 import org.apache.ignite.internal.sql.command.SqlCommand;
 import org.apache.ignite.internal.sql.command.SqlCreateIndexCommand;
 import org.apache.ignite.internal.sql.command.SqlCreateUserCommand;
 import org.apache.ignite.internal.sql.command.SqlDropIndexCommand;
-import org.apache.ignite.internal.sql.command.SqlSetStreamingCommand;
 import org.apache.ignite.internal.sql.command.SqlDropUserCommand;
+import org.apache.ignite.internal.sql.command.SqlSetStreamingCommand;
 import org.apache.ignite.internal.util.GridBoundedConcurrentLinkedHashMap;
 import org.apache.ignite.internal.util.GridEmptyCloseableIterator;
 import org.apache.ignite.internal.util.GridSpinBusyLock;
@@ -168,25 +191,7 @@ import org.h2.server.web.WebServer;
 import org.h2.table.IndexColumn;
 import org.h2.tools.Server;
 import org.h2.util.JdbcUtils;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-
-import static org.apache.ignite.IgniteSystemProperties.IGNITE_H2_DEBUG_CONSOLE;
-import static org.apache.ignite.IgniteSystemProperties.IGNITE_H2_DEBUG_CONSOLE_PORT;
-import static org.apache.ignite.IgniteSystemProperties.IGNITE_H2_INDEXING_CACHE_CLEANUP_PERIOD;
-import static org.apache.ignite.IgniteSystemProperties.IGNITE_H2_INDEXING_CACHE_THREAD_USAGE_TIMEOUT;
-import static org.apache.ignite.IgniteSystemProperties.getInteger;
-import static org.apache.ignite.IgniteSystemProperties.getString;
-import static org.apache.ignite.internal.processors.cache.query.GridCacheQueryType.SQL;
-import static org.apache.ignite.internal.processors.cache.query.GridCacheQueryType.SQL_FIELDS;
-import static org.apache.ignite.internal.processors.cache.query.GridCacheQueryType.TEXT;
-import static org.apache.ignite.internal.processors.query.QueryUtils.KEY_FIELD_NAME;
-import static org.apache.ignite.internal.processors.query.QueryUtils.VAL_FIELD_NAME;
-import static org.apache.ignite.internal.processors.query.QueryUtils.VER_FIELD_NAME;
-import static org.apache.ignite.internal.processors.query.h2.opt.DistributedJoinMode.OFF;
-import static org.apache.ignite.internal.processors.query.h2.opt.DistributedJoinMode.distributedJoinMode;
-import static org.apache.ignite.internal.processors.query.h2.opt.GridH2QueryType.LOCAL;
-import static org.apache.ignite.internal.processors.query.h2.opt.GridH2QueryType.PREPARE;
 
 /**
  * Indexing implementation based on H2 database engine. In this implementation main query language is SQL,
@@ -265,7 +270,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
     private Marshaller marshaller;
 
     /** Collection of schemaNames and registered tables. */
-    private final ConcurrentMap<String, H2Schema> schemas = new ConcurrentHashMap<>();
+    protected final ConcurrentMap<String, H2Schema> schemas = new ConcurrentHashMap<>();
 
     /** */
     private String dbUrl = "jdbc:h2:mem:";
@@ -629,6 +634,31 @@ public class IgniteH2Indexing implements GridQueryIndexing {
     }
 
     /**
+     * @param schema Schema
+     * @param sql SQL statement.
+     * @throws IgniteCheckedException If failed.
+     */
+    public void executePreparedStatement(String schema, String sql, Object... args) throws IgniteCheckedException {
+        PreparedStatement stmt = null;
+
+        try {
+            Connection c = connectionForThread(schema);
+
+            stmt = preparedStatementWithParams(c, sql, args != null ? Arrays.asList(args): null, false);
+            
+            stmt.execute();
+        }
+        catch (SQLException e) {
+            onSqlException();
+
+            throw new IgniteSQLException("Failed to execute statement: " + sql, e);
+        }
+        finally {
+            U.close(stmt, log);
+        }
+    }
+    
+    /**
      * Execute statement on H2 INFORMATION_SCHEMA.
      * @param sql SQL statement.
      */
@@ -705,14 +735,6 @@ public class IgniteH2Indexing implements GridQueryIndexing {
 
         tbl.table().update(row, prevRow, prevRowAvailable);
 
-        if (tbl.luceneIndex() != null) {
-            long expireTime = row.expireTime();
-
-            if (expireTime == 0L)
-                expireTime = Long.MAX_VALUE;
-
-            tbl.luceneIndex().store(row.key(), row.value(), row.version(), expireTime);
-        }
     }
 
     /** {@inheritDoc} */
@@ -732,10 +754,8 @@ public class IgniteH2Indexing implements GridQueryIndexing {
         if (tbl == null)
             return;
 
-        if (tbl.table().remove(row)) {
-            if (tbl.luceneIndex() != null)
-                tbl.luceneIndex().remove(row.key());
-        }
+		tbl.table().remove(row);
+
     }
 
     /**
@@ -783,7 +803,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
      * @param h2Idx User index.
      * @throws IgniteCheckedException If failed.
      */
-    private void addInitialUserIndex(String schemaName, H2TableDescriptor desc, GridH2IndexBase h2Idx)
+    protected void addInitialUserIndex(String schemaName, H2TableDescriptor desc, GridH2IndexBase h2Idx)
         throws IgniteCheckedException {
         GridH2Table h2Tbl = desc.table();
 
@@ -849,6 +869,22 @@ public class IgniteH2Indexing implements GridQueryIndexing {
             throw e;
         }
     }
+	
+    /** {@inheritDoc} */
+    @Override
+    public void dynamicIndexesRebuild(final String schemaName, final String tblName, List<String> indexNames,
+            SchemaIndexCacheVisitor cacheVisitor, boolean async)
+            throws IgniteCheckedException {
+        throw new UnsupportedOperationException();
+    }
+
+    /** {@inheritDoc} */
+    @Override public void dynamicRegisterQueryEntity(String cacheName, String tblName, 
+        QueryTypeDescriptorImpl type, SchemaIndexCacheVisitor cacheVisitor,
+        boolean forceRebuildIndexes, boolean forceMutateQueryEntity, boolean async)
+            throws IgniteCheckedException {        
+        throw new UnsupportedOperationException();
+    }
 
     /** {@inheritDoc} */
     @SuppressWarnings("SynchronizationOnLocalVariableOrMethodParameter")
@@ -908,7 +944,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
      * @param sql SQL.
      * @throws IgniteCheckedException If failed.
      */
-    private void executeSql(String schemaName, String sql) throws IgniteCheckedException {
+    protected void executeSql(String schemaName, String sql) throws IgniteCheckedException {
         try {
             Connection conn = connectionForSchema(schemaName);
 
@@ -963,7 +999,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
             try {
                 runs.put(run.id(), run);
 
-                return tbl.luceneIndex().query(qry.toUpperCase(), filters);
+                return tbl.luceneIndex().query(qry, filters);
             }
             finally {
                 runs.remove(run.id());
@@ -2254,7 +2290,9 @@ public class IgniteH2Indexing implements GridQueryIndexing {
         for (String name : names) {
             if (name.equalsIgnoreCase(KEY_FIELD_NAME) ||
                 name.equalsIgnoreCase(VAL_FIELD_NAME) ||
-                name.equalsIgnoreCase(VER_FIELD_NAME))
+					name.equalsIgnoreCase(VER_FIELD_NAME) ||
+					name.equalsIgnoreCase(LUCENE_FIELD_NAME) ||
+					name.equalsIgnoreCase(LUCENE_SCORE_DOC))
                 throw new IgniteCheckedException(MessageFormat.format(ptrn, name));
         }
     }
@@ -2286,9 +2324,12 @@ public class IgniteH2Indexing implements GridQueryIndexing {
 
         sql.a(',').a(VAL_FIELD_NAME).a(' ').a(valTypeStr).a(keyValVisibility);
         sql.a(',').a(VER_FIELD_NAME).a(" OTHER INVISIBLE");
-
+		sql.a(',').a(LUCENE_FIELD_NAME).a(" VARCHAR INVISIBLE");
+        sql.a(',').a(LUCENE_SCORE_DOC).a(" OTHER INVISIBLE");
+        
         for (Map.Entry<String, Class<?>> e : tbl.type().fields().entrySet())
             sql.a(',').a(H2Utils.withQuotes(e.getKey())).a(' ').a(dbTypeFromClass(e.getValue()))
+            .a(tbl.type().property(e.getKey()).hidden()? " INVISIBLE" : "")
             .a(tbl.type().property(e.getKey()).notNull()? " NOT NULL" : "");
 
         sql.a(')');
@@ -2790,11 +2831,19 @@ public class IgniteH2Indexing implements GridQueryIndexing {
 
                     String alias = ann.alias().isEmpty() ? m.getName() : ann.alias();
 
+                    boolean onPublicSchema = ann.onPublicSchema();
+                    
                     String clause = "CREATE ALIAS IF NOT EXISTS " + alias + (ann.deterministic() ?
                         " DETERMINISTIC FOR \"" :
                         " FOR \"") +
                         cls.getName() + '.' + m.getName() + '"';
 
+                    if (onPublicSchema){
+                        //register function on default schema
+                        executeStatement(QueryUtils.DFLT_SCHEMA, clause);
+                        executeStatement(null, clause);
+                    }
+                    
                     executeStatement(schema, clause);
                 }
             }
@@ -2954,7 +3003,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
     /**
      * Remove all cached queries from cached two-steps queries.
      */
-    private void clearCachedQueries() {
+    protected void clearCachedQueries() {
         twoStepCache.clear();
     }
 

@@ -17,18 +17,21 @@
 
 package org.apache.ignite.internal.processors.datastructures;
 
+import static org.apache.ignite.IgniteSystemProperties.IGNITE_ATOMIC_CACHE_QUEUE_RETRY_TIMEOUT;
+
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+
 import javax.cache.processor.EntryProcessor;
+
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
+import org.apache.ignite.configuration.CollectionConfiguration;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.util.typedef.internal.A;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.jetbrains.annotations.Nullable;
-
-import static org.apache.ignite.IgniteSystemProperties.IGNITE_ATOMIC_CACHE_QUEUE_RETRY_TIMEOUT;
 
 /**
  * {@link org.apache.ignite.IgniteQueue} implementation using atomic cache.
@@ -42,8 +45,8 @@ public class GridAtomicCacheQueueImpl<T> extends GridCacheQueueAdapter<T> {
      * @param hdr Queue header.
      * @param cctx Cache context.
      */
-    public GridAtomicCacheQueueImpl(String queueName, GridCacheQueueHeader hdr, GridCacheContext<?, ?> cctx) {
-        super(queueName, hdr, cctx);
+    public GridAtomicCacheQueueImpl(String queueName, GridCacheQueueHeader hdr, GridCacheContext<?, ?> cctx, CollectionConfiguration colConfig) {
+        super(queueName, hdr, cctx, colConfig);
     }
 
     /** {@inheritDoc} */
@@ -57,9 +60,7 @@ public class GridAtomicCacheQueueImpl<T> extends GridCacheQueueAdapter<T> {
 
             checkRemoved(idx);
 
-            QueueItemKey key = itemKey(idx);
-
-            cache.getAndPut(key, item);
+            queueCache.put(itemKey(idx), item);
 
             return true;
         }
@@ -71,8 +72,19 @@ public class GridAtomicCacheQueueImpl<T> extends GridCacheQueueAdapter<T> {
     /** {@inheritDoc} */
     @SuppressWarnings("unchecked")
     @Nullable @Override public T poll() throws IgniteException {
+
+        GridCacheQueueHeader cHdr = getCurrentHdr(false);
+
+        //avoid over cluster processor polling if queue has no more elements
+        if (cHdr.size()==0){
+            checkRemoved(cHdr);
+            return null;
+        }
+
         try {
+
             while (true) {
+
                 Long idx = transformHeader(new PollProcessor(id));
 
                 if (idx == null)
@@ -82,7 +94,7 @@ public class GridAtomicCacheQueueImpl<T> extends GridCacheQueueAdapter<T> {
 
                 QueueItemKey key = itemKey(idx);
 
-                T data = (T)cache.getAndRemove(key);
+                T data = (T)queueCache.getAndRemove(key);
 
                 if (data != null)
                     return data;
@@ -90,7 +102,7 @@ public class GridAtomicCacheQueueImpl<T> extends GridCacheQueueAdapter<T> {
                 long stop = U.currentTimeMillis() + RETRY_TIMEOUT;
 
                 while (U.currentTimeMillis() < stop) {
-                    data = (T)cache.getAndRemove(key);
+                    data = (T)queueCache.getAndRemove(key);
 
                     if (data != null)
                         return data;
@@ -126,7 +138,7 @@ public class GridAtomicCacheQueueImpl<T> extends GridCacheQueueAdapter<T> {
                 idx++;
             }
 
-            cache.putAll(putMap);
+            queueCache.putAll(putMap);
 
             return true;
         }
@@ -138,20 +150,28 @@ public class GridAtomicCacheQueueImpl<T> extends GridCacheQueueAdapter<T> {
     /** {@inheritDoc} */
     @SuppressWarnings("unchecked")
     @Override protected void removeItem(long rmvIdx) throws IgniteCheckedException {
-        Long idx = (Long)cache.invoke(queueKey, new RemoveProcessor(id, rmvIdx)).get();
+
+        GridCacheQueueHeader cHdr = getCurrentHdr(true);
+        //avoid over cluster processor if queue has no more elements
+        if (cHdr.size()==0){
+            checkRemoved(cHdr);
+            return;
+        }
+
+        Long idx = (Long)queueCache.invoke(queueKey, new RemoveProcessor(id, rmvIdx)).get();
 
         if (idx != null) {
             checkRemoved(idx);
 
             QueueItemKey key = itemKey(idx);
 
-            if (cache.remove(key))
+            if (queueCache.remove(key))
                 return;
 
             long stop = U.currentTimeMillis() + RETRY_TIMEOUT;
 
             while (U.currentTimeMillis() < stop) {
-                if (cache.remove(key))
+                if (queueCache.remove(key))
                     return;
             }
 
@@ -167,6 +187,6 @@ public class GridAtomicCacheQueueImpl<T> extends GridCacheQueueAdapter<T> {
     @SuppressWarnings("unchecked")
     @Nullable private Long transformHeader(EntryProcessor<GridCacheQueueHeaderKey, GridCacheQueueHeader, Long> c)
         throws IgniteCheckedException {
-        return (Long)cache.invoke(queueKey, c).get();
+        return (Long)queueCache.invoke(queueKey, c).get();
     }
 }

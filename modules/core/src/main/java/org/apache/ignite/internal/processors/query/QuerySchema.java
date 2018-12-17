@@ -29,12 +29,15 @@ import java.util.Set;
 import org.apache.ignite.cache.QueryEntity;
 import org.apache.ignite.cache.QueryEntityPatch;
 import org.apache.ignite.cache.QueryIndex;
+import org.apache.ignite.cache.QueryIndexType;
 import org.apache.ignite.internal.processors.query.schema.message.SchemaFinishDiscoveryMessage;
 import org.apache.ignite.internal.processors.query.schema.operation.SchemaAbstractOperation;
 import org.apache.ignite.internal.processors.query.schema.operation.SchemaAlterTableAddColumnOperation;
 import org.apache.ignite.internal.processors.query.schema.operation.SchemaAlterTableDropColumnOperation;
 import org.apache.ignite.internal.processors.query.schema.operation.SchemaIndexCreateOperation;
 import org.apache.ignite.internal.processors.query.schema.operation.SchemaIndexDropOperation;
+import org.apache.ignite.internal.processors.query.schema.operation.SchemaIndexesRebuildOperation;
+import org.apache.ignite.internal.processors.query.schema.operation.SchemaRegisterQueryEntityOperation;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
@@ -45,6 +48,9 @@ public class QuerySchema implements Serializable {
     /** */
     private static final long serialVersionUID = 0L;
 
+    /** Whether schema was created through SQL. */
+    private boolean sql;
+    
     /** Query entities. */
     private final Collection<QueryEntity> entities = new LinkedList<>();
 
@@ -57,6 +63,25 @@ public class QuerySchema implements Serializable {
     public QuerySchema() {
         // No-op.
     }
+    
+    /**
+     * @return the sql
+     */
+    public boolean isSql() {
+        return sql;
+    }
+
+    /**
+     * @param sql the sql to set
+     * 
+     * @return this for chaining
+     */
+    public QuerySchema setSql(boolean sql) {
+        this.sql = sql;
+        return this;
+    }
+
+
 
     /**
      * Constructor.
@@ -82,6 +107,8 @@ public class QuerySchema implements Serializable {
             for (QueryEntity qryEntity : entities)
                 res.entities.add(QueryUtils.copy(qryEntity));
 
+            res.setSql(sql);
+            
             return res;
         }
     }
@@ -90,10 +117,12 @@ public class QuerySchema implements Serializable {
      * Make query schema patch.
      *
      * @param target Query entity list to which current schema should be expanded.
+     * @param forceMutateQueryEntity
+     *            If drop-mutation is allowed
      * @return Patch to achieve entity which is a result of merging current one and target.
      * @see QuerySchemaPatch
      */
-    public QuerySchemaPatch makePatch(Collection<QueryEntity> target) {
+    public QuerySchemaPatch makePatch(Collection<QueryEntity> target, boolean forceMutateQueryEntity) {
         synchronized (mux) {
             Map<String, QueryEntity> localEntities = new HashMap<>();
 
@@ -111,7 +140,7 @@ public class QuerySchema implements Serializable {
                 if (localEntities.containsKey(queryEntity.getTableName())) {
                     QueryEntity localEntity = localEntities.get(queryEntity.getTableName());
 
-                    QueryEntityPatch entityPatch = localEntity.makePatch(queryEntity);
+                    QueryEntityPatch entityPatch = localEntity.makePatch(queryEntity, forceMutateQueryEntity, false);
 
                     if (entityPatch.hasConflict()) {
                         if (conflicts.length() > 0)
@@ -191,8 +220,13 @@ public class QuerySchema implements Serializable {
                         if (!exists) {
                             List<QueryIndex> idxs = new ArrayList<>(entity.getIndexes());
 
+                            //set at top level and add as index
+                            if (op0.index().getIndexType() == QueryIndexType.FULLTEXT){
+                                entity.setLuceneIndexOptions(op0.index().getLuceneIndexOptions());
+                            }
+                            
                             idxs.add(op0.index());
-
+                                                        
                             entity.setIndexes(idxs);
                         }
 
@@ -226,8 +260,24 @@ public class QuerySchema implements Serializable {
                         break;
                     }
                 }
-            }
-            else if (op instanceof SchemaAlterTableAddColumnOperation) {
+           } else if (op instanceof SchemaRegisterQueryEntityOperation) {
+               
+            	SchemaRegisterQueryEntityOperation op0 = (SchemaRegisterQueryEntityOperation)op;
+            	String tableName =  op0.queryEntity().getTableName();
+            	
+            	//replace modified QueryEntity
+                for (QueryEntity entity : entities) {
+                	 String tblName = entity.getTableName();
+                	 if (F.eq(tblName, tableName)) {
+                		 entities.remove(entity);
+                		 break;
+                     }
+                }
+                entities.add(op0.queryEntity());
+                
+           } else if (op instanceof SchemaIndexesRebuildOperation) {
+               //nop
+           } else if (op instanceof SchemaAlterTableAddColumnOperation) {
                 SchemaAlterTableAddColumnOperation op0 = (SchemaAlterTableAddColumnOperation)op;
 
                 int targetIdx = -1;

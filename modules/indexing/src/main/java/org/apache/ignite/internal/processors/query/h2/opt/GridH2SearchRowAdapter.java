@@ -32,32 +32,12 @@ public abstract class GridH2SearchRowAdapter implements Row {
     }
 
     /** {@inheritDoc} */
-    @Override public int getVersion() {
-        throw new UnsupportedOperationException();
-    }
-
-    /** {@inheritDoc} */
-    @Override public void setKey(long key) {
-        // No-op, may be set in H2 INFORMATION_SCHEMA.
-    }
-
-    /** {@inheritDoc} */
-    @Override public long getKey() {
-        throw new UnsupportedOperationException();
-    }
-
-    /** {@inheritDoc} */
     @Override public int getMemory() {
         throw new UnsupportedOperationException();
     }
 
     /** {@inheritDoc} */
     @Override public Row getCopy() {
-        throw new UnsupportedOperationException();
-    }
-
-    /** {@inheritDoc} */
-    @Override public void setVersion(int version) {
         throw new UnsupportedOperationException();
     }
 
@@ -72,32 +52,40 @@ public abstract class GridH2SearchRowAdapter implements Row {
     }
 
     /** {@inheritDoc} */
-    @Override public void setDeleted(boolean deleted) {
-        throw new UnsupportedOperationException();
-    }
-
-    /** {@inheritDoc} */
-    @Override public void setSessionId(int sessionId) {
-        throw new UnsupportedOperationException();
-    }
-
-    /** {@inheritDoc} */
-    @Override public int getSessionId() {
-        throw new UnsupportedOperationException();
-    }
-
-    /** {@inheritDoc} */
-    @Override public void commit() {
-        // No-op.
-    }
-
-    /** {@inheritDoc} */
-    @Override public boolean isDeleted() {
-        throw new UnsupportedOperationException();
-    }
-
-    /** {@inheritDoc} */
     @Override public Value[] getValueList() {
         throw new UnsupportedOperationException();
     }
+    
+    //hack to allow add row to org.h2.table.RegularTable - register h2 spatial functions
+	private long k;
+	private int version;
+	private boolean deleted;
+	private int sessionId;
+	public int getVersion() {
+		return this.version;
+	}
+	public void setVersion(int paramInt) {
+		this.version = paramInt;
+	}
+	public long getKey() {
+		return this.k;
+	}
+	public void setKey(long paramLong) {
+		this.k = paramLong;
+	}
+	public void setDeleted(boolean paramBoolean) {
+		this.deleted = paramBoolean;
+	}
+	public void setSessionId(int paramInt) {
+		this.sessionId = paramInt;
+	}
+	public int getSessionId() {
+		return this.sessionId;
+	}
+	public void commit() {
+		this.sessionId = 0;
+	}
+	public boolean isDeleted() {
+		return this.deleted;
+	}
 }

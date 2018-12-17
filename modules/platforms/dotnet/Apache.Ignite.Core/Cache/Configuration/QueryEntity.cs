@@ -174,6 +174,11 @@ namespace Apache.Ignite.Core.Cache.Configuration
         public string TableName { get; set; }
 
         /// <summary>
+        /// Gets or sets the index lucene index options.
+        /// </summary>
+        public string LuceneIndexOptions { get; set; }
+
+        /// <summary>
         /// Gets or sets query fields, a map from field name to Java type name. 
         /// The order of fields defines the order of columns returned by the 'select *' queries.
         /// </summary>
@@ -251,6 +256,8 @@ namespace Apache.Ignite.Core.Cache.Configuration
 
             count = reader.ReadInt();
             Indexes = count == 0 ? null : Enumerable.Range(0, count).Select(x => new QueryIndex(reader)).ToList();
+
+            LuceneIndexOptions = reader.ReadString();
         }
 
         /// <summary>
@@ -304,6 +311,8 @@ namespace Apache.Ignite.Core.Cache.Configuration
             }
             else
                 writer.WriteInt(0);
+
+           writer.WriteString(LuceneIndexOptions);
         }
 
         /// <summary>
@@ -460,7 +469,8 @@ namespace Apache.Ignite.Core.Cache.Configuration
                         NotNull = attr.NotNull,
                         DefaultValue = attr.DefaultValue,
                         Precision = attr.Precision,
-                        Scale = attr.Scale
+                        Scale = attr.Scale,
+                        Hidden = attr.Hiden
                     });
 
                     ScanAttributes(memberInfo.Value, fields, indexes, columnName, visitedTypes, isKey);

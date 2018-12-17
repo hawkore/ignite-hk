@@ -2554,9 +2554,9 @@ public class GridCacheProcessor extends GridProcessorAdapter {
                 if (localDesc == null)
                     continue;
 
-                QuerySchemaPatch schemaPatch = localDesc.makeSchemaPatch(cacheInfo.cacheData().queryEntities());
+                QuerySchemaPatch schemaPatch = localDesc.makeSchemaPatch(cacheInfo.cacheData().queryEntities(), false);
 
-                if (schemaPatch.hasConflicts() || (isGridActive && !schemaPatch.isEmpty())) {
+                if (schemaPatch.hasConflicts()){
                     if (errorMessage.length() > 0)
                         errorMessage.append("\n");
 
@@ -2990,11 +2990,26 @@ public class GridCacheProcessor extends GridProcessorAdapter {
         boolean checkThreadTx
     ) {
         assert cacheName != null;
-
+        
         if (checkThreadTx)
             checkEmptyTransactions();
 
         try {
+        	
+        	//THIS IS IMPORTANT
+        	//CACHE CREATION WITHOUT THIS CHECK AND PERSISTENCE ENABLED BLOCK CLUSTER ACTIVATION
+        	
+        	//SEE onGridDataReceived(GridDiscoveryData)
+        	//ClusterCachesInfo.processCacheChangeRequests(ExchangeActions, Collection<DynamicCacheChangeRequest>, AffinityTopologyVersion, boolean)
+        	//ClusterCachesInfo.processJoiningNode(CacheJoinNodeDiscoveryData, UUID, boolean)
+        	//ClusterCachesInfo.onStateChangeRequest
+        	if (ccfg!=null){
+	            String conflictErr = cachesInfo.checkStartCacheConflict(ccfg);
+	            if (conflictErr != null) {
+	                U.warn(log, "Ignore cache creation request. " + conflictErr);
+	                throw new IgniteCheckedException("Failed to create cache. " + conflictErr);
+	            }
+        	}
             DynamicCacheChangeRequest req = prepareCacheChangeRequest(
                 ccfg,
                 cacheName,
@@ -4481,7 +4496,7 @@ public class GridCacheProcessor extends GridProcessorAdapter {
 
                     req.deploymentId(desc.deploymentId());
                     req.startCacheConfiguration(descCfg);
-                    req.schema(desc.schema());
+                    req.schema(desc.schema().setSql(sql));
                 }
             }
             else {
@@ -4495,7 +4510,7 @@ public class GridCacheProcessor extends GridProcessorAdapter {
 
                 req.startCacheConfiguration(cfg);
                 req.schema(new QuerySchema(qryEntities != null ? QueryUtils.normalizeQueryEntities(qryEntities, cfg)
-                    : cfg.getQueryEntities()));
+                    : cfg.getQueryEntities()).setSql(sql));
             }
         }
         else {

@@ -31,6 +31,7 @@ import org.apache.ignite.binary.BinaryType;
 import org.apache.ignite.internal.binary.builder.BinaryObjectBuilderImpl;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.SB;
+import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteUuid;
 import org.jetbrains.annotations.Nullable;
 
@@ -296,7 +297,7 @@ public abstract class BinaryObjectExImpl implements BinaryObjectEx {
         else if (val instanceof Iterable) {
             Iterable<Object> col = (Iterable<Object>)val;
 
-            buf.a(col.getClass().getSimpleName()).a(" {");
+            buf.a(U.getSimpleClassName(col.getClass())).a(" {");
 
             Iterator it = col.iterator();
 
@@ -314,7 +315,7 @@ public abstract class BinaryObjectExImpl implements BinaryObjectEx {
         else if (val instanceof Map) {
             Map<Object, Object> map = (Map<Object, Object>)val;
 
-            buf.a(map.getClass().getSimpleName()).a(" {");
+            buf.a(U.getSimpleClassName(map.getClass())).a(" {");
 
             Iterator<Map.Entry<Object, Object>> it = map.entrySet().iterator();
 

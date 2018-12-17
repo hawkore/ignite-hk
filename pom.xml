@@ -32,7 +32,7 @@
 
     <groupId>org.apache.ignite</groupId>
     <artifactId>apache-ignite</artifactId>
-    <version>2.7.0-SNAPSHOT</version>
+    <version>2.6.1-hk-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <properties>
@@ -41,15 +41,16 @@
     </properties>
 
     <scm>
-        <url>https://git-wip-us.apache.org/repos/asf/ignite</url>
-        <connection>scm:git:https://git-wip-us.apache.org/repos/asf/ignite</connection>
-        <developerConnection>scm:git:https://git-wip-us.apache.org/repos/asf/ignite</developerConnection>
+        <url>https://github.com/hawkore/ignite-hk.git</url>
+        <connection>scm:git:https://github.com/hawkore/ignite-hk.git</connection>
+        <developerConnection>scm:git:https://github.com/hawkore/ignite-hk.git</developerConnection>
         <tag>HEAD</tag>
     </scm>
 
     <modules>
         <module>modules/apache-license-gen</module>
         <module>modules/tools</module>
+        <module>modules/hk-lucene-builder</module>        
         <module>modules/core</module>
         <module>modules/dev-utils</module>
         <module>modules/direct-io</module>
@@ -412,6 +413,7 @@
                                                 <exclude name="**/missing" />
                                             </zipfileset>
                                         </zip>
+                                        <attachartifact file="${basedir}/target/bin/${ignite.zip.pattern}.zip" type="zip" classifier="bin"/>
                                     </target>
                                 </configuration>
                             </execution>
@@ -504,13 +506,13 @@
                             </execution>
                         </executions>
                     </plugin>
-
+		            <plugin>
+		                <groupId>org.apache.maven.plugins</groupId>
+		                <artifactId>maven-install-plugin</artifactId>
+		            </plugin>            
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-deploy-plugin</artifactId>
-                        <configuration>
-                            <skip>true</skip>
-                        </configuration>
                     </plugin>
                 </plugins>
             </build>
@@ -784,10 +786,11 @@
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-install-plugin</artifactId>
+            </plugin>            
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-deploy-plugin</artifactId>
-                <configuration>
-                    <skip>true</skip>
-                </configuration>
             </plugin>
         </plugins>
     </build>

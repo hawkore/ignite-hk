@@ -39,6 +39,7 @@ public class GridNioAsyncNotifyFilter extends GridNioFilterAdapter {
     /** Ignite instance name. */
     private String igniteInstanceName;
 
+    private static final String className = GridNioAsyncNotifyFilter.class.getSimpleName();
     /**
      * Assigns filter name to a filter.
      *
@@ -47,7 +48,8 @@ public class GridNioAsyncNotifyFilter extends GridNioFilterAdapter {
      * @param log Logger.
      */
     public GridNioAsyncNotifyFilter(String igniteInstanceName, Executor exec, IgniteLogger log) {
-        super(GridNioAsyncNotifyFilter.class.getSimpleName());
+        
+    	super(className);
 
         this.igniteInstanceName = igniteInstanceName;
         this.log = log;

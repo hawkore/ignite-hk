@@ -2272,7 +2272,7 @@ public class GridNioServer<T> {
                                 Object msg = req.message();
 
                                 if (shortInfo && msg instanceof GridIoMessage)
-                                    msg = ((GridIoMessage)msg).message().getClass().getSimpleName();
+                                    msg = U.getSimpleClassName(((GridIoMessage)msg).message().getClass());
 
                                 sb.append(msg);
 
@@ -2316,7 +2316,7 @@ public class GridNioServer<T> {
                         Object msg = req.message();
 
                         if (shortInfo && msg instanceof GridIoMessage)
-                            msg = ((GridIoMessage)msg).message().getClass().getSimpleName();
+                            msg = U.getSimpleClassName(((GridIoMessage)msg).message().getClass());
 
                         if (cnt == 0)
                             sb.append(",\n opQueue=[").append(msg);

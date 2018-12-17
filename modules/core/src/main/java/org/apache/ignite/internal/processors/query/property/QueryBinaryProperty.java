@@ -77,6 +77,9 @@ public class QueryBinaryProperty implements GridQueryProperty {
     /** */
     private final int scale;
 
+    /** */
+    private final boolean hidden;
+    
     /**
      * Constructor.
      *
@@ -90,10 +93,11 @@ public class QueryBinaryProperty implements GridQueryProperty {
      * @param defaultValue Default value.
      * @param precision Precision.
      * @param scale Scale.
+     * @param hidden hidden.
      */
     public QueryBinaryProperty(GridKernalContext ctx, String propName, QueryBinaryProperty parent,
         Class<?> type, @Nullable Boolean key, String alias, boolean notNull, Object defaultValue,
-        int precision, int scale) {
+        int precision, int scale, boolean hidden) {
         this.ctx = ctx;
 
         log = ctx.log(QueryBinaryProperty.class);
@@ -110,6 +114,7 @@ public class QueryBinaryProperty implements GridQueryProperty {
         this.defaultValue = defaultValue;
         this.precision = precision;
         this.scale = scale;
+        this.hidden = hidden;
     }
 
     /** {@inheritDoc} */
@@ -306,5 +311,11 @@ public class QueryBinaryProperty implements GridQueryProperty {
     /** {@inheritDoc} */
     @Override public int scale() {
         return scale;
+    }
+    
+    /** {@inheritDoc} */
+    @Override
+    public boolean hidden() {
+        return this.hidden;
     }
 }

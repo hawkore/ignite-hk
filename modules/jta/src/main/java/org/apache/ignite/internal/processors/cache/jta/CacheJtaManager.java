@@ -23,6 +23,8 @@ import javax.transaction.RollbackException;
 import javax.transaction.SystemException;
 import javax.transaction.Transaction;
 import javax.transaction.TransactionManager;
+import javax.transaction.xa.XAResource;
+
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.cache.jta.CacheTmLookup;
 import org.apache.ignite.configuration.CacheConfiguration;
@@ -220,4 +222,9 @@ public class CacheJtaManager extends CacheJtaManagerAdapter {
     @Nullable @Override public Object tmLookup() {
         return tmLookupRef.get();
     }
+    
+    @Override
+	public XAResource getXaResource() {
+		return rsrc.get();
+	}
 }

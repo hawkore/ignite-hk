@@ -40,9 +40,9 @@ public class CollocatedQueueItemKey implements QueueItemKey {
      * @param queueName Queue name.
      * @param idx Item index.
      */
-    public CollocatedQueueItemKey(IgniteUuid queueId, String queueName, long idx) {
+    public CollocatedQueueItemKey(IgniteUuid queueId, int queueNameHash, long idx) {
         this.queueId = queueId;
-        this.queueNameHash = queueName.hashCode();
+        this.queueNameHash = queueNameHash;
         this.idx = idx;
     }
 

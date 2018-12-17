@@ -19,6 +19,8 @@ package org.apache.ignite.internal.processors.query.h2.opt;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.util.zip.Checksum;
+
 import org.apache.ignite.internal.util.offheap.unsafe.GridUnsafeMemory;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IndexInput;
@@ -187,12 +189,11 @@ public class GridLuceneInputStream extends IndexInput implements Cloneable {
     public IndexInput slice(final String sliceDescription, final long offset, final long length) throws IOException {
         if (offset < 0 || length < 0 || offset + length > this.length)
             throw new IllegalArgumentException("slice() " + sliceDescription + " out of bounds: " + this);
-
-        final String newResourceDescription = (sliceDescription == null) ? toString() : (toString() + " [slice=" + sliceDescription + "]");
-
-        return new SlicedInputStream(newResourceDescription, offset, length);
+        
+        return new SlicedInputStream(getFullSliceDescription(sliceDescription), offset, length);
     }
-
+    
+    
     /**
      * For direct calls from {@link GridLuceneOutputStream}.
      *
@@ -200,7 +201,7 @@ public class GridLuceneInputStream extends IndexInput implements Cloneable {
      * @param len Length.
      * @throws IOException If failed.
      */
-    void readBytes(long ptr, int len) throws IOException {
+    void readBytes(long ptr, int len, Checksum crc) throws IOException {
         while (len > 0) {
             if (bufPosition >= bufLength) {
                 currBufIdx++;
@@ -212,7 +213,12 @@ public class GridLuceneInputStream extends IndexInput implements Cloneable {
             int bytesToCp = len < remainInBuf ? len : remainInBuf;
 
             mem.copyMemory(currBuf + bufPosition, ptr, bytesToCp);
-
+            
+            //crc must be updated
+            byte[] buff = new byte[bytesToCp];
+            mem.readBytes(currBuf + bufPosition, buff, 0, bytesToCp);
+            crc.update(buff, 0, bytesToCp);
+            
             ptr += bytesToCp;
             len -= bytesToCp;
 

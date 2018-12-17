@@ -352,12 +352,14 @@ public class DynamicCacheDescriptor {
      * Make schema patch for this cache.
      *
      * @param target Query entity list which current schema should be expanded to.
+     * @param forceMutateQueryEntity
+     *            If drop-mutation is allowed
      * @return Patch which contains operations for expanding schema of this cache.
      * @see QuerySchemaPatch
      */
-    public QuerySchemaPatch makeSchemaPatch(Collection<QueryEntity> target) {
+    public QuerySchemaPatch makeSchemaPatch(Collection<QueryEntity> target, boolean forceMutateQueryEntity) {
         synchronized (schemaMux) {
-            return schema.makePatch(target);
+            return schema.makePatch(target, forceMutateQueryEntity);
         }
     }
 

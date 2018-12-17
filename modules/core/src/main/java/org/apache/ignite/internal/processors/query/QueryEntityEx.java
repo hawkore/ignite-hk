@@ -26,7 +26,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Extended query entity with not-null fields support.
+ * Extended query entity with not-null and hidden fields support.
  */
 public class QueryEntityEx extends QueryEntity {
     /** */
@@ -35,6 +35,9 @@ public class QueryEntityEx extends QueryEntity {
     /** Fields that must have non-null value. */
     private Set<String> notNullFields;
 
+    /** Fields that must be inivisible in H2 table. */
+    private Set<String> hiddenFields;
+    
     /**
      * Default constructor.
      */
@@ -54,6 +57,8 @@ public class QueryEntityEx extends QueryEntity {
             QueryEntityEx other0 = (QueryEntityEx)other;
 
             notNullFields = other0.notNullFields != null ? new HashSet<>(other0.notNullFields) : null;
+            
+            hiddenFields = other0.hiddenFields != null ? new HashSet<>(other0.hiddenFields) : null;
         }
     }
 
@@ -68,6 +73,18 @@ public class QueryEntityEx extends QueryEntity {
 
         return this;
     }
+    
+    /** {@inheritDoc} */
+    @Override @Nullable public Set<String> getHiddenFields() {
+        return hiddenFields;
+    }
+
+    /** {@inheritDoc} */
+    @Override public QueryEntity setHiddenFields(Set<String> hiddenFields) {
+        this.hiddenFields = hiddenFields;
+        return this;
+    }
+    
 
     /** {@inheritDoc} */
     @Override public boolean equals(Object o) {

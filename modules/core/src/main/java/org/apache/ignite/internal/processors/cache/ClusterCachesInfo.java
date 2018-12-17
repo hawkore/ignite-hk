@@ -1111,12 +1111,12 @@ class ClusterCachesInfo {
                 cacheData.staticallyConfigured(),
                 cacheData.sql(),
                 cacheData.deploymentId(),
-                new QuerySchema(cacheData.schema().entities())
+                new QuerySchema(cacheData.schema().entities()).setSql(cacheData.sql())
             );
 
             Collection<QueryEntity> localQueryEntities = getLocalQueryEntities(cfg.getName());
 
-            QuerySchemaPatch schemaPatch = desc.makeSchemaPatch(localQueryEntities);
+            QuerySchemaPatch schemaPatch = desc.makeSchemaPatch(localQueryEntities, false);
 
             if (schemaPatch.hasConflicts()) {
                 hasSchemaPatchConflict = true;
@@ -1156,7 +1156,7 @@ class ClusterCachesInfo {
             boolean isClusterActive = ctx.state().clusterState().active();
 
             //Merge of config for cluster only for inactive grid.
-            if (!isClusterActive && !patchesToApply.isEmpty()) {
+            if (!patchesToApply.isEmpty()) {
                 for (Map.Entry<DynamicCacheDescriptor, QuerySchemaPatch> entry : patchesToApply.entrySet()) {
                     if (entry.getKey().applySchemaPatch(entry.getValue()))
                         saveCacheConfiguration(entry.getKey());
@@ -1420,7 +1420,7 @@ class ClusterCachesInfo {
                         req.deploymentId(deploymentId);
                         req.startCacheConfiguration(ccfg);
                         req.cacheType(ctx.cache().cacheType(ccfg.getName()));
-                        req.schema(new QuerySchema(storedCfg.queryEntities()));
+                        req.schema(new QuerySchema(storedCfg.queryEntities()).setSql(storedCfg.sql()));
                         req.sql(storedCfg.sql());
 
                         reqs.add(req);
@@ -1506,6 +1506,19 @@ class ClusterCachesInfo {
         }
     }
 
+    
+    public String checkStartCacheConflict(CacheConfiguration<?, ?> cfg) {
+
+    	if (cfg.getName().equals(cfg.getGroupName()))
+            return "Cache name must not be equals to cache group name (change cache name or group name) [cacheName=" + cfg.getName() +
+                    ", groupName=" + cfg.getGroupName() + ']';
+        
+        if (cacheGroupByName(cfg.getName()) != null)
+            return "Cache name conflict with existing cache group (change cache name) [cacheName=" + cfg.getName() + ']';
+        
+        return null;
+    }
+    
     /**
      * Checks cache configuration on conflict with already registered caches and cache groups.
      *
@@ -1515,6 +1528,10 @@ class ClusterCachesInfo {
     private String checkCacheConflict(CacheConfiguration<?, ?> cfg) {
         int cacheId = CU.cacheId(cfg.getName());
 
+        if (cfg.getName().equals(cfg.getGroupName()))
+            return "Cache name must not be equals to cache group name (change cache name or group name) [cacheName=" + cfg.getName() +
+                    ", groupName=" + cfg.getGroupName() + ']';
+        
         if (cacheGroupByName(cfg.getName()) != null)
             return "Cache name conflict with existing cache group (change cache name) [cacheName=" + cfg.getName() + ']';
 
@@ -1588,10 +1605,10 @@ class ClusterCachesInfo {
 
                 registerNewCache(joinData, nodeId, cacheInfo);
             }
-            else if (!active && isMergeConfigSupport) {
+            else if (isMergeConfigSupport) {
                 DynamicCacheDescriptor desc = registeredCaches.get(cfg.getName());
 
-                QuerySchemaPatch schemaPatch = desc.makeSchemaPatch(cacheInfo.cacheData().queryEntities());
+                QuerySchemaPatch schemaPatch = desc.makeSchemaPatch(cacheInfo.cacheData().queryEntities(), false);
 
                 if (schemaPatch.hasConflicts()) {
                     hasSchemaPatchConflict = true;
@@ -1660,7 +1677,7 @@ class ClusterCachesInfo {
             cacheInfo.isStaticallyConfigured(),
             cacheInfo.sql(),
             joinData.cacheDeploymentId(),
-            new QuerySchema(cacheInfo.cacheData().queryEntities()));
+            new QuerySchema(cacheInfo.cacheData().queryEntities()).setSql(cacheInfo.sql()));
 
         DynamicCacheDescriptor old = registeredCaches.put(cfg.getName(), desc);
 
@@ -1687,7 +1704,7 @@ class ClusterCachesInfo {
                     true,
                     false,
                     joinData.cacheDeploymentId(),
-                    new QuerySchema(cacheInfo.cacheData().queryEntities()));
+                    new QuerySchema(cacheInfo.cacheData().queryEntities()).setSql(cacheInfo.sql()));
 
                 DynamicCacheDescriptor old = registeredTemplates.put(cfg.getName(), desc);
 

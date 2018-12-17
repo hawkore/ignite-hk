@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.cache.QueryIndexType;
 import org.apache.ignite.internal.processors.cache.query.IgniteQueryErrorCode;
@@ -32,6 +33,7 @@ import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.A;
 import org.apache.ignite.internal.util.typedef.internal.S;
+import org.hawkore.ignite.lucene.builder.index.Index;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -85,9 +87,6 @@ public class QueryTypeDescriptorImpl implements GridQueryTypeDescriptor {
 
     /** */
     private String valTypeName;
-
-    /** */
-    private boolean valTextIdx;
 
     /** */
     private int typeId;
@@ -277,6 +276,9 @@ public class QueryTypeDescriptorImpl implements GridQueryTypeDescriptor {
     public void dropIndex(String idxName) {
         synchronized (idxMux) {
             idxs.remove(idxName);
+            if (fullTextIdx != null && fullTextIdx.name().equalsIgnoreCase(idxName)){
+                fullTextIdx = null;
+            }
         }
     }
 
@@ -287,9 +289,18 @@ public class QueryTypeDescriptorImpl implements GridQueryTypeDescriptor {
      * @return {@code True} if exists.
      */
     public boolean hasField(String field) {
-        return props.containsKey(field) || QueryUtils.VAL_FIELD_NAME.equalsIgnoreCase(field);
+        return property(field) != null || QueryUtils.KEY_FIELD_NAME.equalsIgnoreCase(field) || QueryUtils.VAL_FIELD_NAME.equalsIgnoreCase(field) || QueryUtils.LUCENE_SCORE_DOC.equalsIgnoreCase(field) || QueryUtils.LUCENE_FIELD_NAME.equalsIgnoreCase(field);
     }
 
+    /**
+     * Create Text index
+     * @throws IgniteCheckedException
+     */
+    public void createTextIndex() {
+        if (fullTextIdx == null)
+            fullTextIdx = new QueryIndexDescriptorImpl(this, (this.tblName+Index.LUCENE_INDEX_NAME_SUFIX).toUpperCase(), QueryIndexType.FULLTEXT, 0);
+    }
+    
     /**
      * Adds field to text index.
      *
@@ -298,7 +309,7 @@ public class QueryTypeDescriptorImpl implements GridQueryTypeDescriptor {
      */
     public void addFieldToTextIndex(String field) throws IgniteCheckedException {
         if (fullTextIdx == null)
-            fullTextIdx = new QueryIndexDescriptorImpl(this, null, QueryIndexType.FULLTEXT, 0);
+            createTextIndex();
 
         fullTextIdx.addField(field, 0, false);
     }
@@ -389,7 +400,6 @@ public class QueryTypeDescriptorImpl implements GridQueryTypeDescriptor {
 
             propsWithDefaultValue.add(prop);
         }
-
         fields.put(name, prop.type());
     }
 
@@ -419,19 +429,6 @@ public class QueryTypeDescriptorImpl implements GridQueryTypeDescriptor {
         this.schemaName = schemaName;
     }
 
-    /** {@inheritDoc} */
-    @Override public boolean valueTextIndex() {
-        return valTextIdx;
-    }
-
-    /**
-     * Sets if this value should be text indexed.
-     *
-     * @param valTextIdx Flag value.
-     */
-    public void valueTextIndex(boolean valTextIdx) {
-        this.valTextIdx = valTextIdx;
-    }
 
     /** {@inheritDoc} */
     @Override public String affinityKey() {
@@ -514,6 +511,22 @@ public class QueryTypeDescriptorImpl implements GridQueryTypeDescriptor {
         return valFieldName != null ? aliases.get(valFieldName) : null;
     }
 
+    /** {@inheritDoc} */
+    @Override
+    public String luceneIndexOptions() {
+        return this.textIndex() == null ? null : this.textIndex().luceneIndexOptions(); 
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void setLuceneIndexOptions(String luceneIndexOptions) {
+        if (luceneIndexOptions != null){
+            createTextIndex();
+            this.textIndex().setLuceneIndexOptions(luceneIndexOptions);
+        }
+    }
+    
     /** {@inheritDoc} */
     @SuppressWarnings("ForLoopReplaceableByForEach")
     @Override public void validateKeyAndValue(Object key, Object val) throws IgniteCheckedException {

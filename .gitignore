@@ -98,3 +98,10 @@ packages
 
 #Files related to ML manual-runnable tests
 /modules/ml/src/test/resources/manualrun/trees/columntrees.manualrun.properties
+
+# OTHER TEMPORAL FILES
+##################################
+dependency-reduced-pom.xml
+pom-installed_*.xml
+.factorypath
+.apt_generated

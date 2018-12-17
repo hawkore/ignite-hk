@@ -407,7 +407,7 @@ class TcpClientCache<K, V> implements ClientCache<K, V> {
         QueryCursor<R> res;
 
         if (qry instanceof ScanQuery)
-            res = scanQuery((ScanQuery)qry);
+            res = (QueryCursor<R>) scanQuery((ScanQuery)qry);
         else if (qry instanceof SqlQuery)
             res = (QueryCursor<R>)sqlQuery((SqlQuery)qry);
         else if (qry instanceof SqlFieldsQuery)

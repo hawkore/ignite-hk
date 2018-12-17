@@ -22,8 +22,8 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Objects;
 
-import org.apache.ignite.cache.query.annotations.QueryGroupIndex;
 import org.apache.ignite.configuration.CacheConfiguration;
+import org.apache.ignite.internal.processors.query.h2.opt.lucene.IndexOptions;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -51,6 +51,11 @@ public class QueryIndex implements Serializable {
     @GridToStringInclude
     private LinkedHashMap<String, Boolean> fields;
 
+    /** lucene index options */
+    @GridToStringInclude
+    private String luceneIndexOptions;
+    
+    
     /** */
     private QueryIndexType type = DFLT_IDX_TYP;
 
@@ -297,6 +302,27 @@ public class QueryIndex implements Serializable {
         return this;
     }
 
+    /**
+     * @return the luceneIndexConfig
+     */
+    public String getLuceneIndexOptions() {
+        return luceneIndexOptions;
+    }
+
+    /**
+     * @param luceneIndexOptions the luceneIndexConfig to set
+     * @return {@code this} for chaining.
+     */
+    public QueryIndex setLuceneIndexOptions(String luceneIndexOptions) {
+        if (luceneIndexOptions != null){
+            //just validate
+            new IndexOptions(luceneIndexOptions);
+        }
+        this.luceneIndexOptions = luceneIndexOptions;
+        return this;
+    }
+    
+    
     /** {@inheritDoc} */
     @Override public boolean equals(Object o) {
         if (this == o)
@@ -310,12 +336,13 @@ public class QueryIndex implements Serializable {
         return inlineSize == index.inlineSize &&
             F.eq(name, index.name) &&
             F.eq(fields, index.fields) &&
+            F.eq(luceneIndexOptions, index.luceneIndexOptions) &&
             type == index.type;
     }
 
     /** {@inheritDoc} */
     @Override public int hashCode() {
-        return Objects.hash(name, fields, type, inlineSize);
+        return Objects.hash(name, fields, type, inlineSize, luceneIndexOptions);
     }
 
     /** {@inheritDoc} */

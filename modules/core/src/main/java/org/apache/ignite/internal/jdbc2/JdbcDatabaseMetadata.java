@@ -1410,10 +1410,16 @@ public class JdbcDatabaseMetadata implements DatabaseMetaData {
 
                 for (String type : types) {
                     Collection<String> notNullFields = m.notNullFields(type);
-
+                    Collection<String> hiddenFields = m.hiddenFields(type);
+                    
                     Map<String, ColumnInfo> fields = new LinkedHashMap<>();
 
                     for (Map.Entry<String, String> fld : m.fields(type).entrySet()) {
+                        
+                        if (hiddenFields != null && hiddenFields.contains(fld.getKey()) ){
+                            continue;
+                        }
+                        
                         ColumnInfo colInfo = new ColumnInfo(fld.getValue(),
                             notNullFields == null ? false : notNullFields.contains(fld.getKey()));
 

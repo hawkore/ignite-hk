@@ -17,18 +17,28 @@
 
 package org.apache.ignite.configuration;
 
-import java.io.Serializable;
-import org.apache.ignite.cache.CacheAtomicityMode;
-import org.apache.ignite.cache.CacheMode;
-import org.apache.ignite.cluster.ClusterNode;
-import org.apache.ignite.internal.util.typedef.internal.S;
-import org.apache.ignite.lang.IgnitePredicate;
-
 import static org.apache.ignite.cache.CacheAtomicityMode.ATOMIC;
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
 
+import java.io.Serializable;
+
+import org.apache.ignite.cache.CacheAtomicityMode;
+import org.apache.ignite.cache.CacheEntryProcessor;
+import org.apache.ignite.cache.CacheInterceptor;
+import org.apache.ignite.cache.CacheMode;
+import org.apache.ignite.cache.CacheWriteSynchronizationMode;
+import org.apache.ignite.cluster.ClusterNode;
+import org.apache.ignite.internal.util.typedef.internal.A;
+import org.apache.ignite.internal.util.typedef.internal.S;
+import org.apache.ignite.lang.IgnitePredicate;
+import org.jetbrains.annotations.Nullable;
+
 /**
  * Configuration for Ignite collections.
+ * 
+ *  * <b>Note:</b>Batch eviction is enabled only if maximum memory limit isn't set ({@code maxMemSize == 0}).
+ * {@code batchSize} elements will be evicted in this case. The default {@code batchSize} value is {@code 1}.
+ * 
  */
 public class CollectionConfiguration implements Serializable {
     /** */
@@ -55,6 +65,10 @@ public class CollectionConfiguration implements Serializable {
     /** Group name. */
     private String grpName;
 
+    /** underline cache configuration */
+    private CacheConfiguration cacheConfiguration;
+    
+    
     /**
      * @return {@code True} if all items within the same collection will be collocated on the same node.
      */
@@ -177,8 +191,19 @@ public class CollectionConfiguration implements Serializable {
         return this;
     }
 
-    /** {@inheritDoc} */
-    @Override public String toString() {
-        return S.toString(CollectionConfiguration.class, this);
-    }
+    /**
+	 * @return the cacheConfiguration
+	 */
+	public CacheConfiguration getCacheConfiguration() {
+		return cacheConfiguration;
+	}
+	
+	/**
+	 * @param cacheConfiguration the cacheConfiguration to set
+	 */
+	public CollectionConfiguration setCacheConfiguration(CacheConfiguration cacheConfiguration) {
+		this.cacheConfiguration = cacheConfiguration;
+		return this;
+	}
+	
 }

@@ -17,8 +17,10 @@
 
 package org.apache.ignite.cache;
 
-import javax.cache.CacheException;
+import static java.util.Collections.unmodifiableMap;
+
 import java.io.Serializable;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -33,27 +35,32 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+
+import javax.cache.CacheException;
+
 import org.apache.ignite.cache.query.annotations.QueryGroupIndex;
 import org.apache.ignite.cache.query.annotations.QuerySqlField;
 import org.apache.ignite.cache.query.annotations.QueryTextField;
+import org.apache.ignite.internal.IgniteComponentType;
 import org.apache.ignite.internal.processors.cache.query.QueryEntityClassProperty;
 import org.apache.ignite.internal.processors.cache.query.QueryEntityTypeDescriptor;
 import org.apache.ignite.internal.processors.query.GridQueryIndexDescriptor;
 import org.apache.ignite.internal.processors.query.QueryField;
 import org.apache.ignite.internal.processors.query.QueryUtils;
+import org.apache.ignite.internal.processors.query.h2.opt.lucene.IndexOptions;
 import org.apache.ignite.internal.processors.query.schema.operation.SchemaAbstractOperation;
 import org.apache.ignite.internal.processors.query.schema.operation.SchemaAlterTableAddColumnOperation;
 import org.apache.ignite.internal.processors.query.schema.operation.SchemaIndexCreateOperation;
+import org.apache.ignite.internal.processors.query.schema.operation.SchemaRegisterQueryEntityOperation;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.A;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteBiTuple;
+import org.hawkore.ignite.lucene.builder.index.Index;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-
-import static java.util.Collections.unmodifiableMap;
 
 /**
  * Query entity is a description of {@link org.apache.ignite.IgniteCache cache} entry (composed of key and value)
@@ -86,7 +93,7 @@ public class QueryEntity implements Serializable {
     /** Aliases. */
     @GridToStringInclude
     private Map<String, String> aliases = new HashMap<>();
-
+	
     /** Collection of query indexes. */
     @GridToStringInclude
     private Collection<QueryIndex> idxs;
@@ -102,7 +109,14 @@ public class QueryEntity implements Serializable {
 
     /** Decimal fields information. */
     private Map<String, IgniteBiTuple<Integer, Integer>> decimalInfo = new HashMap<>();
-
+    
+    /** Fields that must be inivisible in H2 table. NB: DO NOT remove underscore to avoid clashes with QueryEntityEx. */
+    private Set<String> _hiddenFields;
+        
+    /** lucene index options */
+    @GridToStringInclude
+    private String luceneIndexOptions;
+    
     /**
      * Creates an empty query entity.
      */
@@ -136,6 +150,11 @@ public class QueryEntity implements Serializable {
             : new HashMap<String, Object>();
 
         decimalInfo = other.decimalInfo != null ? new HashMap<>(other.decimalInfo) : new HashMap<>();
+
+        _hiddenFields = other._hiddenFields != null ? new HashSet<>(other._hiddenFields) : null;
+        
+        luceneIndexOptions = other.luceneIndexOptions;
+        
     }
 
     /**
@@ -161,12 +180,15 @@ public class QueryEntity implements Serializable {
 
     /**
      * Make query entity patch. This patch can only add properties to entity and can't remove them.
-     * Other words, the patch will contain only add operations(e.g. add column, create index) and not remove ones.
+     * Other words, the patch will contain only add operations(e.g. add column, create index) and not remove ones,
+     * unless forceMutateQueryEntity=true for Advanced H2 Indexing
      *
      * @param target Query entity to which this entity should be expanded.
+     * @param forceMutateQueryEntity
+     *            If drop-mutation is allowed
      * @return Patch which contains operations for expanding this entity.
      */
-    @NotNull public QueryEntityPatch makePatch(QueryEntity target) {
+    @NotNull public QueryEntityPatch makePatch(QueryEntity target, boolean forceMutateQueryEntity, boolean isSql) {
         if (target == null)
             return QueryEntityPatch.empty();
 
@@ -178,41 +200,65 @@ public class QueryEntity implements Serializable {
         checkEquals(conflicts, "valueFieldName", valueFieldName, target.valueFieldName);
         checkEquals(conflicts, "tableName", tableName, target.tableName);
 
+        if (conflicts.length() != 0)
+            return QueryEntityPatch.conflict(tableName + " conflict: \n" + conflicts.toString());
+        
+        
         List<QueryField> queryFieldsToAdd = checkFields(target, conflicts);
 
         Collection<QueryIndex> indexesToAdd = checkIndexes(target, conflicts);
-
-        if (conflicts.length() != 0)
+        
+        if (conflicts.length() != 0 && !forceMutateQueryEntity)
             return QueryEntityPatch.conflict(tableName + " conflict: \n" + conflicts.toString());
-
+        
         Collection<SchemaAbstractOperation> patchOperations = new ArrayList<>();
 
-        if (!queryFieldsToAdd.isEmpty())
-            patchOperations.add(new SchemaAlterTableAddColumnOperation(
-                UUID.randomUUID(),
-                null,
-                null,
-                tableName,
-                queryFieldsToAdd,
-                true,
-                true
-            ));
-
-        if (!indexesToAdd.isEmpty()) {
-            for (QueryIndex index : indexesToAdd) {
-                patchOperations.add(new SchemaIndexCreateOperation(
+        // Advanced Ignite H2 indexing on classpath
+        if (IgniteComponentType.INDEXING.inClassPath() && !isSql) {
+            // Advanced H2 Indexing implementation: auto register new target,
+            // create/update/populate
+            // multiple indexes on ONE population step, this reduce dramatically
+            // index creation/update
+            if (forceMutateQueryEntity || !queryFieldsToAdd.isEmpty() || !indexesToAdd.isEmpty()) {
+                patchOperations.add(new SchemaRegisterQueryEntityOperation(
                     UUID.randomUUID(),
                     null,
                     null,
                     tableName,
-                    index,
-                    true,
-                    0
-                ));
+                    target,
+                    false,
+                    forceMutateQueryEntity,
+                    true, 0));
             }
-        }
 
-        return QueryEntityPatch.patch(patchOperations);
+            return QueryEntityPatch.patch(patchOperations);
+
+        } else {
+            // legacy Apache Ignite QueryEntityPatch
+            if (!queryFieldsToAdd.isEmpty())
+                patchOperations.add(new SchemaAlterTableAddColumnOperation(
+                    UUID.randomUUID(),
+                    null,
+                    null,
+                    tableName,
+                    queryFieldsToAdd,
+                    true,
+                    true));
+
+            if (!indexesToAdd.isEmpty()) {
+                for (QueryIndex index : indexesToAdd) {
+                    patchOperations.add(new SchemaIndexCreateOperation(
+                        UUID.randomUUID(),
+                        null,
+                        null,
+                        tableName,
+                        index,
+                        true,
+                        0));
+                }
+            }
+            return QueryEntityPatch.patch(patchOperations);
+        }
     }
 
     /**
@@ -227,26 +273,106 @@ public class QueryEntity implements Serializable {
 
         Map<String, QueryIndex> currentIndexes = new HashMap<>();
 
+        Map<String, QueryIndex> newIndexes = new HashMap<>();
+        
         for (QueryIndex index : getIndexes()) {
             if (currentIndexes.put(index.getName(), index) != null)
                 throw new IllegalStateException("Duplicate key");
         }
 
+        for (QueryIndex index : target.getIndexes()) {
+            newIndexes.put(index.getName(), index);
+        }
+        
+        for (QueryIndex queryIndex : getIndexes()) {
+            if (!newIndexes.containsKey(queryIndex.getName())){
+                conflicts.append(String.format("Dropping index %s is not supported", queryIndex.getName()));
+            }else{
+                
+                if (queryIndex.getIndexType().equals(QueryIndexType.FULLTEXT)){
+                    IndexOptions currentIndexOptions = null;
+                    IndexOptions newIndexOptions = null;
+                    try{
+                        if (currentIndexes.get(queryIndex.getName()).getLuceneIndexOptions() != null){
+                            currentIndexOptions = new IndexOptions(currentIndexes.get(queryIndex.getName()).getLuceneIndexOptions());
+                        }
+                    }catch (Exception e){
+                        conflicts.append(String.format("Bad old lucene index %s options", queryIndex.getName()));
+                    }
+                    
+                    try{
+                        if (queryIndex.getLuceneIndexOptions() != null){
+                            newIndexOptions = new IndexOptions(queryIndex.getLuceneIndexOptions());
+                        }
+                    }catch (Exception e){
+                        conflicts.append(String.format("Bad new lucene index %s options", queryIndex.getName()));
+                    }
+                    
+                    if (checkIndexConfigIndexAnnotations(currentIndexOptions, newIndexOptions, conflicts)){
+                        indexesToAdd.add(newIndexes.get(queryIndex.getName()));
+                    }
+                }
+            }
+        }
+ 
         for (QueryIndex queryIndex : target.getIndexes()) {
+           
             if(currentIndexes.containsKey(queryIndex.getName())) {
-                checkEquals(
-                    conflicts,
-                    "index " + queryIndex.getName(),
-                    currentIndexes.get(queryIndex.getName()),
-                    queryIndex
-                );
+                if (!Objects.deepEquals(currentIndexes.get(queryIndex.getName()), queryIndex)){
+                    indexesToAdd.add(queryIndex);
+                }
             }
             else
                 indexesToAdd.add(queryIndex);
         }
+        
         return indexesToAdd;
     }
 
+    /**
+     * Comparing old Text Index configuration with new Text Index configuration
+     * @param currentIndexOptions
+     * @param newIndexOptions
+     * @param conflicts
+     * 
+     * @return if changes detected
+     */
+    public static boolean checkIndexConfigIndexAnnotations(IndexOptions currentIndexOptions, IndexOptions newIndexOptions, StringBuilder conflicts){
+        
+        if (currentIndexOptions == null && newIndexOptions == null){
+            return false;
+        }
+
+        // remove index options is not allowed
+        if (currentIndexOptions != null && newIndexOptions == null){
+            conflicts.append(String.format("Remove lucene index options is not allowed"));
+        }
+        
+        //checks new index options
+        if (newIndexOptions != null && currentIndexOptions != null){
+                // ensure not changes on partitions
+                if (currentIndexOptions.partitioner().getPartitions() != newIndexOptions.partitioner().getPartitions()){
+                    conflicts.append(String.format("Change partitions is not allowed on an already created lucene index"));
+                }
+                // ensure not changes on directory path
+                if (!currentIndexOptions.directoryPath().equals(newIndexOptions.directoryPath())){
+                    conflicts.append(String.format("Change directory path is not allowed on an already created lucene index"));
+                }
+                // ensure not changes on default analyzer
+                if (!Objects.deepEquals(currentIndexOptions.schemaBuilder().getDefaultAnalyzerName(), newIndexOptions.schemaBuilder().getDefaultAnalyzerName())){
+                    conflicts.append(String.format("Change default analyzer is not allowed on an already created lucene index"));
+                }
+                // ensure not changes on existing text analyzers
+                if (!newIndexOptions.schemaBuilder().getAnalyzerBuilders().entrySet().containsAll(currentIndexOptions.schemaBuilder().getAnalyzerBuilders().entrySet())){
+                    conflicts.append(String.format("New index options must contains at least old custom text analyzers"));
+                }
+                //changes found on index schema or index configuration
+                return !Objects.deepEquals(currentIndexOptions.schemaBuilder(), newIndexOptions.schemaBuilder()) || !Objects.deepEquals(currentIndexOptions.options(), newIndexOptions.options());           
+        }
+ 
+        return currentIndexOptions == null && newIndexOptions != null;
+    }
+    
     /**
      * Comparing local entity fields and target entity fields.
      *
@@ -288,7 +414,8 @@ public class QueryEntity implements Serializable {
                     targetFieldName,
                     targetFieldType,
                     !contains(target.getNotNullFields(),targetFieldName),
-                    getFromMap(target.getDefaultFieldValues(), targetFieldName)
+                    getFromMap(target.getDefaultFieldValues(), targetFieldName),
+                    contains(target.getHiddenFields(),targetFieldName)
                 ));
             }
         }
@@ -561,6 +688,28 @@ public class QueryEntity implements Serializable {
     }
 
     /**
+     * Sets names of fields that must be invisible on H2 table.
+     *
+     * @param hiddenFields Set of names of fields that must be invisible on H2 table
+     * @return {@code this} for chaining.
+     */
+    public QueryEntity setHiddenFields(@Nullable Set<String> hiddenFields) {
+        this._hiddenFields = hiddenFields;
+
+        return this;
+    }
+
+    
+    /**
+     * Gets names of fields that must hidden from sql.
+     *
+     * @return Set of names of fields that must have non-null values.
+     */
+    @Nullable public Set<String> getHiddenFields() {
+        return _hiddenFields;
+    }
+
+    /**
      * Sets names of fields that must checked for null.
      *
      * @param notNullFields Set of names of fields that must have non-null values.
@@ -635,6 +784,26 @@ public class QueryEntity implements Serializable {
     }
 
     /**
+     * @return the luceneIndexConfig
+     */
+    public String getLuceneIndexOptions() {
+        return luceneIndexOptions;
+    }
+
+    /**
+     * @param luceneIndexOptions the luceneIndexConfig to set
+     * @return {@code this} for chaining.
+     */
+    public QueryEntity setLuceneIndexOptions(String luceneIndexOptions) {
+        if (luceneIndexOptions != null){
+            //just validate
+            new IndexOptions(luceneIndexOptions);
+        }
+        this.luceneIndexOptions = luceneIndexOptions;
+        return this;
+    }
+    
+    /**
      * @param desc Type descriptor.
      * @return Type metadata.
      */
@@ -653,21 +822,36 @@ public class QueryEntity implements Serializable {
         QueryIndex txtIdx = null;
 
         Collection<QueryIndex> idxs = new ArrayList<>();
-
+        
+        //just process top level
+        if (desc.getFullTextIdx() != null){            
+            txtIdx = new QueryIndex();
+            txtIdx.setInlineSize(0);
+            txtIdx.setIndexType(QueryIndexType.FULLTEXT);
+            txtIdx.setFieldNames(desc.getFullTextIdx().fields(), true);
+            txtIdx.setName((QueryUtils.tableName(entity)+ Index.LUCENE_INDEX_NAME_SUFIX).toUpperCase());
+            txtIdx.setLuceneIndexOptions(desc.getFullTextIdx().luceneIndexOptions());
+          
+            //add definition to top Level query entity
+            entity.setLuceneIndexOptions(desc.getFullTextIdx().luceneIndexOptions());
+        }
+        
+        
         for (Map.Entry<String, GridQueryIndexDescriptor> idxEntry : desc.indexes().entrySet()) {
             GridQueryIndexDescriptor idx = idxEntry.getValue();
-
-            if (idx.type() == QueryIndexType.FULLTEXT) {
-                assert txtIdx == null;
-
-                txtIdx = new QueryIndex();
-
-                txtIdx.setIndexType(QueryIndexType.FULLTEXT);
-
-                txtIdx.setFieldNames(idx.fields(), true);
-                txtIdx.setName(idxEntry.getKey());
-            }
-            else {
+                
+            if (idx.type() == QueryIndexType.FULLTEXT){
+                if (txtIdx == null){
+                    txtIdx = new QueryIndex();
+                    txtIdx.setInlineSize(0);
+                    txtIdx.setIndexType(QueryIndexType.FULLTEXT);
+                    txtIdx.setFieldNames(idx.fields(), true);
+                    txtIdx.setName((QueryUtils.tableName(entity) + Index.LUCENE_INDEX_NAME_SUFIX).toUpperCase());
+                    txtIdx.setLuceneIndexOptions(idx.luceneIndexOptions());
+                    //add definition to top Level query entity
+                    entity.setLuceneIndexOptions(idx.luceneIndexOptions());
+                }
+            }else{
                 QueryIndex sortedIdx = new QueryIndex();
 
                 sortedIdx.setIndexType(idx.type());
@@ -681,23 +865,10 @@ public class QueryEntity implements Serializable {
 
                 sortedIdx.setName(idxEntry.getKey());
                 sortedIdx.setInlineSize(idx.inlineSize());
-
                 idxs.add(sortedIdx);
             }
         }
-
-        if (desc.valueTextIndex()) {
-            if (txtIdx == null) {
-                txtIdx = new QueryIndex();
-
-                txtIdx.setIndexType(QueryIndexType.FULLTEXT);
-
-                txtIdx.setFieldNames(Arrays.asList(QueryUtils.VAL_FIELD_NAME), true);
-            }
-            else
-                txtIdx.getFields().put(QueryUtils.VAL_FIELD_NAME, true);
-        }
-
+        
         if (txtIdx != null)
             idxs.add(txtIdx);
 
@@ -706,10 +877,15 @@ public class QueryEntity implements Serializable {
 
         if (!F.isEmpty(desc.notNullFields()))
             entity.setNotNullFields(desc.notNullFields());
+        
+        if (!F.isEmpty(desc.hiddenFields()))
+            entity.setHiddenFields(desc.hiddenFields());
 
         if (!F.isEmpty(desc.decimalInfo()))
             entity.setDecimalInfo(desc.decimalInfo());
 
+        
+        
         return entity;
     }
 
@@ -718,7 +894,7 @@ public class QueryEntity implements Serializable {
      * @param valCls Value class.
      * @return Type descriptor.
      */
-    private static QueryEntityTypeDescriptor processKeyAndValueClasses(
+    public static QueryEntityTypeDescriptor processKeyAndValueClasses(
         Class<?> keyCls,
         Class<?> valCls
     ) {
@@ -729,11 +905,54 @@ public class QueryEntity implements Serializable {
 
         processAnnotationsInClass(true, d.keyClass(), d, null);
         processAnnotationsInClass(false, d.valueClass(), d, null);
-
+        
         return d;
     }
 
     /**
+     * @param keyCls Key class.
+     * @param valCls Value class.
+     * @return Type descriptor.
+     */
+    public static QueryEntity getQueryEntityFromKeyAndValueClasses(
+        Class<?> keyCls,
+        Class<?> valCls
+    ) {
+       
+    	QueryEntityTypeDescriptor d = new QueryEntityTypeDescriptor();
+
+        d.keyClass(keyCls);
+        d.valueClass(valCls);
+
+        processAnnotationsInClass(true, d.keyClass(), d, null);
+        processAnnotationsInClass(false, d.valueClass(), d, null);
+
+        // here we build lucene index options
+        
+        return convert(d);
+    }
+    
+    /**
+     *  Get recursive annotations
+     * @param clazz
+     * @param annotationType
+     * @return
+     */
+	public static <A extends Annotation>  List<A> findAnnotations(Class<?> clazz, Class<A> annotationType) {
+		final List<A> r = new ArrayList<A>();
+		Class<?> type = clazz;
+		 while (type != null && !type.equals(Object.class)) {
+			 	A a = type.getAnnotation(annotationType);
+			 	if (a!=null){
+			 		r.add(a);
+			 	}
+	            type = type.getSuperclass();
+	        }
+		return r;
+	}
+    
+	
+	  /**
      * Process annotations for class.
      *
      * @param key If given class relates to key.
@@ -759,12 +978,14 @@ public class QueryEntity implements Serializable {
         if (parent != null && parent.knowsClass(cls))
             throw new CacheException("Recursive reference found in type: " + cls.getName());
 
+        //get inherited class level QueryTextField annotations
+        List<QueryTextField> txtAnnCls = findAnnotations(cls,QueryTextField.class);
+        
         if (parent == null) { // Check class annotation at top level only.
-            QueryTextField txtAnnCls = cls.getAnnotation(QueryTextField.class);
-
-            if (txtAnnCls != null)
-                type.valueTextIndex(true);
-
+            if (txtAnnCls != null && !txtAnnCls.isEmpty()) {
+                type.createTextIndex();
+                type.getFullTextIdx().setTypeTextAnnotations(txtAnnCls);
+            }
             QueryGroupIndex grpIdx = cls.getAnnotation(QueryGroupIndex.class);
 
             if (grpIdx != null)
@@ -776,6 +997,11 @@ public class QueryEntity implements Serializable {
                 for (QueryGroupIndex idx : grpIdxList.value())
                     type.addIndex(idx.name(), QueryIndexType.SORTED, idx.inlineSize());
             }
+        }else{
+        	//add type level annotation for this class with parent name ... idem as type.valueTextIndex but for nexted types
+        	if (txtAnnCls != null && !txtAnnCls.isEmpty()) {
+                type.addFieldToTextIndex(parent.fullName()+QueryUtils.TYPE_ANNOTATION_SUFFIX, txtAnnCls);
+            }
         }
 
         for (Class<?> c = cls; c != null && !c.equals(Object.class); c = c.getSuperclass()) {
@@ -784,7 +1010,7 @@ public class QueryEntity implements Serializable {
                 QueryTextField txtAnn = field.getAnnotation(QueryTextField.class);
 
                 if (sqlAnn != null || txtAnn != null) {
-                    QueryEntityClassProperty prop = new QueryEntityClassProperty(field);
+                	QueryEntityClassProperty prop = new QueryEntityClassProperty(field);
 
                     prop.parent(parent);
 
@@ -799,7 +1025,7 @@ public class QueryEntity implements Serializable {
             }
         }
     }
-
+	
     /**
      * Processes annotation at field or method.
      *
@@ -813,28 +1039,35 @@ public class QueryEntity implements Serializable {
      * @param desc Class description.
      */
     private static void processAnnotation(boolean key, QuerySqlField sqlAnn, QueryTextField txtAnn,
-        Class<?> cls, Class<?> curCls, Class<?> fldCls, QueryEntityClassProperty prop, QueryEntityTypeDescriptor desc) {
-        if (sqlAnn != null) {
-            processAnnotationsInClass(key, fldCls, desc, prop);
+            Class<?> cls, Class<?> curCls, Class<?> fldCls, QueryEntityClassProperty prop, QueryEntityTypeDescriptor desc) {
+        	  if (sqlAnn != null || txtAnn!=null) {
+                  processAnnotationsInClass(key, fldCls, desc, prop);
+        	  }
+            if (sqlAnn != null) {
+               // processAnnotationsInClass(key, fldCls, desc, prop);
 
-            if (!sqlAnn.name().isEmpty())
-                prop.alias(sqlAnn.name());
+                if (!sqlAnn.name().isEmpty())
+                    prop.alias(sqlAnn.name());
 
-            if (sqlAnn.index()) {
-                String idxName = curCls.getSimpleName() + "_" + prop.alias() + "_idx";
+                if (sqlAnn.index()) {
+                    String idxName = curCls.getSimpleName() + "_" + prop.alias() + "_idx";
 
-                if (cls != curCls)
-                    idxName = cls.getSimpleName() + "_" + idxName;
+                    if (cls != curCls)
+                        idxName = cls.getSimpleName() + "_" + idxName;
 
-                desc.addIndex(idxName, QueryUtils.isGeometryClass(prop.type()) ?
-                    QueryIndexType.GEOSPATIAL : QueryIndexType.SORTED, sqlAnn.inlineSize());
+                    desc.addIndex(idxName, QueryUtils.isGeometryClass(prop.type()) ?
+                        QueryIndexType.GEOSPATIAL : QueryIndexType.SORTED, sqlAnn.inlineSize());
 
-                desc.addFieldToIndex(idxName, prop.fullName(), 0, sqlAnn.descending());
+                    desc.addFieldToIndex(idxName, prop.fullName(), 0, sqlAnn.descending());
             }
 
             if (sqlAnn.notNull())
                 desc.addNotNullField(prop.fullName());
 
+            if (sqlAnn.hidden())
+                desc.addHiddenField(prop.fullName());
+
+            
             if (BigDecimal.class == fldCls && sqlAnn.precision() != -1 && sqlAnn.scale() != -1)
                 desc.addDecimalInfo(prop.fullName(), F.t(sqlAnn.precision(), sqlAnn.scale()));
 
@@ -844,20 +1077,23 @@ public class QueryEntity implements Serializable {
                     "type=" + cls.getName() + ", property=" + prop.fullName() + ']');
             }
 
-            if (!F.isEmpty(sqlAnn.groups())) {
-                for (String group : sqlAnn.groups())
-                    desc.addFieldToIndex(group, prop.fullName(), 0, false);
+                if (!F.isEmpty(sqlAnn.groups())) {
+                    for (String group : sqlAnn.groups())
+                        desc.addFieldToIndex(group, prop.fullName(), 0, false);
+                }
+
+                if (!F.isEmpty(sqlAnn.orderedGroups())) {
+                    for (QuerySqlField.Group idx : sqlAnn.orderedGroups())
+                        desc.addFieldToIndex(idx.name(), prop.fullName(), idx.order(), idx.descending());
+                }
             }
 
-            if (!F.isEmpty(sqlAnn.orderedGroups())) {
-                for (QuerySqlField.Group idx : sqlAnn.orderedGroups())
-                    desc.addFieldToIndex(idx.name(), prop.fullName(), idx.order(), idx.descending());
-            }
+            if (txtAnn != null){
+                desc.addFieldToTextIndex(prop.fullName(), Arrays.asList(txtAnn));
+                if (txtAnn.hidden())
+                    desc.addHiddenField(prop.fullName());
+                }
         }
-
-        if (txtAnn != null)
-            desc.addFieldToTextIndex(prop.fullName());
-    }
 
     /** {@inheritDoc} */
     @Override public boolean equals(Object o) {
@@ -879,6 +1115,7 @@ public class QueryEntity implements Serializable {
             F.eqNotOrdered(idxs, entity.idxs) &&
             F.eq(tableName, entity.tableName) &&
             F.eq(_notNullFields, entity._notNullFields) &&
+            F.eq(_hiddenFields, entity._hiddenFields) &&
             F.eq(defaultFieldValues, entity.defaultFieldValues) &&
             F.eq(decimalInfo, entity.decimalInfo);
     }
@@ -886,7 +1123,7 @@ public class QueryEntity implements Serializable {
     /** {@inheritDoc} */
     @Override public int hashCode() {
         return Objects.hash(keyType, valType, keyFieldName, valueFieldName, fields, keyFields, aliases, idxs,
-            tableName, _notNullFields, defaultFieldValues, decimalInfo);
+            tableName, _notNullFields, _hiddenFields, defaultFieldValues, decimalInfo);
     }
 
     /** {@inheritDoc} */

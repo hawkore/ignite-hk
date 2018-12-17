@@ -17,6 +17,10 @@
 
 package org.apache.ignite.internal.processors.query.h2.opt;
 
+import static org.apache.ignite.internal.processors.query.h2.opt.GridH2KeyValueRowOnheap.DEFAULT_COLUMNS_COUNT;
+import static org.apache.ignite.internal.processors.query.h2.opt.GridH2KeyValueRowOnheap.KEY_COL;
+import static org.apache.ignite.internal.processors.query.h2.opt.GridH2KeyValueRowOnheap.VAL_COL;
+
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Time;
@@ -26,6 +30,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.processors.cache.CacheObject;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
@@ -59,10 +64,6 @@ import org.h2.value.ValueTime;
 import org.h2.value.ValueTimestamp;
 import org.h2.value.ValueUuid;
 
-import static org.apache.ignite.internal.processors.query.h2.opt.GridH2KeyValueRowOnheap.DEFAULT_COLUMNS_COUNT;
-import static org.apache.ignite.internal.processors.query.h2.opt.GridH2KeyValueRowOnheap.KEY_COL;
-import static org.apache.ignite.internal.processors.query.h2.opt.GridH2KeyValueRowOnheap.VAL_COL;
-
 /**
  * Row descriptor.
  */
@@ -74,7 +75,7 @@ public class GridH2RowDescriptor {
     private final H2TableDescriptor tbl;
 
     /** */
-    private final GridQueryTypeDescriptor type;
+    private GridQueryTypeDescriptor type;
 
     /** */
     private volatile String[] fields;
@@ -114,24 +115,43 @@ public class GridH2RowDescriptor {
         keyType = DataType.getTypeFromClass(type.keyClass());
         valType = DataType.getTypeFromClass(type.valueClass());
 
-        refreshMetadataFromTypeDescriptor();
+        refreshMetadataFromTypeDescriptor(null);
     }
 
     /**
      * Update metadata of this row descriptor according to current state of type descriptor.
      */
     @SuppressWarnings("WeakerAccess")
-    public final void refreshMetadataFromTypeDescriptor() {
-        Map<String, Class<?>> allFields = new LinkedHashMap<>();
+    public final void refreshMetadataFromTypeDescriptor(GridQueryTypeDescriptor newType) {
 
+        final Map<String, Class<?>> allFields = new LinkedHashMap<>();
         allFields.putAll(type.fields());
-
+        
+      //new fields must to be added at tail to preserve existing InlineIndexHelper and other data associated with columns order
+    	if (newType!=null){
+	        Map<String, Class<?>> newFields = new LinkedHashMap<>();
+	        newFields.putAll(newType.fields());
+	        newFields.forEach(allFields::putIfAbsent); 
+	        this.type=newType;
+    	}
+        
+    	//if this method is invoked (for example after create column) we must ensure field's order is consistent
+    	if (fields!=null){ //we need to preserve fields order
+            Map<String, Class<?>> orderedAllFields = new LinkedHashMap<>();
+            Arrays.stream(fields).forEach(field->orderedAllFields.put(field, allFields.get(field)));
+            allFields.forEach(orderedAllFields::putIfAbsent); //add new fields at tail if required
+            allFields.clear(); //clear and replace reordered
+            allFields.putAll(orderedAllFields);
+    	}
+    	
+        //fields = allFields.keySet().stream().filter(f->!this.type.property(f).hidden()).collect(Collectors.toList()).toArray(new String[allFields.size()]);
+ 
         fields = allFields.keySet().toArray(new String[allFields.size()]);
-
-        fieldTypes = new int[fields.length];
-
+       
         Class[] classes = allFields.values().toArray(new Class[fields.length]);
-
+        
+        fieldTypes = new int[fields.length];
+        
         for (int i = 0; i < fieldTypes.length; i++)
             fieldTypes[i] = DataType.getTypeFromClass(classes[i]);
 
@@ -277,13 +297,25 @@ public class GridH2RowDescriptor {
      * @throws IgniteCheckedException If failed.
      */
     public GridH2Row createRow(CacheDataRow dataRow) throws IgniteCheckedException {
+    	return createRow(dataRow, null, null);
+    }
+    /**
+     * Creates new row.
+     * 
+     * @param dataRow Data row.
+     * @param luceneExpression - lucene expression
+     * @param luceneScoreDoc - comparable Score Doc to sort SQL query results collected from cluster nodes when filter by lucene expression 
+     * @return Row.
+     * @throws IgniteCheckedException If failed.
+     */
+    public GridH2Row createRow(CacheDataRow dataRow, String luceneExpression, Object luceneScoreDoc) throws IgniteCheckedException {
         GridH2Row row;
 
         try {
             if (dataRow.value() == null) // Only can happen for remove operation, can create simple search row.
                 row = new GridH2KeyRowOnheap(dataRow, wrap(dataRow.key(), keyType));
             else
-                row = new GridH2KeyValueRowOnheap(this, dataRow, keyType, valType);
+                row = new GridH2KeyValueRowOnheap(this, dataRow, keyType, valType, luceneExpression, luceneScoreDoc);
         }
         catch (ClassCastException e) {
             throw new IgniteCheckedException("Failed to convert key to SQL type. " +
@@ -414,7 +446,7 @@ public class GridH2RowDescriptor {
      * @return Result.
      */
     @SuppressWarnings("RedundantIfStatement")
-    public boolean isKeyValueOrVersionColumn(int colId) {
+    public boolean isInternalColumn(int colId) {
         assert colId >= 0;
 
         if (colId < DEFAULT_COLUMNS_COUNT)

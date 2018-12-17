@@ -821,14 +821,14 @@ public class JdbcConnection implements Connection {
     /**
      * @return Ignite node.
      */
-    IgniteKernal ignite() {
+    public IgniteKernal ignite() {
         return (IgniteKernal)ignite;
     }
 
     /**
      * @return Cache name.
      */
-    String cacheName() {
+    public String cacheName() {
         return cacheName;
     }
 

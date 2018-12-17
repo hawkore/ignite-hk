@@ -91,4 +91,11 @@ public interface GridQueryProperty {
      * @return Scale for a decimal property or -1.
      */
     public int scale();
+    
+    /**
+     * If property is hidden 
+     * 
+     * @return if property is hidden on table definition
+     */
+    public boolean hidden();
 }

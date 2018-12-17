@@ -64,6 +64,14 @@ public @interface QuerySqlField {
     boolean notNull() default false;
 
     /**
+     * Specifies whether the specified field is {@code hidden}.
+     *
+     * @return {@code True} if the field is hidden.
+     */
+    boolean hidden() default false;
+    
+    
+    /**
      * Specifies precision for a decimal field.
      *
      * @return precision for a decimal field.

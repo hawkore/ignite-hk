@@ -46,6 +46,9 @@ public class QueryClassProperty implements GridQueryProperty {
 
     /** */
     private final boolean notNull;
+    
+    /** */
+    private final boolean hidden;
 
     /**
      * Constructor.
@@ -55,9 +58,10 @@ public class QueryClassProperty implements GridQueryProperty {
      * @param name Property name.
      * @param notNull {@code true} if null value is not allowed.
      * @param coCtx Cache Object Context.
+     * @param hidden {@code true} if this property must be inivisible in H2 database
      */
     public QueryClassProperty(QueryPropertyAccessor accessor, boolean key, String name,
-        boolean notNull, @Nullable CacheObjectContext coCtx) {
+        boolean notNull, @Nullable CacheObjectContext coCtx, boolean hidden) {
         this.accessor = accessor;
 
         this.key = key;
@@ -67,6 +71,8 @@ public class QueryClassProperty implements GridQueryProperty {
         this.notNull = notNull;
 
         this.coCtx = coCtx;
+        
+        this.hidden = hidden;
     }
 
     /** {@inheritDoc} */
@@ -155,5 +161,11 @@ public class QueryClassProperty implements GridQueryProperty {
     /** {@inheritDoc} */
     @Override public int scale() {
         return -1;
+    }
+    
+    /** {@inheritDoc} */
+    @Override
+    public boolean hidden() {
+        return this.hidden;
     }
 }

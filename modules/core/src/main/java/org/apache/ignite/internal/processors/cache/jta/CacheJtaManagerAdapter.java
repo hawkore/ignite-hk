@@ -17,6 +17,8 @@
 
 package org.apache.ignite.internal.processors.cache.jta;
 
+import javax.transaction.xa.XAResource;
+
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.TransactionConfiguration;
@@ -49,4 +51,8 @@ public abstract class CacheJtaManagerAdapter extends GridCacheSharedManagerAdapt
      * @return Transaction manager finder.
      */
     @Nullable public abstract Object tmLookup();
+
+	public XAResource getXaResource() {
+		return null;
+	}
 }

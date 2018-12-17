@@ -124,7 +124,7 @@ public class GridCacheQueueHeader implements GridCacheInternal, Externalizable {
      * @return {@code True} if queue is bounded.
      */
     public boolean bounded() {
-        return cap < Integer.MAX_VALUE;
+        return cap > 0 && cap < Integer.MAX_VALUE;
     }
 
     /**

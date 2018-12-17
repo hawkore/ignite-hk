@@ -548,7 +548,7 @@ public class IgniteJdbcDriver implements Driver {
      * @param url URL.
      * @return Whether URL is valid.
      */
-    private boolean parseUrl(String url, Properties props) {
+    public boolean parseUrl(String url, Properties props) {
         if (url == null)
             return false;
 

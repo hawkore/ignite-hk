@@ -56,7 +56,7 @@ public class GridLuceneDirectory extends BaseDirectory implements Accountable {
      *
      * @param mem Memory.
      */
-    GridLuceneDirectory(GridUnsafeMemory mem) {
+    public GridLuceneDirectory(GridUnsafeMemory mem) {
         super(new GridLuceneLockFactory());
 
         this.mem = mem;
@@ -208,6 +208,11 @@ public class GridLuceneDirectory extends BaseDirectory implements Accountable {
         return sizeInBytes.get();
     }
 
+	public boolean fileNameExists(String name) {
+        ensureOpen();
+		return fileMap.containsKey(name);
+	}
+	
     /** {@inheritDoc} */
     @Override public synchronized Collection<Accountable> getChildResources() {
         return Accountables.namedAccountables("file", new HashMap<>(fileMap));
@@ -219,4 +224,8 @@ public class GridLuceneDirectory extends BaseDirectory implements Accountable {
     GridUnsafeMemory memory() {
         return mem;
     }
+	
+	public boolean isOpen(){
+		return this.isOpen;
+	}
 }

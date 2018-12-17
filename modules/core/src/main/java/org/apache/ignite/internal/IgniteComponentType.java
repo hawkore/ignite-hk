@@ -64,9 +64,9 @@ public enum IgniteComponentType {
 
     /** Indexing. */
     INDEXING(
-        null,
         "org.apache.ignite.internal.processors.query.h2.IgniteH2Indexing",
-        "ignite-indexing",
+        "com.hawkore.ignite.internal.processors.query.h2.AdvancedIgniteH2Indexing",
+        "ignite-indexing or hk-ignite-indexing",
         "org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2ValueMessageFactory"
     ),
 
@@ -159,6 +159,22 @@ public enum IgniteComponentType {
         }
     }
 
+    /**
+     * Check whether no-op component class is in classpath.
+     *
+     * @return {@code True} if in classpath.
+     */
+    public boolean inClassPathDefault() {
+        try {
+            Class.forName(noOpClsName);
+
+            return true;
+        }
+        catch (ClassNotFoundException ignore) {
+            return false;
+        }
+    }
+    
     /**
      * Creates component.
      *

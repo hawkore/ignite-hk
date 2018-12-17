@@ -17,6 +17,9 @@
 
 package org.apache.ignite.internal.processors.query;
 
+import static org.apache.ignite.IgniteSystemProperties.IGNITE_INDEXING_DISCOVERY_HISTORY_SIZE;
+import static org.apache.ignite.IgniteSystemProperties.getInteger;
+
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.sql.Time;
@@ -33,6 +36,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.binary.BinaryField;
@@ -50,6 +54,7 @@ import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.GridCacheDefaultAffinityKeyMapper;
 import org.apache.ignite.internal.processors.cache.binary.CacheObjectBinaryProcessorImpl;
 import org.apache.ignite.internal.processors.cache.query.IgniteQueryErrorCode;
+import org.apache.ignite.internal.processors.query.h2.opt.lucene.IndexOptions;
 import org.apache.ignite.internal.processors.query.property.QueryBinaryProperty;
 import org.apache.ignite.internal.processors.query.property.QueryClassProperty;
 import org.apache.ignite.internal.processors.query.property.QueryFieldAccessor;
@@ -62,11 +67,9 @@ import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.A;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteBiTuple;
+import org.hawkore.ignite.lucene.builder.index.Index;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-
-import static org.apache.ignite.IgniteSystemProperties.IGNITE_INDEXING_DISCOVERY_HISTORY_SIZE;
-import static org.apache.ignite.IgniteSystemProperties.getInteger;
 
 /**
  * Utility methods for queries.
@@ -93,6 +96,15 @@ public class QueryUtils {
     /** Well-known template name for REPLICATED cache. */
     public static final String TEMPLATE_REPLICATED = "REPLICATED";
 
+    /** LUCENE field name. */
+    public static final String LUCENE_FIELD_NAME = Index.LUCENE_FIELD_NAME;
+    
+    /** _SCORE_DOC field name. */
+    public static final String LUCENE_SCORE_DOC = "_SCORE_DOC";
+    
+    
+    /** QueryTextField Annotation on type suffix for nested properties on cache configuration processAnnotation for indexes . */
+    public static final String TYPE_ANNOTATION_SUFFIX = "#typeTextAnnotation";
     /** Discovery history size. */
     private static final int DISCO_HIST_SIZE = getInteger(IGNITE_INDEXING_DISCOVERY_HISTORY_SIZE, 1000);
 
@@ -267,9 +279,11 @@ public class QueryUtils {
         normalEntity.setKeyFieldName(entity.getKeyFieldName());
         normalEntity.setValueFieldName(entity.getValueFieldName());
         normalEntity.setNotNullFields(entity.getNotNullFields());
+        normalEntity.setHiddenFields(entity.getHiddenFields());
         normalEntity.setDefaultFieldValues(entity.getDefaultFieldValues());
         normalEntity.setDecimalInfo(entity.getDecimalInfo());
-
+        normalEntity.setLuceneIndexOptions(entity.getLuceneIndexOptions());
+        
         // Normalize table name.
         String normalTblName = entity.getTableName();
 
@@ -310,6 +324,7 @@ public class QueryUtils {
 
             normalIdx.setName(normalizeObjectName(indexName(normalTblName, idx), false));
 
+            normalIdx.setLuceneIndexOptions(idx.getLuceneIndexOptions());
             normalIdxs.add(normalIdx);
         }
 
@@ -462,6 +477,8 @@ public class QueryUtils {
         desc.keyFieldName(qryEntity.getKeyFieldName());
         desc.valueFieldName(qryEntity.getValueFieldName());
 
+        desc.setLuceneIndexOptions(qryEntity.getLuceneIndexOptions());
+        
         if (binaryEnabled && keyOrValMustDeserialize) {
             if (keyMustDeserialize)
                 mustDeserializeClss.add(keyCls);
@@ -545,6 +562,8 @@ public class QueryUtils {
         throws IgniteCheckedException {
         Set<String> keyFields = qryEntity.getKeyFields();
         Set<String> notNulls = qryEntity.getNotNullFields();
+        Set<String> hiddens = qryEntity.getHiddenFields();
+        
         Map<String, Object> dlftVals = qryEntity.getDefaultFieldValues();
         Map<String, IgniteBiTuple<Integer, Integer>> decimalInfo  = qryEntity.getDecimalInfo();
 
@@ -575,6 +594,8 @@ public class QueryUtils {
 
             boolean notNull = notNulls != null && notNulls.contains(entry.getKey());
 
+            boolean hidden = hiddens != null && hiddens.contains(entry.getKey());
+            
             Object dfltVal = dlftVals != null ? dlftVals.get(entry.getKey()) : null;
 
             IgniteBiTuple<Integer, Integer> precisionAndScale =
@@ -584,11 +605,14 @@ public class QueryUtils {
                 U.classForName(entry.getValue(), Object.class, true),
                 d.aliases(), isKeyField, notNull, dfltVal,
                 precisionAndScale != null ? precisionAndScale.get1() : -1,
-                precisionAndScale != null ? precisionAndScale.get2() : -1);
+                precisionAndScale != null ? precisionAndScale.get2() : -1,
+                hidden);
 
             d.addProperty(prop, false);
         }
 
+        d.setLuceneIndexOptions(qryEntity.getLuceneIndexOptions());
+        
         processIndexes(qryEntity, d);
     }
 
@@ -602,7 +626,8 @@ public class QueryUtils {
     public static void processClassMeta(QueryEntity qryEntity, QueryTypeDescriptorImpl d, CacheObjectContext coCtx)
         throws IgniteCheckedException {
         Set<String> notNulls = qryEntity.getNotNullFields();
-
+        Set<String> hiddens = qryEntity.getHiddenFields();
+        
         for (Map.Entry<String, String> entry : qryEntity.getFields().entrySet()) {
             GridQueryProperty prop = buildProperty(
                 d.keyClass(),
@@ -613,11 +638,14 @@ public class QueryUtils {
                 U.classForName(entry.getValue(), Object.class),
                 d.aliases(),
                 notNulls != null && notNulls.contains(entry.getKey()),
-                coCtx);
+                coCtx,
+                hiddens != null && hiddens.contains(entry.getKey()));
 
             d.addProperty(prop, false);
         }
 
+        d.setLuceneIndexOptions(qryEntity.getLuceneIndexOptions());
+        
         processIndexes(qryEntity, d);
     }
 
@@ -663,24 +691,29 @@ public class QueryUtils {
         String idxName = indexName(typeDesc.tableName(), idx);
         QueryIndexType idxTyp = idx.getIndexType();
 
-        assert idxTyp == QueryIndexType.SORTED || idxTyp == QueryIndexType.GEOSPATIAL;
+        assert idxTyp == QueryIndexType.SORTED || idxTyp == QueryIndexType.GEOSPATIAL || idxTyp== QueryIndexType.FULLTEXT;
 
         QueryIndexDescriptorImpl res = new QueryIndexDescriptorImpl(typeDesc, idxName, idxTyp, idx.getInlineSize());
 
         int i = 0;
+        
+        if (idxTyp != QueryIndexType.FULLTEXT){
+            for (Map.Entry<String, Boolean> entry : idx.getFields().entrySet()) {
+                String field = entry.getKey();
+                boolean asc = entry.getValue();
+                res.addField(field, i++, !asc);
+            }        
+        }else{
+            //add mapped columns to lucene index descriptor fields
+            IndexOptions opts = new IndexOptions(idx.getLuceneIndexOptions());
+            List<String> columns = opts.mappedColumns(typeDesc, false);
 
-        for (Map.Entry<String, Boolean> entry : idx.getFields().entrySet()) {
-            String field = entry.getKey();
-            boolean asc = entry.getValue();
-
-            String alias = typeDesc.aliases().get(field);
-
-            if (alias != null)
-                field = alias;
-
-            res.addField(field, i++, !asc);
+            for (String field : columns) {
+                res.addField(QueryUtils.normalizeObjectName(field, true), 0, false);
+            }
+            res.setLuceneIndexOptions(idx.getLuceneIndexOptions());
         }
-
+        
         return res;
     }
 
@@ -696,18 +729,21 @@ public class QueryUtils {
 
         if (idxTyp == QueryIndexType.SORTED || idxTyp == QueryIndexType.GEOSPATIAL) {
             QueryIndexDescriptorImpl idxDesc = createIndexDescriptor(d, idx);
-
             d.addIndex(idxDesc);
         }
         else if (idxTyp == QueryIndexType.FULLTEXT){
-            for (String field : idx.getFields().keySet()) {
-                String alias = d.aliases().get(field);
-
-                if (alias != null)
-                    field = alias;
-
-                d.addFieldToTextIndex(field);
+            
+            d.setLuceneIndexOptions(idx.getLuceneIndexOptions());
+            
+            //add mapped columns to index fields
+            IndexOptions opts = new IndexOptions(idx.getLuceneIndexOptions());
+            List<String> columns = opts.mappedColumns(d, false);
+           
+            for (String field : columns) {
+                d.addFieldToTextIndex(QueryUtils.normalizeObjectName(field, true));
             }
+
+            d.addIndex((QueryIndexDescriptorImpl) d.textIndex());
         }
         else if (idxTyp != null)
             throw new IllegalArgumentException("Unsupported index type [idx=" + idx.getName() +
@@ -735,7 +771,7 @@ public class QueryUtils {
      */
     public static QueryBinaryProperty buildBinaryProperty(GridKernalContext ctx, String pathStr, Class<?> resType,
         Map<String, String> aliases, @Nullable Boolean isKeyField, boolean notNull, Object dlftVal,
-        int precision, int scale) throws IgniteCheckedException {
+        int precision, int scale, boolean hidden) throws IgniteCheckedException {
         String[] path = pathStr.split("\\.");
 
         QueryBinaryProperty res = null;
@@ -752,7 +788,7 @@ public class QueryUtils {
 
             // The key flag that we've found out is valid for the whole path.
             res = new QueryBinaryProperty(ctx, prop, res, resType, isKeyField, alias, notNull, dlftVal,
-                precision, scale);
+                precision, scale, hidden);
         }
 
         return res;
@@ -770,7 +806,7 @@ public class QueryUtils {
      * @throws IgniteCheckedException If failed.
      */
     public static QueryClassProperty buildClassProperty(Class<?> keyCls, Class<?> valCls, String pathStr,
-        Class<?> resType, Map<String,String> aliases, boolean notNull, CacheObjectContext coCtx)
+        Class<?> resType, Map<String,String> aliases, boolean notNull, CacheObjectContext coCtx, boolean hidden)
         throws IgniteCheckedException {
         QueryClassProperty res = buildClassProperty(
             true,
@@ -779,10 +815,11 @@ public class QueryUtils {
             resType,
             aliases,
             notNull,
-            coCtx);
+            coCtx,
+            hidden);
 
         if (res == null) // We check key before value consistently with BinaryProperty.
-            res = buildClassProperty(false, valCls, pathStr, resType, aliases, notNull, coCtx);
+            res = buildClassProperty(false, valCls, pathStr, resType, aliases, notNull, coCtx, hidden);
 
         if (res == null)
             throw new IgniteCheckedException(propertyInitializationExceptionMessage(keyCls, valCls, pathStr, resType));
@@ -805,7 +842,7 @@ public class QueryUtils {
      */
     public static GridQueryProperty buildProperty(Class<?> keyCls, Class<?> valCls, String keyFieldName,
         String valueFieldName, String pathStr, Class<?> resType, Map<String,String> aliases, boolean notNull,
-        CacheObjectContext coCtx) throws IgniteCheckedException {
+        CacheObjectContext coCtx, boolean hidden) throws IgniteCheckedException {
         if (pathStr.equals(keyFieldName))
             return new KeyOrValProperty(true, pathStr, keyCls);
 
@@ -818,7 +855,8 @@ public class QueryUtils {
                 resType,
                 aliases,
                 notNull,
-                coCtx);
+                coCtx,
+                hidden);
     }
 
     /**
@@ -849,7 +887,7 @@ public class QueryUtils {
      */
     @SuppressWarnings("ConstantConditions")
     public static QueryClassProperty buildClassProperty(boolean key, Class<?> cls, String pathStr, Class<?> resType,
-        Map<String,String> aliases, boolean notNull, CacheObjectContext coCtx) {
+        Map<String,String> aliases, boolean notNull, CacheObjectContext coCtx, boolean hidden) {
         String[] path = pathStr.split("\\.");
 
         QueryClassProperty res = null;
@@ -869,7 +907,7 @@ public class QueryUtils {
             if (accessor == null)
                 return null;
 
-            QueryClassProperty tmp = new QueryClassProperty(accessor, key, alias, notNull, coCtx);
+            QueryClassProperty tmp = new QueryClassProperty(accessor, key, alias, notNull, coCtx, hidden);
 
             tmp.parent(res);
 
@@ -1056,7 +1094,7 @@ public class QueryUtils {
      * @return Type name.
      */
     public static String typeName(Class<?> cls) {
-        String typeName = cls.getSimpleName();
+        String typeName = U.getSimpleClassName(cls);
 
         // To protect from failure on anonymous classes.
         if (F.isEmpty(typeName)) {
@@ -1424,6 +1462,12 @@ public class QueryUtils {
         /** {@inheritDoc} */
         @Override public int scale() {
             return -1;
+        }
+        
+        /** {@inheritDoc} */
+        @Override
+        public boolean hidden() {
+            return false;
         }
     }
 }

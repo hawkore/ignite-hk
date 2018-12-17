@@ -78,6 +78,11 @@ namespace Apache.Ignite.Core.Cache.Configuration
         public bool NotNull { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether field is hidden
+        /// </summary>
+        public bool Hidden { get; set; }
+
+        /// <summary>
         /// Gets or sets the default value for the field (has effect when inserting with DML).
         /// </summary>
         public object DefaultValue { get; set; }

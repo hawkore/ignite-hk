@@ -34,6 +34,7 @@ import org.apache.ignite.binary.BinaryObjectBuilder;
 import org.apache.ignite.cache.QueryEntity;
 import org.apache.ignite.cache.QueryIndex;
 import org.apache.ignite.cache.QueryIndexType;
+import org.apache.ignite.cache.query.annotations.QueryTextField;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.IgniteEx;
@@ -455,6 +456,19 @@ public abstract class GridIndexingSpiAbstractSelfTest extends GridCommonAbstract
         @Override public int inlineSize() {
             return 0;
         }
+
+        /** {@inheritDoc} */
+        @Override
+        public void setLuceneIndexOptions(String luceneIndexOptions) {
+            // the lucene index configuration
+            
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public String luceneIndexOptions() {
+            return null;
+        }
     }
 
     /**
@@ -575,6 +589,11 @@ public abstract class GridIndexingSpiAbstractSelfTest extends GridCommonAbstract
                 @Override public int scale() {
                     return -1;
                 }
+
+                @Override
+                public boolean hidden() {                    
+                    return false;
+                }
             };
         }
 
@@ -635,10 +654,6 @@ public abstract class GridIndexingSpiAbstractSelfTest extends GridCommonAbstract
             return null;
         }
 
-        /** */
-        @Override public boolean valueTextIndex() {
-            return textIdx == null;
-        }
 
         /** */
         @Override public int typeId() {
@@ -673,6 +688,18 @@ public abstract class GridIndexingSpiAbstractSelfTest extends GridCommonAbstract
         /** {@inheritDoc} */
         @Override public void setDefaults(Object key, Object val) throws IgniteCheckedException {
             // No-op.
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public void setLuceneIndexOptions(String luceneIndexOptions) {
+            // the lucene index configuration            
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public String luceneIndexOptions() {
+            return null;
         }
     }
 

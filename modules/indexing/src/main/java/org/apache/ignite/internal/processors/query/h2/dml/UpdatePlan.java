@@ -251,9 +251,9 @@ public final class UpdatePlan {
         // column order preserves their precedence for correct update of nested properties.
         Column[] tblCols = tbl.getColumns();
 
-        // First 3 columns are _key, _val and _ver. Skip 'em.
+        // First 5 columns are _key, _val, _ver, lucene and _score. Skip 'em.
         for (int i = DEFAULT_COLUMNS_COUNT; i < tblCols.length; i++) {
-            if (tbl.rowDescriptor().isKeyValueOrVersionColumn(i))
+            if (tbl.rowDescriptor().isInternalColumn(i))
                 continue;
 
             String colName = tblCols[i].getName();
@@ -323,11 +323,11 @@ public final class UpdatePlan {
         if (newVal == null)
             throw new IgniteSQLException("New value for UPDATE must not be null", IgniteQueryErrorCode.NULL_VALUE);
 
-        // Skip key and value - that's why we start off with 3rd column
+        // First 5 columns are _key, _val, _ver, lucene and _score. Skip 'em.
         for (int i = 0; i < tbl.getColumns().length - DEFAULT_COLUMNS_COUNT; i++) {
             Column c = tbl.getColumn(i + DEFAULT_COLUMNS_COUNT);
 
-            if (rowDesc.isKeyValueOrVersionColumn(c.getColumnId()))
+            if (rowDesc.isInternalColumn(c.getColumnId()))
                 continue;
 
             GridQueryProperty prop = desc.property(c.getName());

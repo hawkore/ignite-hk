@@ -17,17 +17,22 @@
 
 package org.apache.ignite.internal.processors.query;
 
-import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.cache.QueryIndexType;
-import org.apache.ignite.internal.util.tostring.GridToStringExclude;
-import org.apache.ignite.internal.util.typedef.T2;
-import org.apache.ignite.internal.util.typedef.internal.S;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.TreeSet;
+
+import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.cache.QueryIndexType;
+import org.apache.ignite.cache.query.annotations.QueryTextField;
+import org.apache.ignite.internal.processors.query.h2.opt.lucene.LuceneQueryUtils;
+import org.apache.ignite.internal.util.tostring.GridToStringExclude;
+import org.apache.ignite.internal.util.typedef.T2;
+import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
  * Index descriptor.
@@ -60,6 +65,11 @@ public class QueryIndexDescriptorImpl implements GridQueryIndexDescriptor {
     /** */
     private final int inlineSize;
 
+    /**
+     * 
+     */
+    private String luceneIndexOptions;
+    
     /**
      * Constructor.
      *
@@ -123,6 +133,20 @@ public class QueryIndexDescriptorImpl implements GridQueryIndexDescriptor {
         if (!typDesc.hasField(field))
             throw new IgniteCheckedException("Field not found: " + field);
 
+	    GridQueryProperty p = typDesc.property(field);
+	    
+	    // property with alias
+	    if (p != null){
+	        
+	        String alias = typDesc.aliases().get(p.name()); 
+	        
+	        if (alias != null){
+	            field = alias; 
+	        }else{
+	            field = p.name();
+	        }
+	    }
+
         fields.add(new T2<>(field, orderNum));
 
         if (descending) {
@@ -144,4 +168,18 @@ public class QueryIndexDescriptorImpl implements GridQueryIndexDescriptor {
     @Override public String toString() {
         return S.toString(QueryIndexDescriptorImpl.class, this);
     }
+
+    /** {@inheritDoc} */
+    @Override
+    public String luceneIndexOptions() {
+        return this.luceneIndexOptions;
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void setLuceneIndexOptions(String luceneIndexOptions) {
+        this.luceneIndexOptions = luceneIndexOptions;
+    }
+ 
 }

@@ -1945,7 +1945,7 @@ public class IgnitionEx {
 
             affExecSvc.allowCoreThreadTimeOut(true);
 
-            if (IgniteComponentType.INDEXING.inClassPath()) {
+            if (IgniteComponentType.INDEXING.inClassPath() || IgniteComponentType.INDEXING.inClassPathDefault()) {
                 int cpus = Runtime.getRuntime().availableProcessors();
 
                 idxExecSvc = new IgniteThreadPoolExecutor(

@@ -499,6 +499,20 @@ public abstract class IgniteUtils {
     private static final ConcurrentMap<ClassLoader, ConcurrentMap<String, Class>> classCache =
         new ConcurrentHashMap<>();
 
+    /** cache class simplenames to improve x4 performance on getSimpleName for class */
+    private static final ConcurrentMap<Class<?>, String> classSimpleNamesCache = new ConcurrentHashMap<>();
+    
+    /**
+     * cached getSimpleClassName
+     * 
+     * @param key
+     * @return Class Simple name 
+     */
+    public static String getSimpleClassName (Class<?> key){
+    	return classSimpleNamesCache.computeIfAbsent(key, Class::getSimpleName);
+    }
+    
+    
     /** */
     private static volatile Boolean hasShmem;
 
@@ -5586,7 +5600,7 @@ public abstract class IgniteUtils {
      * @return Simple class name.
      */
     public static String getSimpleName(Class<?> cls) {
-        String name = cls.getSimpleName();
+        String name = U.getSimpleClassName(cls);
 
         if (F.isEmpty(name))
             name = cls.getName().substring(cls.getPackage().getName().length() + 1);
@@ -7684,6 +7698,20 @@ public abstract class IgniteUtils {
         }
     }
 
+    /**
+     * Sleeps for given number of milliseconds without throwing InterruptedException
+     *
+     * @param ms Time to sleep.
+     */
+    public static void sleepSafe(long ms){
+        try {
+            Thread.sleep(ms);
+        }
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+    
     /**
      * Joins worker.
      *

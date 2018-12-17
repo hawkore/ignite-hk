@@ -25,9 +25,11 @@ import javax.cache.Cache;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteDataStreamer;
 import org.apache.ignite.cache.query.FieldsQueryCursor;
+import org.apache.ignite.cache.QueryEntity;
 import org.apache.ignite.cache.query.QueryCursor;
 import org.apache.ignite.cache.query.SqlFieldsQuery;
 import org.apache.ignite.cache.query.SqlQuery;
+import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
@@ -171,6 +173,23 @@ public interface GridQueryIndexing {
      */
     @SuppressWarnings("SynchronizationOnLocalVariableOrMethodParameter")
     public void dynamicIndexDrop(String schemaName, String idxName, boolean ifExists) throws IgniteCheckedException;
+
+
+    /**
+     * Create/update table (a.k.a. QueryEntity)
+     * 
+     * 
+     * @param cacheName Cache name.
+     * @param tblName the table name
+     * @param queryEntity QueryEntity entity to register.
+     * @param cacheVisitor Cache visitor, needs for index population
+     * @param forceRebuildIndexes force rebuild QueryEntity's indexes 
+     * @param forceMutateQueryEntity force full table recreation
+     * @throws IgniteCheckedException
+     */
+    public void dynamicRegisterQueryEntity(String cacheName, String tblName, QueryTypeDescriptorImpl queryEntity, SchemaIndexCacheVisitor cacheVisitor, 
+        boolean forceRebuildIndexes, boolean forceMutateQueryEntity, boolean async) throws IgniteCheckedException;
+
 
     /**
      * Add columns to dynamic table.
@@ -339,4 +358,17 @@ public interface GridQueryIndexing {
      * @return Row cache cleaner.
      */
     public GridQueryRowCacheCleaner rowCacheCleaner(int cacheGroupId);
+
+    /**
+     * 
+     * Rebuild indexes on table
+     * 
+     * @param schemaName the schema
+     * @param tblName the table name
+     * @param indexNames indexes to rebuild (if not provided all table's indexes will be rebuilt)
+     * @param cacheVisitor cache visitor used to populate indexes
+     * @throws IgniteCheckedException
+     */
+    public void dynamicIndexesRebuild(String schemaName, String tblName, List<String> indexNames,
+        SchemaIndexCacheVisitor cacheVisitor, boolean async) throws IgniteCheckedException;
 }

@@ -17,6 +17,12 @@
 
 package org.apache.ignite.internal.processors.query.h2;
 
+import static org.apache.ignite.internal.processors.query.h2.opt.GridH2KeyValueRowOnheap.KEY_COL;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.cache.QueryIndexType;
@@ -30,18 +36,13 @@ import org.apache.ignite.internal.processors.query.h2.opt.GridH2RowDescriptor;
 import org.apache.ignite.internal.processors.query.h2.opt.GridH2SystemIndexFactory;
 import org.apache.ignite.internal.processors.query.h2.opt.GridH2Table;
 import org.apache.ignite.internal.processors.query.h2.opt.GridLuceneIndex;
+import org.apache.ignite.internal.processors.query.h2.opt.GridLuceneIndexLegacyImpl;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.h2.index.Index;
 import org.h2.result.SortOrder;
 import org.h2.table.Column;
 import org.h2.table.IndexColumn;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-
-import static org.apache.ignite.internal.processors.query.h2.opt.GridH2KeyValueRowOnheap.KEY_COL;
 
 /**
  * Information about table in database.
@@ -54,7 +55,7 @@ public class H2TableDescriptor implements GridH2SystemIndexFactory {
     private final String fullTblName;
 
     /** */
-    private final GridQueryTypeDescriptor type;
+    private GridQueryTypeDescriptor type;
 
     /** */
     private final H2Schema schema;
@@ -71,6 +72,8 @@ public class H2TableDescriptor implements GridH2SystemIndexFactory {
     /** */
     private H2PkHashIndex pkHashIdx;
 
+    private Object mux = new Object();
+    
     /**
      * Constructor.
      *
@@ -120,21 +123,21 @@ public class H2TableDescriptor implements GridH2SystemIndexFactory {
     /**
      * @return Table name.
      */
-    String tableName() {
+    public String tableName() {
         return type.tableName();
     }
 
     /**
      * @return Database full table name.
      */
-    String fullTableName() {
+    public String fullTableName() {
         return fullTblName;
     }
 
     /**
      * @return type name.
      */
-    String typeName() {
+    public String typeName() {
         return type.name();
     }
 
@@ -148,14 +151,14 @@ public class H2TableDescriptor implements GridH2SystemIndexFactory {
     /**
      * @return Type.
      */
-    GridQueryTypeDescriptor type() {
+    public GridQueryTypeDescriptor type() {
         return type;
     }
 
     /**
      * @return Lucene index.
      */
-    GridLuceneIndex luceneIndex() {
+    public GridLuceneIndex luceneIndex() {
         return luceneIdx;
     }
 
@@ -170,7 +173,7 @@ public class H2TableDescriptor implements GridH2SystemIndexFactory {
      * @param rowDesc Row descriptor.
      * @return H2 row factory.
      */
-    H2RowFactory rowFactory(GridH2RowDescriptor rowDesc) {
+    public H2RowFactory rowFactory(GridH2RowDescriptor rowDesc) {
         if (cctx.affinityNode())
             return new H2RowFactory(rowDesc, cctx);
 
@@ -209,27 +212,16 @@ public class H2TableDescriptor implements GridH2SystemIndexFactory {
 
         idxs.add(pkIdx);
 
-        if (type().valueClass() == String.class) {
-            try {
-                luceneIdx = new GridLuceneIndex(idx.kernalContext(), tbl.cacheName(), type);
-            }
-            catch (IgniteCheckedException e1) {
-                throw new IgniteException(e1);
+        if (luceneIdx == null){
+            createOrUpdateLuceneIndex(null, false, false);
+            //add Grid H2 Lucene index to H2 table
+            if (luceneIdx != null && H2Utils.inClassPath(H2Utils.ADVANCED_LUCENE_IDX_CLS)){
+                idxs.add(luceneIdx);
             }
         }
+
 
         boolean affIdxFound = false;
-
-        GridQueryIndexDescriptor textIdx = type.textIndex();
-
-        if (textIdx != null) {
-            try {
-                luceneIdx = new GridLuceneIndex(idx.kernalContext(), tbl.cacheName(), type);
-            }
-            catch (IgniteCheckedException e1) {
-                throw new IgniteException(e1);
-            }
-        }
 
         // Locate index where affinity column is first (if any).
         if (affCol != null) {
@@ -269,8 +261,18 @@ public class H2TableDescriptor implements GridH2SystemIndexFactory {
 
         for (GridQueryIndexDescriptor idxDesc : type.indexes().values()) {
             GridH2IndexBase idx = createUserIndex(idxDesc);
+            if (idx != null){
+                res.add(idx);
+            }
+         }
+        //try globally
 
-            res.add(idx);
+        if (luceneIdx == null){
+            createOrUpdateLuceneIndex(null, false, false);
+            //add Grid H2 Lucene index to H2 table
+            if (luceneIdx != null && H2Utils.inClassPath(H2Utils.ADVANCED_LUCENE_IDX_CLS)){
+                res.add(luceneIdx);
+            }
         }
 
         return res;
@@ -302,9 +304,17 @@ public class H2TableDescriptor implements GridH2SystemIndexFactory {
 
             return idx.createSortedIndex(idxDesc.name(), tbl, false, cols, idxDesc.inlineSize());
         }
-        else if (idxDesc.type() == QueryIndexType.GEOSPATIAL)
+        else if (idxDesc.type() == QueryIndexType.GEOSPATIAL){
             return H2Utils.createSpatialIndex(tbl, idxDesc.name(), cols.toArray(new IndexColumn[cols.size()]));
 
+        } else if (idxDesc.type() == QueryIndexType.FULLTEXT && H2Utils.inClassPath(H2Utils.ADVANCED_LUCENE_IDX_CLS)){           
+            if (luceneIdx == null){
+                luceneIdx = (GridLuceneIndex) H2Utils.createAdvancedLuceneIndex(tbl, idxDesc.luceneIndexOptions());
+                return luceneIdx;
+            }
+            return null;
+        }
+        
         throw new IllegalStateException("Index type: " + idxDesc.type());
     }
 
@@ -336,6 +346,76 @@ public class H2TableDescriptor implements GridH2SystemIndexFactory {
 
         tbl.destroy();
 
-        U.closeQuiet(luceneIdx);
+        try {
+            dropLuceneIndex();
+        } catch (IgniteCheckedException e) {
+            //NOP
+        }
+	}
+
+    /**
+     * 
+     * @param newType
+     */
+    public void updateType(GridQueryTypeDescriptor newType) {
+        this.tbl.rowDescriptor().refreshMetadataFromTypeDescriptor(newType);
+        this.type = newType;
     }
+    
+    /**
+     * Drop Advanced Lucene Index 
+     * 
+     * Used from Advanced Lucence Index implementation
+     * 
+     * @param remove
+     * @throws IgniteCheckedException 
+     */
+    public void dropLuceneIndex() throws IgniteCheckedException{
+        if (luceneIdx != null){
+           String sql = H2Utils.indexDropSql(this.schemaName(), luceneIdx.getName(), true);
+           idx.executeSql(this.schemaName(), sql);
+           luceneIdx.destroy(true);
+        }
+        luceneIdx = null;
+    }
+    
+	/**
+	 * Creates or updates (add new indexed fields) to Advanced Lucene Index
+     * 
+     * @param luceneIndexOptions
+     * @param updateConfig
+     * @param forceMutateQueryEntity
+     * 
+     * @return GridH2IndexBase lucene index
+     */
+	public GridH2IndexBase createOrUpdateLuceneIndex(String luceneIndexOptions, boolean updateConfig, boolean forceMutateQueryEntity) {
+
+		if (this.tbl == null){
+			return null;
+		}
+		
+		if (this.type.luceneIndexOptions() != null || this.type.valueClass() == String.class || luceneIndexOptions != null ) {
+		    synchronized (mux) {
+     			if (luceneIdx == null){
+    				try {
+    				    //preferable Advanced Lucene Index if present
+    	                if (H2Utils.inClassPath(H2Utils.ADVANCED_LUCENE_IDX_CLS)){
+    	                    luceneIdx = (GridLuceneIndex) H2Utils.createAdvancedLuceneIndex(tbl, luceneIndexOptions == null ? this.type.luceneIndexOptions(): luceneIndexOptions);
+    	                    return luceneIdx;
+    	                }else{
+    	                    luceneIdx = new GridLuceneIndexLegacyImpl(idx.kernalContext(), tbl.cacheName(), type);
+    	                }
+    				}catch (Exception e1) {
+    					throw new IgniteException(e1);
+    				}
+    			}else{
+    			    if (H2Utils.inClassPath(H2Utils.ADVANCED_LUCENE_IDX_CLS) && updateConfig){
+    			        luceneIdx.updateIndexConfig(this.tbl,  luceneIndexOptions == null ? this.type.luceneIndexOptions(): luceneIndexOptions, forceMutateQueryEntity);
+    			        return luceneIdx;
+    			    }
+    			}
+		    }
+		}
+		return null;
+	}
 }

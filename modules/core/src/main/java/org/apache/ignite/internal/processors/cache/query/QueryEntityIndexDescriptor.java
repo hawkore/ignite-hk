@@ -20,10 +20,18 @@ package org.apache.ignite.internal.processors.cache.query;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.TreeSet;
+
+import javax.cache.CacheException;
+
 import org.apache.ignite.cache.QueryIndexType;
+import org.apache.ignite.cache.query.annotations.QueryTextField;
 import org.apache.ignite.internal.processors.query.GridQueryIndexDescriptor;
+import org.apache.ignite.internal.processors.query.h2.opt.lucene.LuceneQueryUtils;
 import org.apache.ignite.internal.util.typedef.T2;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
@@ -50,6 +58,14 @@ public class QueryEntityIndexDescriptor implements GridQueryIndexDescriptor {
     /** Fields which should be indexed in descending order. */
     private Collection<String> descendings;
 
+    private String luceneIndexOptions;
+    
+    /** QueryTextField at type level */
+    private List<QueryTextField> typeTextAnnotations;
+    
+    /** QueryTextField annotations at field level */
+    private Map<String, List<QueryTextField>> fieldTextAnnotations;
+    
     /**
      * @param type Type.
      * @param inlineSize Inline size.
@@ -95,7 +111,7 @@ public class QueryEntityIndexDescriptor implements GridQueryIndexDescriptor {
      * @param orderNum Field order number in this index.
      * @param descending Sort order.
      */
-    public void addField(String field, int orderNum, boolean descending) {
+    public void addField(String field, int orderNum, boolean descending, List<QueryTextField> ann) {
         fields.add(new T2<>(field, orderNum));
 
         if (descending) {
@@ -103,6 +119,12 @@ public class QueryEntityIndexDescriptor implements GridQueryIndexDescriptor {
                 descendings = new HashSet<>();
 
             descendings.add(field);
+        }
+        
+		if (ann!=null){
+			if (getFieldTextAnnotations().containsKey(field))
+				throw new CacheException("Duplicate text QueryTextField for field: " + field+" on type "+this.name());
+			getFieldTextAnnotations().put(field, ann);
         }
     }
 
@@ -119,5 +141,44 @@ public class QueryEntityIndexDescriptor implements GridQueryIndexDescriptor {
     /** {@inheritDoc} */
     @Override public String toString() {
         return S.toString(QueryEntityIndexDescriptor.class, this);
+    }
+
+    public List<QueryTextField> getTypeTextAnnotations() {
+        if(typeTextAnnotations==null){
+            typeTextAnnotations= new ArrayList<>();
+        }
+        return typeTextAnnotations;
+    }
+
+
+    public void setTypeTextAnnotations(List<QueryTextField> typeTextAnnotations) {
+        this.typeTextAnnotations = typeTextAnnotations;   
+    }
+
+
+    public Map<String, List<QueryTextField>> getFieldTextAnnotations() {
+        if(fieldTextAnnotations==null){
+            fieldTextAnnotations= new HashMap<>();
+        }
+        return fieldTextAnnotations;
+    }
+
+    public void setFieldTextAnnotations(Map<String, List<QueryTextField>> fieldTextAnnotations) {
+        this.fieldTextAnnotations = fieldTextAnnotations;
+    }
+    
+    /** {@inheritDoc} */
+    @Override
+    public void setLuceneIndexOptions(String luceneIndexOptions) {
+       this.luceneIndexOptions = luceneIndexOptions;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public String luceneIndexOptions() {
+        if (this.luceneIndexOptions == null){
+            this.luceneIndexOptions = LuceneQueryUtils.luceneIndex(null, null, this.getTypeTextAnnotations(), this.getFieldTextAnnotations()).build();
+        }
+        return this.luceneIndexOptions;
     }
 }

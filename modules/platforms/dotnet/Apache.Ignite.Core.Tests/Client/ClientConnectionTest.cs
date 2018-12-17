@@ -37,7 +37,8 @@ namespace Apache.Ignite.Core.Tests.Client
     /// <summary>
     /// Tests client connection: port ranges, version checks, etc.
     /// </summary>
-    public class ClientConnectionTest
+    [Ignore]
+    internal class ClientConnectionTest
     {
         /** Temp dir for WAL. */
         private readonly string _tempDir = TestUtils.GetTempDirectoryName();

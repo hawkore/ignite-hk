@@ -17,6 +17,33 @@
 
 package org.apache.ignite.internal.processors.query.h2.sql;
 
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.AND;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.BIGGER;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.BIGGER_EQUAL;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.CONCAT;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.DIVIDE;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.EQUAL;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.EQUAL_NULL_SAFE;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.EXISTS;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.IN;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.IS_NOT_NULL;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.IS_NULL;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.LIKE;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.MINUS;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.MODULUS;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.MULTIPLY;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.NOT;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.NOT_EQUAL;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.NOT_EQUAL_NULL_SAFE;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.OR;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.PLUS;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.REGEXP;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.SMALLER;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.SMALLER_EQUAL;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.SPATIAL_INTERSECTS;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlType.fromColumn;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlType.fromExpression;
+
 import java.lang.reflect.Field;
 import java.sql.PreparedStatement;
 import java.util.ArrayList;
@@ -27,7 +54,9 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+
 import javax.cache.CacheException;
+
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.cache.CacheAtomicityMode;
 import org.apache.ignite.cache.CacheWriteSynchronizationMode;
@@ -65,6 +94,7 @@ import org.h2.command.dml.SelectUnion;
 import org.h2.command.dml.Update;
 import org.h2.engine.Constants;
 import org.h2.engine.FunctionAlias;
+import org.h2.engine.UserAggregate;
 import org.h2.expression.Aggregate;
 import org.h2.expression.Alias;
 import org.h2.expression.CompareLike;
@@ -79,6 +109,7 @@ import org.h2.expression.Expression;
 import org.h2.expression.ExpressionColumn;
 import org.h2.expression.ExpressionList;
 import org.h2.expression.Function;
+import org.h2.expression.JavaAggregate;
 import org.h2.expression.JavaFunction;
 import org.h2.expression.Operation;
 import org.h2.expression.Parameter;
@@ -100,33 +131,6 @@ import org.h2.table.TableFilter;
 import org.h2.table.TableView;
 import org.h2.value.DataType;
 import org.jetbrains.annotations.Nullable;
-
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.AND;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.BIGGER;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.BIGGER_EQUAL;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.CONCAT;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.DIVIDE;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.EQUAL;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.EQUAL_NULL_SAFE;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.EXISTS;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.IN;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.IS_NOT_NULL;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.IS_NULL;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.LIKE;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.MINUS;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.MODULUS;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.MULTIPLY;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.NOT;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.NOT_EQUAL;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.NOT_EQUAL_NULL_SAFE;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.OR;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.PLUS;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.REGEXP;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.SMALLER;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.SMALLER_EQUAL;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.SPATIAL_INTERSECTS;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlType.fromColumn;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlType.fromExpression;
 
 /**
  * H2 Query parser.
@@ -235,6 +239,10 @@ public class GridSqlQueryParser {
     /** */
     private static final Getter<Aggregate, Boolean> DISTINCT = getter(Aggregate.class, "distinct");
 
+    /** For java aggregate functions */
+    private static final Getter<JavaAggregate, UserAggregate> JAVA_AGG_USER_AGGREGATE = getter(JavaAggregate.class, "userAggregate");
+    private static final Getter<JavaAggregate, Expression[]> JAVA_AGG_ARGS = getter(JavaAggregate.class, "args");
+    
     /** */
     private static final Getter<Aggregate, Integer> TYPE = getter(Aggregate.class, "type");
 
@@ -329,7 +337,7 @@ public class GridSqlQueryParser {
     /** */
     private static final Getter<Command, Prepared> PREPARED =
         GridSqlQueryParser.<Command, Prepared>getter(CommandContainer.class, "prepared");
-
+    
     /** */
     private static final Getter<CreateIndex, String> CREATE_INDEX_NAME = getter(CreateIndex.class, "indexName");
 
@@ -1951,6 +1959,24 @@ public class GridSqlQueryParser {
             return res;
         }
 
+		// Adds JavaAggregate support 
+        // by now for ST_ACCUM and ST_COLLECT defined on 
+        // org.apache.ignite.internal.processors.query.h2.sql.GridSqlFunctionType
+        // processed on org.apache.ignite.internal.processors.query.h2.sql.GridSqlAggregateFunction 
+        // and map-reduce processed on org.apache.ignite.internal.processors.query.h2.sql.GridSqlQuerySplitter.splitAggregate(GridSqlAst, int, List<GridSqlAst>, int, boolean, boolean))
+        if (expression instanceof JavaAggregate) {
+        	JavaAggregate f = (JavaAggregate)expression;
+        	Expression[] args = JAVA_AGG_ARGS.get(f);
+        	UserAggregate ua = JAVA_AGG_USER_AGGREGATE.get(f);
+            GridSqlAggregateFunction res = new GridSqlAggregateFunction(false, GridSqlFunctionType.valueOf(ua.getName()));
+        	
+            if (args != null) {
+                for (Expression arg :args)
+                    res.addChild(parseExpression(arg, calcTypes));
+            }
+            return res;
+        }
+        
         if (expression instanceof Parameter)
             return new GridSqlParameter(((Parameter)expression).getIndex());
 

@@ -181,7 +181,14 @@ class OptimizedObjectOutputStream extends ObjectOutputStream {
         if (obj == null)
             writeByte(NULL);
         else {
-            if (obj instanceof Throwable && !(obj instanceof Externalizable) || U.isEnum(obj.getClass())) {
+        	boolean jdkStringWrite = false;
+        	
+        	//for string bigger than 4K performance degrades x2 slower than JDK 
+        	if (obj instanceof String){
+        		jdkStringWrite = (((String)obj).length() > 4096); 
+        	}
+        	
+            if ((jdkStringWrite || obj instanceof Throwable) && !(obj instanceof Externalizable) || U.isEnum(obj.getClass())) {
                 // Avoid problems with differing Enum objects or Enum implementation class deadlocks.
                 writeByte(JDK);
 

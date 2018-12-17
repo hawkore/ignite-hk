@@ -39,6 +39,9 @@ public class GridCacheQuerySqlMetadataV2 extends GridCacheQueryManager.CacheSqlM
     /** Not null fields. */
     private Map<String, Set<String>> notNullFields;
 
+    /** hidden fields. */
+    private Map<String, Set<String>> hiddenFields;
+    
     /**
      * Required by {@link Externalizable}.
      */
@@ -57,10 +60,11 @@ public class GridCacheQuerySqlMetadataV2 extends GridCacheQueryManager.CacheSqlM
      */
     GridCacheQuerySqlMetadataV2(@Nullable String cacheName, Collection<String> types, Map<String, String> keyClasses,
         Map<String, String> valClasses, Map<String, Map<String, String>> fields,
-        Map<String, Collection<GridCacheSqlIndexMetadata>> indexes, Map<String, Set<String>> notNullFields) {
+        Map<String, Collection<GridCacheSqlIndexMetadata>> indexes, Map<String, Set<String>> notNullFields, Map<String, Set<String>> hiddenFields) {
         super(cacheName, types, keyClasses, valClasses, fields, indexes);
 
         this.notNullFields = notNullFields;
+        this.hiddenFields = hiddenFields;
     }
 
     /**
@@ -70,12 +74,14 @@ public class GridCacheQuerySqlMetadataV2 extends GridCacheQueryManager.CacheSqlM
         super(metas);
 
         notNullFields = new HashMap<>();
-
+        hiddenFields = new HashMap<>();
+        
         for (GridCacheQueryManager.CacheSqlMetadata meta : metas) {
             if (meta instanceof GridCacheQuerySqlMetadataV2) {
                 GridCacheQuerySqlMetadataV2 metaV2 = (GridCacheQuerySqlMetadataV2)meta;
 
                 notNullFields.putAll(metaV2.notNullFields);
+                hiddenFields.putAll(metaV2.hiddenFields);
             }
         }
     }
@@ -84,12 +90,18 @@ public class GridCacheQuerySqlMetadataV2 extends GridCacheQueryManager.CacheSqlM
     @Override public Collection<String> notNullFields(String type) {
         return notNullFields.get(type);
     }
+    
+    /** {@inheritDoc} */
+    @Override public Collection<String> hiddenFields(String type) {
+        return hiddenFields.get(type);
+    }
 
     /** {@inheritDoc} */
     @Override public void writeExternal(ObjectOutput out) throws IOException {
         super.writeExternal(out);
 
         U.writeMap(out, notNullFields);
+        U.writeMap(out, hiddenFields);
     }
 
     /** {@inheritDoc} */
@@ -97,5 +109,6 @@ public class GridCacheQuerySqlMetadataV2 extends GridCacheQueryManager.CacheSqlM
         super.readExternal(in);
 
         notNullFields = U.readHashMap(in);
+        hiddenFields = U.readHashMap(in);
     }
 }

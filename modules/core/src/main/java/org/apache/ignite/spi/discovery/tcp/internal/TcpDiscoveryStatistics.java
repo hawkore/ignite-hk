@@ -231,7 +231,7 @@ public class TcpDiscoveryStatistics {
     public synchronized void onMessageReceived(TcpDiscoveryAbstractMessage msg) {
         assert msg != null;
 
-        Integer cnt = F.addIfAbsent(rcvdMsgs, msg.getClass().getSimpleName(), new Callable<Integer>() {
+        Integer cnt = F.addIfAbsent(rcvdMsgs, U.getSimpleClassName(msg.getClass()), new Callable<Integer>() {
             @Override public Integer call() {
                 return 0;
             }
@@ -239,7 +239,7 @@ public class TcpDiscoveryStatistics {
 
         assert cnt != null;
 
-        rcvdMsgs.put(msg.getClass().getSimpleName(), ++cnt);
+        rcvdMsgs.put(U.getSimpleClassName(msg.getClass()), ++cnt);
 
         msgsRcvTs.put(msg.id(), U.currentTimeMillis());
     }
@@ -252,7 +252,7 @@ public class TcpDiscoveryStatistics {
     public synchronized void onMessageProcessingStarted(TcpDiscoveryAbstractMessage msg) {
         assert msg != null;
 
-        Integer cnt = F.addIfAbsent(procMsgs, msg.getClass().getSimpleName(), new Callable<Integer>() {
+        Integer cnt = F.addIfAbsent(procMsgs, U.getSimpleClassName(msg.getClass()), new Callable<Integer>() {
             @Override public Integer call() {
                 return 0;
             }
@@ -260,7 +260,7 @@ public class TcpDiscoveryStatistics {
 
         assert cnt != null;
 
-        procMsgs.put(msg.getClass().getSimpleName(), ++cnt);
+        procMsgs.put(U.getSimpleClassName(msg.getClass()), ++cnt);
 
         Long rcvdTs = msgsRcvTs.remove(msg.id());
 
@@ -300,7 +300,7 @@ public class TcpDiscoveryStatistics {
             if (duration > maxMsgProcTime) {
                 maxMsgProcTime = duration;
 
-                maxProcTimeMsgCls = msg.getClass().getSimpleName();
+                maxProcTimeMsgCls = U.getSimpleClassName(msg.getClass());
             }
 
             msgsProcStartTs.remove(msg.id());
@@ -327,7 +327,7 @@ public class TcpDiscoveryStatistics {
             ringMsgsSent++;
         }
 
-        Integer cnt = F.addIfAbsent(sentMsgs, msg.getClass().getSimpleName(), new Callable<Integer>() {
+        Integer cnt = F.addIfAbsent(sentMsgs, U.getSimpleClassName(msg.getClass()), new Callable<Integer>() {
             @Override public Integer call() {
                 return 0;
             }
@@ -335,7 +335,7 @@ public class TcpDiscoveryStatistics {
 
         assert cnt != null;
 
-        sentMsgs.put(msg.getClass().getSimpleName(), ++cnt);
+        sentMsgs.put(U.getSimpleClassName(msg.getClass()), ++cnt);
 
         addTimeInfo(avgMsgsSndTimes, maxMsgsSndTimes, msg, cnt, time);
 
@@ -354,7 +354,7 @@ public class TcpDiscoveryStatistics {
         TcpDiscoveryAbstractMessage msg,
         int cnt,
         long time) {
-        Long avgTime = F.addIfAbsent(avgTimes, msg.getClass().getSimpleName(), new Callable<Long>() {
+        Long avgTime = F.addIfAbsent(avgTimes, U.getSimpleClassName(msg.getClass()), new Callable<Long>() {
             @Override public Long call() {
                 return 0L;
             }
@@ -364,9 +364,9 @@ public class TcpDiscoveryStatistics {
 
         avgTime = (avgTime * (cnt - 1) + time) / cnt;
 
-        avgTimes.put(msg.getClass().getSimpleName(), avgTime);
+        avgTimes.put(U.getSimpleClassName(msg.getClass()), avgTime);
 
-        Long maxTime = F.addIfAbsent(maxTimes, msg.getClass().getSimpleName(), new Callable<Long>() {
+        Long maxTime = F.addIfAbsent(maxTimes, U.getSimpleClassName(msg.getClass()), new Callable<Long>() {
             @Override public Long call() {
                 return 0L;
             }
@@ -375,7 +375,7 @@ public class TcpDiscoveryStatistics {
         assert maxTime != null;
 
         if (time > maxTime)
-            maxTimes.put(msg.getClass().getSimpleName(), time);
+            maxTimes.put(U.getSimpleClassName(msg.getClass()), time);
     }
 
     /**
@@ -394,7 +394,7 @@ public class TcpDiscoveryStatistics {
             if (maxRingMsgTime < duration) {
                 maxRingMsgTime = duration;
 
-                maxRingTimeMsgCls = msg.getClass().getSimpleName();
+                maxRingTimeMsgCls = U.getSimpleClassName(msg.getClass());
             }
 
             if (ringMsgsSent != 0)

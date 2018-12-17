@@ -289,7 +289,7 @@ public abstract class H2DynamicColumnsAbstractBasicSelfTest extends DynamicColum
 
         doSleep(500);
 
-        QueryField c = new QueryField("AGE", Integer.class.getName(), false);
+        QueryField c = new QueryField("AGE", Integer.class.getName(), false, false);
 
         checkTableState(QueryUtils.DFLT_SCHEMA, "PERSON", c);
     }
@@ -302,7 +302,7 @@ public abstract class H2DynamicColumnsAbstractBasicSelfTest extends DynamicColum
 
         doSleep(500);
 
-        QueryField c = new QueryField("AGE", Integer.class.getName(), true);
+        QueryField c = new QueryField("AGE", Integer.class.getName(), true, false);
 
         checkTableState(QueryUtils.DFLT_SCHEMA, "PERSON", c);
     }
@@ -350,15 +350,15 @@ public abstract class H2DynamicColumnsAbstractBasicSelfTest extends DynamicColum
             run("CREATE TABLE test (id INT PRIMARY KEY, a INT, b CHAR)");
 
             assertEquals(0, checkTableState(QueryUtils.DFLT_SCHEMA, "TEST",
-                new QueryField("ID", Integer.class.getName(), true),
-                new QueryField("A", Integer.class.getName(), true),
-                new QueryField("B", String.class.getName(), true)));
+                new QueryField("ID", Integer.class.getName(), true, false),
+                new QueryField("A", Integer.class.getName(), true, false),
+                new QueryField("B", String.class.getName(), true, false)));
 
             run("ALTER TABLE test DROP COLUMN a");
 
             assertEquals(0, checkTableState(QueryUtils.DFLT_SCHEMA, "TEST",
-                new QueryField("ID", Integer.class.getName(), true),
-                new QueryField("B", String.class.getName(), true)));
+                new QueryField("ID", Integer.class.getName(), true, false),
+                new QueryField("B", String.class.getName(), true, false)));
 
             run("ALTER TABLE test DROP COLUMN IF EXISTS a");
 
@@ -400,16 +400,16 @@ public abstract class H2DynamicColumnsAbstractBasicSelfTest extends DynamicColum
             run("CREATE TABLE test (id INT PRIMARY KEY, a INT, b CHAR, c INT)");
 
             assertEquals(0, checkTableState(QueryUtils.DFLT_SCHEMA, "TEST",
-                new QueryField("ID", Integer.class.getName(), true),
-                new QueryField("A", Integer.class.getName(), true),
-                new QueryField("B", String.class.getName(), true),
-                new QueryField("C", Integer.class.getName(), true)));
+                new QueryField("ID", Integer.class.getName(), true, false),
+                new QueryField("A", Integer.class.getName(), true, false),
+                new QueryField("B", String.class.getName(), true, false),
+                new QueryField("C", Integer.class.getName(), true, false)));
 
             run("ALTER TABLE test DROP COLUMN a, c");
 
             assertEquals(0, checkTableState(QueryUtils.DFLT_SCHEMA, "TEST",
-                new QueryField("ID", Integer.class.getName(), true),
-                new QueryField("B", String.class.getName(), true)));
+                new QueryField("ID", Integer.class.getName(), true, false),
+                new QueryField("B", String.class.getName(), true, false)));
         }
         finally {
             run("DROP TABLE IF EXISTS test");
@@ -451,8 +451,8 @@ public abstract class H2DynamicColumnsAbstractBasicSelfTest extends DynamicColum
             run("ALTER TABLE IF EXISTS test DROP COLUMN a");
 
             assertEquals(0, checkTableState(QueryUtils.DFLT_SCHEMA, "TEST",
-                new QueryField("ID", Integer.class.getName(), true),
-                new QueryField("B", String.class.getName(), true)));
+                new QueryField("ID", Integer.class.getName(), true, false),
+                new QueryField("B", String.class.getName(), true, false)));
         }
         finally {
             run("DROP TABLE IF EXISTS test");
@@ -472,7 +472,7 @@ public abstract class H2DynamicColumnsAbstractBasicSelfTest extends DynamicColum
             run("ALTER TABLE IF EXISTS test DROP COLUMN IF EXISTS b");
 
             assertEquals(0, checkTableState(QueryUtils.DFLT_SCHEMA, "TEST",
-                new QueryField("ID", Integer.class.getName(), true)));
+                new QueryField("ID", Integer.class.getName(), true, false)));
         }
         finally {
             run("DROP TABLE IF EXISTS test");
@@ -497,8 +497,8 @@ public abstract class H2DynamicColumnsAbstractBasicSelfTest extends DynamicColum
             run("ALTER TABLE test DROP COLUMN b");
 
             assertEquals(0, checkTableState(QueryUtils.DFLT_SCHEMA, "TEST",
-                new QueryField("ID", Integer.class.getName(), true),
-                new QueryField("A", Integer.class.getName(), true)));
+                new QueryField("ID", Integer.class.getName(), true, false),
+                new QueryField("A", Integer.class.getName(), true, false)));
         }
         finally {
             run("DROP TABLE IF EXISTS test");

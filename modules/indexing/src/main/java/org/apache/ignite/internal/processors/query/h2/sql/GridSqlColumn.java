@@ -87,6 +87,13 @@ public class GridSqlColumn extends GridSqlElement {
     }
 
     /**
+     * @return Table alias.
+     */
+    public String tableAlias() {
+        return this.tblAlias;
+    }
+    
+    /**
      * @param tblAlias Table alias.
      */
     public void tableAlias(String tblAlias) {

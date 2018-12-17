@@ -831,6 +831,35 @@ public abstract class GridH2IndexBase extends BaseIndex {
     }
 
     /**
+     * @param row Table row.
+     * @return Segment ID for given row.
+     */
+    protected int segmentForKey(Object keyValue) {
+        assert keyValue != null;
+
+        if (segmentsCount() == 1 || ctx == null)
+            return 0;
+        
+        CacheObject key;
+
+    	Object o;
+    	if (keyValue instanceof Value){
+    		o = ((Value)keyValue).getObject();
+    	}else{
+    		o = keyValue;
+    	}
+
+        assert o != null;
+
+        if (o instanceof CacheObject)
+            key = (CacheObject)o;
+        else
+            key = ctx.toCacheKeyObject(o);
+
+        return segmentForPartition(ctx.affinity().partition(key));
+
+    }
+    /**
      * Simple cursor from a single node.
      */
     private static class UnicastCursor implements Cursor {

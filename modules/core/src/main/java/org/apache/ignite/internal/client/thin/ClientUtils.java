@@ -312,6 +312,7 @@ final class ClientUtils {
                                 w.writeObject(qf.getDefaultValue());
                                 w.writeInt(qf.getPrecision());
                                 w.writeInt(qf.getScale());
+                                w.writeBoolean(qf.isHidden());
                             }
                         );
                         ClientUtils.collection(
@@ -333,7 +334,10 @@ final class ClientUtils {
                                         w.writeBoolean(f.getValue());
                                     }
                                 );
+                                w.writeString(i.getLuceneIndexOptions());
                             });
+                        
+                        w.writeString(e.getLuceneIndexOptions());
                     }
                 )
             );
@@ -397,10 +401,13 @@ final class ClientUtils {
                                 reader.readBoolean(),
                                 reader.readObject(),
                                 reader.readInt(),
-                                reader.readInt()
+                                reader.readInt(),
+                                reader.readBoolean()
                             )
                         );
 
+                        qryEntity.setLuceneIndexOptions(reader.readString());
+                        
                         return qryEntity
                             .setFields(qryFields.stream().collect(Collectors.toMap(
                                 QueryField::getName, QueryField::getTypeName, (a, b) -> a, LinkedHashMap::new
@@ -440,7 +447,11 @@ final class ClientUtils {
                                         LinkedHashMap::new
                                     ));
 
-                                    return new QueryIndex(fields, type).setName(name).setInlineSize(inlineSize);
+                                    QueryIndex qIdx =  new QueryIndex(fields, type).setName(name).setInlineSize(inlineSize);
+                                    
+                                    qIdx.setLuceneIndexOptions(reader.readString());
+                                    
+                                    return qIdx;
                                 }
                             ));
                     }
@@ -496,6 +507,9 @@ final class ClientUtils {
         /** Is not null. */
         private final boolean isNotNull;
 
+        /** Is not hidden. */
+        private final boolean isHidden;
+        
         /** Default value. */
         private final Object dfltVal;
 
@@ -512,11 +526,13 @@ final class ClientUtils {
 
             Set<String> keys = e.getKeyFields();
             Set<String> notNulls = e.getNotNullFields();
+            Set<String> hiddens = e.getHiddenFields();
             Map<String, Object> dflts = e.getDefaultFieldValues();
             Map<String, IgniteBiTuple<Integer, Integer>> decimalInfo = e.getDecimalInfo();
 
             isKey = keys != null && keys.contains(name);
             isNotNull = notNulls != null && notNulls.contains(name);
+            isHidden = hiddens != null && hiddens.contains(name);
             dfltVal = dflts == null ? null : dflts.get(name);
 
             IgniteBiTuple<Integer, Integer> precisionAndScale = decimalInfo == null ? null : decimalInfo.get(name);
@@ -527,7 +543,7 @@ final class ClientUtils {
 
         /** Deserialization constructor. */
         public QueryField(String name, String typeName, boolean isKey, boolean isNotNull, Object dfltVal,
-            int precision, int scale) {
+            int precision, int scale, boolean isHidden) {
             this.name = name;
             this.typeName = typeName;
             this.isKey = isKey;
@@ -535,6 +551,7 @@ final class ClientUtils {
             this.dfltVal = dfltVal;
             this.precision = precision;
             this.scale = scale;
+            this.isHidden = isHidden;
         }
 
         /**
@@ -565,6 +582,13 @@ final class ClientUtils {
             return isNotNull;
         }
 
+        /**
+         * @return Is hidden
+         */
+        boolean isHidden() {
+            return isHidden;
+        }
+        
         /**
          * @return Default value.
          */

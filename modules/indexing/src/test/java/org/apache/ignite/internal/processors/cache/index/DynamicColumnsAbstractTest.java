@@ -87,7 +87,7 @@ public abstract class DynamicColumnsAbstractTest extends GridCommonAbstractTest 
 
                     short nullable = rs.getShort("NULLABLE");
 
-                    flds.add(new QueryField(name, typeClsName, nullable == 1));
+                    flds.add(new QueryField(name, typeClsName, nullable == 1, false));
                 }
             }
         }
@@ -135,7 +135,7 @@ public abstract class DynamicColumnsAbstractTest extends GridCommonAbstractTest 
 
                     short nullable = rs.getShort("NULLABLE");
 
-                    return new QueryField(name, typeClsName, nullable == 1);
+                    return new QueryField(name, typeClsName, nullable == 1, false);
                 }
             }
         }
@@ -149,7 +149,7 @@ public abstract class DynamicColumnsAbstractTest extends GridCommonAbstractTest 
      * @return New column with given name and type.
      */
     protected static QueryField c(String name, String typeName) {
-        return new QueryField(name, typeName, true);
+        return new QueryField(name, typeName, true, false);
     }
 
     /**

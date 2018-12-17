@@ -2175,6 +2175,11 @@ public abstract class GridCacheQueryManager<K, V> extends GridCacheManagerAdapte
         @Override public Collection<String> notNullFields(String type) {
             return null;
         }
+        
+        /** {@inheritDoc} */
+        @Override public Collection<String> hiddenFields(String type) {
+            return null;
+        }
 
         /** {@inheritDoc} */
         @Override public Map<String, String> keyClasses() {

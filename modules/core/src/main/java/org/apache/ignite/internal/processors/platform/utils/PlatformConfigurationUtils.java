@@ -498,6 +498,7 @@ public class PlatformConfigurationUtils {
         int cnt = in.readInt();
         Set<String> keyFields = new HashSet<>(cnt);
         Set<String> notNullFields = new HashSet<>(cnt);
+        Set<String> hiddenFields = new HashSet<>(cnt);
         Map<String, Object> defVals = new HashMap<>(cnt);
         Map<String, IgniteBiTuple<Integer, Integer>> decimalInfo = new HashMap<>(cnt);
 
@@ -526,6 +527,10 @@ public class PlatformConfigurationUtils {
 
                 if (precision != -1 || scale != -1)
                     decimalInfo.put(fieldName, F.t(precision, scale));
+
+                if (in.readBoolean())
+                    hiddenFields.add(fieldName);
+                
             }
 
             res.setFields(fields);
@@ -536,6 +541,9 @@ public class PlatformConfigurationUtils {
             if (!notNullFields.isEmpty())
                 res.setNotNullFields(notNullFields);
 
+            if (!hiddenFields.isEmpty())
+                res.setHiddenFields(hiddenFields);
+            
             if (!defVals.isEmpty())
                 res.setDefaultFieldValues(defVals);
 
@@ -567,6 +575,8 @@ public class PlatformConfigurationUtils {
             res.setIndexes(indexes);
         }
 
+        res.setLuceneIndexOptions(in.readString());
+        
         return res;
     }
 
@@ -593,7 +603,9 @@ public class PlatformConfigurationUtils {
 
             res.setFields(fields);
         }
-
+        
+        res.setLuceneIndexOptions(in.readString());
+        
         return res;
     }
 
@@ -1049,6 +1061,7 @@ public class PlatformConfigurationUtils {
         if (fields != null) {
             Set<String> keyFields = qryEntity.getKeyFields();
             Set<String> notNullFields = qryEntity.getNotNullFields();
+            Set<String> hiddenFields = qryEntity.getHiddenFields();
             Map<String, Object> defVals = qryEntity.getDefaultFieldValues();
             Map<String, IgniteBiTuple<Integer, Integer>> decimalInfo = qryEntity.getDecimalInfo();
 
@@ -1066,6 +1079,8 @@ public class PlatformConfigurationUtils {
 
                 writer.writeInt(precisionAndScale == null ? -1 : precisionAndScale.get1());
                 writer.writeInt(precisionAndScale == null ? -1 : precisionAndScale.get2());
+                
+                writer.writeBoolean(hiddenFields != null && hiddenFields.contains(field.getKey()));
             }
         }
         else
@@ -1096,6 +1111,9 @@ public class PlatformConfigurationUtils {
         }
         else
             writer.writeInt(0);
+        
+        writer.writeString(qryEntity.getLuceneIndexOptions());
+
     }
 
     /**
@@ -1123,6 +1141,8 @@ public class PlatformConfigurationUtils {
         }
         else
             writer.writeInt(0);
+        
+        writer.writeString(idx.getLuceneIndexOptions());
     }
 
     /**

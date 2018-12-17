@@ -85,6 +85,15 @@ public interface GridCacheSqlMetadata extends Externalizable {
      */
     Collection<String> notNullFields(String type);
 
+    
+    /**
+     * Gets hidden fields.
+     *
+     * @param type Type name.
+     * @return hidden fields collection map or {@code null} if type name is unknown.
+     */
+    Collection<String> hiddenFields(String type);
+    
     /**
      * @return Key classes.
      */

@@ -31,12 +31,12 @@
     </parent>
 
     <artifactId>ignite-web-console</artifactId>
-    <version>2.7.0-SNAPSHOT</version>
+    <version>2.6.1-hk-SNAPSHOT</version>
     <url>http://ignite.apache.org</url>
 
     <properties>
         <node.version>v8.11.2</node.version>
-        <docker.registry.host>docker.io</docker.registry.host>
+        <docker.registry.host>docker.hawkore.com</docker.registry.host>
         <docker.repository>apacheignite</docker.repository>
         <docker.backend.image>web-console-backend</docker.backend.image>
         <docker.frontend.image>web-console-frontend</docker.frontend.image>
@@ -107,7 +107,17 @@
                                     <arguments>install --no-optional --production</arguments>
                                 </configuration>
                             </execution>
+                    <execution>
+                        <id>force rebuild node-sass for frontend</id>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
 
+                        <configuration>
+                            <workingDirectory>frontend</workingDirectory>
+                            <arguments>rebuild node-sass --force</arguments>
+                        </configuration>
+                    </execution>
                             <execution>
                                 <id>build frontend</id>
                                 <goals>

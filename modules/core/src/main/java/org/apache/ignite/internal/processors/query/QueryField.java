@@ -46,13 +46,16 @@ public class QueryField implements Serializable {
     /** Scale. */
     private final int scale;
 
+    /** hidden flag. */
+    private final boolean hidden;
+    
     /**
      * @param name Field name.
      * @param typeName Class name for this field's values.
      * @param nullable Nullable flag.
      */
-    public QueryField(String name, String typeName, boolean nullable) {
-        this(name, typeName, nullable, null, -1, -1);
+    public QueryField(String name, String typeName, boolean nullable, boolean hidden) {
+        this(name, typeName, nullable, null, -1, -1, hidden);
     }
 
     /**
@@ -61,8 +64,8 @@ public class QueryField implements Serializable {
      * @param nullable Nullable flag.
      * @param dfltValue Default value.
      */
-    public QueryField(String name, String typeName, boolean nullable, Object dfltValue) {
-        this(name, typeName, nullable, dfltValue, -1, -1);
+    public QueryField(String name, String typeName, boolean nullable, Object dfltValue, boolean hidden) {
+        this(name, typeName, nullable, dfltValue, -1, -1, hidden);
     }
 
     /**
@@ -71,13 +74,14 @@ public class QueryField implements Serializable {
      * @param nullable Nullable flag.
      * @param dfltValue Default value.
      */
-    public QueryField(String name, String typeName, boolean nullable, Object dfltValue, int precision, int scale) {
+    public QueryField(String name, String typeName, boolean nullable, Object dfltValue, int precision, int scale, boolean hidden) {
         this.name = name;
         this.typeName = typeName;
         this.nullable = nullable;
         this.dfltValue = dfltValue;
         this.precision = precision;
         this.scale = scale;
+        this.hidden  = hidden;
     }
 
     /**
@@ -120,6 +124,14 @@ public class QueryField implements Serializable {
      */
     public int scale() {
         return scale;
+    }
+    
+    /**
+     * 
+     * @return if hidden
+     */
+    public boolean isHidden(){
+        return hidden;
     }
 
     /** {@inheritDoc} */
