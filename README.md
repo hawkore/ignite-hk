@@ -1,4 +1,4 @@
-# Apache Ignite
+# Apache Ignite + Hawkore's Apache Ignite Extensions
 
 <a href="https://ignite.apache.org/"><img src="https://ignite.apache.org/images/logo3.png" hspace="20"/></a>
 
@@ -13,6 +13,9 @@ For information on how to get started with Apache Ignite, please visit: [Getting
 
 You can find the full Apache Ignite documentation here: [Full documentation][docs].
 
+## Full Hawkore's Apache Ignite Extensions Documentation
+
+Visit [Hawkore's home page][hawkore-homepage].
 
 ## What is Apache Ignite?
 
@@ -327,3 +330,4 @@ Ignite is a distributed system and, therefore, it is important to be able to col
 [apache-ignite-homepage]: https://ignite.apache.org/
 [getting-started]: https://apacheignite.readme.io/docs/getting-started
 [docs]: https://apacheignite.readme.io/docs
+[hawkore-homepage]: https://hawkore.com
