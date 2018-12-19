@@ -189,6 +189,16 @@ public class QueryTypeDescriptorImpl implements GridQueryTypeDescriptor {
         assert field != null;
 
         GridQueryProperty prop = property(field);
+        
+        if (prop == null){
+            if (field.equalsIgnoreCase(QueryUtils.KEY_FIELD_NAME)){
+                return (T)key;
+            }
+            
+            if (field.equalsIgnoreCase(QueryUtils.VAL_FIELD_NAME)){
+                return (T)val;
+            }
+        }
 
         if (prop == null)
             throw new IgniteCheckedException("Failed to find field '" + field + "' in type '" + name + "'.");
