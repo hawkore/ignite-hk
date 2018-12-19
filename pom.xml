@@ -32,7 +32,7 @@
 
     <groupId>org.apache.ignite</groupId>
     <artifactId>apache-ignite</artifactId>
-    <version>2.6.1-hk-SNAPSHOT</version>
+    <version>2.6.1-hk</version>
     <packaging>pom</packaging>
 
     <properties>
