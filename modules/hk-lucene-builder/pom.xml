@@ -14,7 +14,7 @@
 	<groupId>org.hawkore.libs.ignite</groupId>
 	<name>HK-LIB Apache Ignite lucene builder</name>
 	<artifactId>hk-ignite-lucene-builder</artifactId>
-	<version>2.6.2-hk-SNAPSHOT</version>
+	<version>2.7.0-hk-SNAPSHOT</version>
 	<url>http://hawkore.com</url>
 
 	<properties>
@@ -45,6 +45,12 @@
 
 		<dependency>
 			<groupId>org.apache.lucene</groupId>
+			<artifactId>lucene-misc</artifactId>
+			<version>${lucene.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.lucene</groupId>
 			<artifactId>lucene-analyzers-common</artifactId>
 			<version>${lucene.version}</version>
 		</dependency>
@@ -53,6 +59,16 @@
 			<artifactId>lucene-spatial</artifactId>
 			<version>${lucene.version}</version>
 		</dependency>
+		<dependency>
+			<groupId>org.apache.lucene</groupId>
+			<artifactId>lucene-spatial3d</artifactId>
+			<version>${lucene.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.lucene</groupId>
+			<artifactId>lucene-spatial-extras</artifactId>
+			<version>${lucene.version}</version>
+		</dependency>		
 		<dependency>
 			<groupId>org.apache.lucene</groupId>
 			<artifactId>lucene-queryparser</artifactId>
@@ -84,11 +100,12 @@
 			<artifactId>guava</artifactId>
 			<version>${guava.version}</version>
 		</dependency>
-		<dependency>
-			<groupId>com.vividsolutions</groupId>
-			<artifactId>jts-core</artifactId>
-			<version>${jts.version}</version>
-		</dependency>
+		
+        <dependency>
+            <groupId>org.locationtech.jts</groupId>
+            <artifactId>jts-core</artifactId>
+            <version>${jts.version}</version>
+        </dependency>
 
 		<dependency>
 			<groupId>commons-io</groupId>

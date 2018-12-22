@@ -22,6 +22,7 @@ import java.util.Set;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.lucene.queries.function.ValueSource;
+import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.spatial.SpatialStrategy;
 import org.apache.lucene.spatial.composite.CompositeSpatialStrategy;
 import org.hawkore.ignite.lucene.IndexException;
@@ -30,10 +31,10 @@ import org.hawkore.ignite.lucene.schema.Schema;
 import org.hawkore.ignite.lucene.schema.mapping.GeoPointMapper;
 import org.hawkore.ignite.lucene.schema.mapping.GeoShapeMapper;
 import org.hawkore.ignite.lucene.schema.mapping.Mapper;
+import org.locationtech.spatial4j.distance.DistanceUtils;
+import org.locationtech.spatial4j.shape.Point;
 
 import com.google.common.base.MoreObjects;
-import com.spatial4j.core.distance.DistanceUtils;
-import com.spatial4j.core.shape.Point;
 
 /**
  * {@link SortField} to sort geo points by their distance to a fixed reference point.
@@ -89,7 +90,7 @@ public class GeoDistanceSortField extends SortField {
 
         // Use the distance (in km) as source
         SpatialStrategy strategy = spatialStrategy.getGeometryStrategy();
-        ValueSource valueSource = strategy.makeDistanceValueSource(point, DistanceUtils.DEG_TO_KM);
+        DoubleValuesSource valueSource = strategy.makeDistanceValueSource(point, DistanceUtils.DEG_TO_KM);
         return valueSource.getSortField(reverse);
     }
 

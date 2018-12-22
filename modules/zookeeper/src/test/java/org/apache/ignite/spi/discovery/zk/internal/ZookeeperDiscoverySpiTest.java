@@ -52,8 +52,8 @@ import javax.management.ObjectName;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryNTimes;
-import org.apache.curator.test.TestingCluster;
-import org.apache.curator.test.TestingZooKeeperServer;
+import org.apache.ignite.spi.discovery.tcp.ipfinder.zk.curator.TestingCluster;
+import org.apache.ignite.spi.discovery.tcp.ipfinder.zk.curator.TestingZooKeeperServer;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.IgniteCheckedException;
@@ -2360,6 +2360,8 @@ public class ZookeeperDiscoverySpiTest extends GridCommonAbstractTest {
     }
 
     /**
+     * Test with large user attribute on coordinator node.
+     *
      * @throws Exception If failed.
      */
     public void testLargeUserAttribute1() throws Exception {
@@ -2379,6 +2381,8 @@ public class ZookeeperDiscoverySpiTest extends GridCommonAbstractTest {
     }
 
     /**
+     * Test with large user attribute on non-coordinator node.
+     *
      * @throws Exception If failed.
      */
     public void testLargeUserAttribute2() throws Exception {
@@ -2394,19 +2398,23 @@ public class ZookeeperDiscoverySpiTest extends GridCommonAbstractTest {
     }
 
     /**
+     * Test with large user attributes on random nodes.
+     * Also tests that big messages (more than 1MB) properly separated and processed by zk.
+     *
      * @throws Exception If failed.
      */
     public void testLargeUserAttribute3() throws Exception {
-        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+        Set<Integer> idxs = ThreadLocalRandom.current()
+            .ints(0, 10)
+            .distinct()
+            .limit(3)
+            .boxed()
+            .collect(Collectors.toSet());
 
-        long stopTime = System.currentTimeMillis() + 60_000;
-
-        int nodes = 0;
-
-        for (int i = 0; i < 25; i++) {
+        for (int i = 0; i < 10; i++) {
             info("Iteration: " + i);
 
-            if (rnd.nextBoolean())
+            if (idxs.contains(i))
                 initLargeAttribute();
             else
                 userAttrs = null;
@@ -2414,14 +2422,9 @@ public class ZookeeperDiscoverySpiTest extends GridCommonAbstractTest {
             clientMode(i > 5);
 
             startGrid(i);
-
-            nodes++;
-
-            if (System.currentTimeMillis() >= stopTime)
-                break;
         }
 
-        waitForTopology(nodes);
+        waitForTopology(10);
     }
 
     /**
@@ -2430,7 +2433,7 @@ public class ZookeeperDiscoverySpiTest extends GridCommonAbstractTest {
     private void initLargeAttribute() {
         userAttrs = new HashMap<>();
 
-        int[] attr = new int[1024 * 1024 + ThreadLocalRandom.current().nextInt(1024)];
+        int[] attr = new int[1024 * 1024 + ThreadLocalRandom.current().nextInt(1024 * 512)];
 
         for (int i = 0; i < attr.length; i++)
             attr[i] = i;

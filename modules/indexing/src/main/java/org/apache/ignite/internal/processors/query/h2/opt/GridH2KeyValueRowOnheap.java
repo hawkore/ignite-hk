@@ -104,6 +104,11 @@ public class GridH2KeyValueRowOnheap extends GridH2Row {
     }
 
     /** {@inheritDoc} */
+    @Override public boolean indexSearchRow() {
+        return false;
+    }
+
+    /** {@inheritDoc} */
     @Override public int getColumnCount() {
         return DEFAULT_COLUMNS_COUNT + desc.fieldsCount();
     }
@@ -256,6 +261,16 @@ public class GridH2KeyValueRowOnheap extends GridH2Row {
 
     /** {@inheritDoc} */
     @Override public final int hashCode() {
+        throw new UnsupportedOperationException();
+    }
+
+    /** {@inheritDoc} */
+    @Override public int size() throws IgniteCheckedException {
+        throw new UnsupportedOperationException();
+    }
+
+    /** {@inheritDoc} */
+    @Override public int headerSize() {
         throw new UnsupportedOperationException();
     }
 }

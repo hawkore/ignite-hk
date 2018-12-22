@@ -17,10 +17,11 @@ package org.hawkore.ignite.lucene.schema.mapping;
 
 import java.util.Optional;
 
-import org.apache.lucene.document.DoubleField;
+import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortField.Type;
@@ -34,24 +35,6 @@ import org.hawkore.ignite.lucene.IndexException;
  * @author Andres de la Pena {@literal <adelapena@stratio.com>}
  */
 public class DoubleMapper extends SingleColumnMapper.SingleFieldMapper<Double> {
-
-	private static final FieldType TYPE_NOT_STORED_OMMIT_NORMS = new FieldType();
-	private static final FieldType TYPE_STORED_OMMIT_NORMS=new FieldType();
-
-	static {
-		TYPE_NOT_STORED_OMMIT_NORMS.setTokenized(true);
-		TYPE_NOT_STORED_OMMIT_NORMS.setOmitNorms(false);
-		TYPE_NOT_STORED_OMMIT_NORMS.setIndexOptions(IndexOptions.DOCS);
-		TYPE_NOT_STORED_OMMIT_NORMS.setNumericType(FieldType.NumericType.DOUBLE);
-		TYPE_NOT_STORED_OMMIT_NORMS.freeze();
-
-		TYPE_STORED_OMMIT_NORMS.setTokenized(true);
-		TYPE_STORED_OMMIT_NORMS.setOmitNorms(false);
-		TYPE_STORED_OMMIT_NORMS.setIndexOptions(IndexOptions.DOCS);
-		TYPE_STORED_OMMIT_NORMS.setNumericType(FieldType.NumericType.DOUBLE);
-		TYPE_STORED_OMMIT_NORMS.setStored(true);
-		TYPE_STORED_OMMIT_NORMS.freeze();
-	}
 	
     /** The default boost. */
     public static final float DEFAULT_BOOST = 1.0f;
@@ -90,15 +73,7 @@ public class DoubleMapper extends SingleColumnMapper.SingleFieldMapper<Double> {
     /** {@inheritDoc} */
     @Override
     public Optional<Field> indexedField(String name, Double value) {
-        DoubleField field = null;
-		if(boost==DEFAULT_BOOST){
-			field = new DoubleField(name, value, STORE);
-		}else{
-			//You cannot set an index-time boost on an unindexed field, or one that omits norms if boost!=1.0f
-			FieldType type = (STORE == Field.Store.YES) ? TYPE_STORED_OMMIT_NORMS : TYPE_NOT_STORED_OMMIT_NORMS;
-			field = new DoubleField(name, value, type);
-		}
-		field.setBoost(boost);
+        DoublePoint field = new DoublePoint(name, value);
 		return Optional.of(field);
     }
 

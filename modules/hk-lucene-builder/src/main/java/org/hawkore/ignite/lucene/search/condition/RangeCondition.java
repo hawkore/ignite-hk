@@ -16,8 +16,12 @@
 package org.hawkore.ignite.lucene.search.condition;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.search.DocValuesRangeQuery;
-import org.apache.lucene.search.NumericRangeQuery;
+import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.search.DocValuesNumbersQuery;
+import org.apache.lucene.search.DocValuesTermsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.hawkore.ignite.lucene.IndexException;
@@ -128,36 +132,104 @@ public class RangeCondition extends SingleColumnCondition {
 
     private Query query(String start, String stop) {
         return docValues
-               ? DocValuesRangeQuery.newBytesRefRange(field,
-                                                      docValue(start),
-                                                      docValue(stop),
-                                                      includeLower,
-                                                      includeUpper)
+               ? new DocValuesTermsQuery(field, docValue(start),
+                                                      docValue(stop))
                : TermRangeQuery.newStringRange(field, start, stop, includeLower, includeUpper);
     }
 
+    
     private Query query(Integer start, Integer stop) {
-        return docValues
-               ? DocValuesRangeQuery.newLongRange(field, docValue(start), docValue(stop), includeLower, includeUpper)
-               : NumericRangeQuery.newIntRange(field, start, stop, includeLower, includeUpper);
+        
+        Query q = null;
+        
+        Integer lower = start;
+        Integer upper = stop;
+        
+        if(!includeLower){
+            lower = Math.addExact(lower, 1);
+        }
+        
+        if(!includeUpper){
+            upper = Math.addExact(upper, -1);
+        }
+        
+        if (docValues){
+            q = new DocValuesNumbersQuery(field, docValue(lower), docValue(upper));
+        }else{
+            q = IntPoint.newRangeQuery(field, lower, upper);
+        }
+        
+        return q;
     }
 
     private Query query(Long start, Long stop) {
-        return docValues
-               ? DocValuesRangeQuery.newLongRange(field, docValue(start), docValue(stop), includeLower, includeUpper)
-               : NumericRangeQuery.newLongRange(field, start, stop, includeLower, includeUpper);
+        
+        Query q = null;
+        
+        Long lower = start;
+        Long upper = stop;
+        
+        if(!includeLower){
+            lower = Math.addExact(lower, 1);
+        }
+        
+        if(!includeUpper){
+            upper = Math.addExact(upper, -1);
+        }
+        
+        if (docValues){
+            q = new DocValuesNumbersQuery(field, lower, upper);
+        }else{
+            q = LongPoint.newRangeQuery(field, lower, upper);
+        }
+
+        return q;
     }
 
     private Query query(Float start, Float stop) {
-        return docValues
-               ? DocValuesRangeQuery.newLongRange(field, docValue(start), docValue(stop), includeLower, includeUpper)
-               : NumericRangeQuery.newFloatRange(field, start, stop, includeLower, includeUpper);
+        Query q = null;
+        
+        Float lower = start;
+        Float upper = stop;
+        
+        if(!includeLower){
+            lower = FloatPoint.nextUp(lower);
+        }
+        
+        if(!includeUpper){
+            upper = FloatPoint.nextDown(lower);
+        }
+        
+        if (docValues){
+            q = new DocValuesNumbersQuery(field, docValue(lower), docValue(upper));
+        }else{
+            q = FloatPoint.newRangeQuery(field, lower, upper);
+        }
+
+        return q;
     }
 
     private Query query(Double start, Double stop) {
-        return docValues
-               ? DocValuesRangeQuery.newLongRange(field, docValue(start), docValue(stop), includeLower, includeUpper)
-               : NumericRangeQuery.newDoubleRange(field, start, stop, includeLower, includeUpper);
+        Query q = null;
+        
+        double lower = start;
+        double upper = stop;
+ 
+        if(!includeLower){
+            lower = DoublePoint.nextUp(lower);
+        }
+        
+        if(!includeUpper){
+            upper = DoublePoint.nextDown(lower);
+        }
+
+        if (docValues){
+            q = new DocValuesNumbersQuery(field, docValue(lower), docValue(upper));
+        }else{
+            q = DoublePoint.newRangeQuery(field, lower, upper);
+        }
+        
+        return q;
     }
 
     /**

@@ -19,14 +19,12 @@ import java.util.Date;
 import java.util.Optional;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.LongField;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortField.Type;
-import org.hawkore.ignite.lucene.IndexException;
 import org.apache.lucene.search.SortedNumericSortField;
+import org.hawkore.ignite.lucene.IndexException;
 
 /**
  * A {@link Mapper} to map a long field.
@@ -34,25 +32,6 @@ import org.apache.lucene.search.SortedNumericSortField;
  * @author Andres de la Pena {@literal <adelapena@stratio.com>}
  */
 public class LongMapper extends SingleColumnMapper.SingleFieldMapper<Long> {
-
-	private static final FieldType TYPE_NOT_STORED_OMMIT_NORMS = new FieldType();
-	private static final FieldType TYPE_STORED_OMMIT_NORMS=new FieldType();
-
-	static {
-		TYPE_NOT_STORED_OMMIT_NORMS.setTokenized(true);
-		TYPE_NOT_STORED_OMMIT_NORMS.setOmitNorms(false);
-		TYPE_NOT_STORED_OMMIT_NORMS.setIndexOptions(IndexOptions.DOCS);
-		TYPE_NOT_STORED_OMMIT_NORMS.setNumericType(FieldType.NumericType.LONG);
-		TYPE_NOT_STORED_OMMIT_NORMS.freeze();
-
-		TYPE_STORED_OMMIT_NORMS.setTokenized(true);
-		TYPE_STORED_OMMIT_NORMS.setOmitNorms(false);
-		TYPE_STORED_OMMIT_NORMS.setIndexOptions(IndexOptions.DOCS);
-		TYPE_STORED_OMMIT_NORMS.setNumericType(FieldType.NumericType.LONG);
-		TYPE_STORED_OMMIT_NORMS.setStored(true);
-		TYPE_STORED_OMMIT_NORMS.freeze();
-	}
-
 
 	/** The default boost. */
 	public static final Float DEFAULT_BOOST = 1.0f;
@@ -93,15 +72,7 @@ public class LongMapper extends SingleColumnMapper.SingleFieldMapper<Long> {
 	/** {@inheritDoc} */
 	@Override
 	public Optional<Field> indexedField(String name, Long value) {
-		LongField field = null;
-		if(boost==DEFAULT_BOOST){
-			field = new LongField(name, value, STORE);
-		}else{
-			//You cannot set an index-time boost on an unindexed field, or one that omits norms if boost!=1.0f
-			FieldType type = (STORE == Field.Store.YES) ? TYPE_STORED_OMMIT_NORMS : TYPE_NOT_STORED_OMMIT_NORMS;
-			field = new LongField(name, value, type);
-		}
-		field.setBoost(boost);
+		LongPoint field = new LongPoint(name, value);
 		return Optional.of(field);
 	}
 

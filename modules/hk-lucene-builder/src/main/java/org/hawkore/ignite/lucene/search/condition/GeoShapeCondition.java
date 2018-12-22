@@ -36,9 +36,9 @@ import com.google.common.base.MoreObjects;
  * The shapes are defined using the <a href="http://en.wikipedia.org/wiki/Well-known_text"> Well Known Text (WKT)</a>
  * format.
  *
- * This class depends on <a href="http://www.vividsolutions.com/jts">Java Topology Suite (JTS)</a>. This library can't
- * be distributed together with this project due to license compatibility problems, but you can add it by putting <a
- * href="http://search.maven.org/remotecontent?filepath=com/vividsolutions/jts-core/1.14.0/jts-core-1.14.0.jar">jts-core-1.14.0.jar</a>
+ * <p> This class depends on <a href="https://projects.eclipse.org/projects/locationtech.jts">Java Topology
+ * Suite (JTS)</a>. This library can't be distributed together with this project due to license compatibility problems,
+ * but you can add it by putting <a href="http://search.maven.org/remotecontent?filepath=org/locationtech/jts/jts-core/1.15.0/jts-core-1.15.0.jar">jts-core-1.15.0.jar</a>
  * into project lib directory.
  *
  * Pole wrapping is not supported.

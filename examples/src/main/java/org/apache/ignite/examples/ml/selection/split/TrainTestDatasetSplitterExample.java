@@ -18,27 +18,33 @@
 package org.apache.ignite.examples.ml.selection.split;
 
 import java.util.Arrays;
-import java.util.UUID;
 import javax.cache.Cache;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.Ignition;
-import org.apache.ignite.cache.affinity.rendezvous.RendezvousAffinityFunction;
 import org.apache.ignite.cache.query.QueryCursor;
 import org.apache.ignite.cache.query.ScanQuery;
-import org.apache.ignite.configuration.CacheConfiguration;
+import org.apache.ignite.examples.ml.util.TestCache;
 import org.apache.ignite.ml.math.primitives.vector.VectorUtils;
 import org.apache.ignite.ml.math.primitives.vector.impl.DenseVector;
 import org.apache.ignite.ml.regressions.linear.LinearRegressionLSQRTrainer;
 import org.apache.ignite.ml.regressions.linear.LinearRegressionModel;
 import org.apache.ignite.ml.selection.split.TrainTestDatasetSplitter;
 import org.apache.ignite.ml.selection.split.TrainTestSplit;
-import org.apache.ignite.thread.IgniteThread;
 
 /**
- * Run linear regression model over dataset splitted on train and test subsets.
- *
- * @see TrainTestDatasetSplitter
+ * Run linear regression model over dataset split on train and test subsets ({@link TrainTestDatasetSplitter}).
+ * <p>
+ * Code in this example launches Ignite grid and fills the cache with simple test data.</p>
+ * <p>
+ * After that it creates dataset splitter and trains the linear regression model based on the specified data using
+ * this splitter.</p>
+ * <p>
+ * Finally, this example loops over the test set of data points, applies the trained model to predict the target value
+ * and compares prediction to expected outcome (ground truth).</p>
+ * <p>
+ * You can change the test data and split parameters used in this example and re-run it to explore this functionality
+ * further.</p>
  */
 public class TrainTestDatasetSplitterExample {
     /** */
@@ -106,71 +112,47 @@ public class TrainTestDatasetSplitterExample {
         try (Ignite ignite = Ignition.start("examples/config/example-ignite.xml")) {
             System.out.println(">>> Ignite grid started.");
 
-            IgniteThread igniteThread = new IgniteThread(ignite.configuration().getIgniteInstanceName(),
-                TrainTestDatasetSplitterExample.class.getSimpleName(), () -> {
-                IgniteCache<Integer, double[]> dataCache = getTestCache(ignite);
+            IgniteCache<Integer, double[]> dataCache = new TestCache(ignite).fillCacheWith(data);
 
-                System.out.println(">>> Create new linear regression trainer object.");
-                LinearRegressionLSQRTrainer trainer = new LinearRegressionLSQRTrainer();
+            System.out.println(">>> Create new linear regression trainer object.");
+            LinearRegressionLSQRTrainer trainer = new LinearRegressionLSQRTrainer();
 
-                TrainTestSplit<Integer, double[]> split = new TrainTestDatasetSplitter<Integer, double[]>()
-                    .split(0.75);
+            System.out.println(">>> Create new training dataset splitter object.");
+            TrainTestSplit<Integer, double[]> split = new TrainTestDatasetSplitter<Integer, double[]>()
+                .split(0.75);
 
-                System.out.println(">>> Perform the training to get the model.");
-                LinearRegressionModel mdl = trainer.fit(
-                    ignite,
-                    dataCache,
-                    split.getTrainFilter(),
-                    (k, v) -> VectorUtils.of(Arrays.copyOfRange(v, 1, v.length)),
-                    (k, v) -> v[0]
-                );
+            System.out.println(">>> Perform the training to get the model.");
+            LinearRegressionModel mdl = trainer.fit(
+                ignite,
+                dataCache,
+                split.getTrainFilter(),
+                (k, v) -> VectorUtils.of(Arrays.copyOfRange(v, 1, v.length)),
+                (k, v) -> v[0]
+            );
 
-                System.out.println(">>> Linear regression model: " + mdl);
+            System.out.println(">>> Linear regression model: " + mdl);
 
-                System.out.println(">>> ---------------------------------");
-                System.out.println(">>> | Prediction\t| Ground Truth\t|");
-                System.out.println(">>> ---------------------------------");
+            System.out.println(">>> ---------------------------------");
+            System.out.println(">>> | Prediction\t| Ground Truth\t|");
+            System.out.println(">>> ---------------------------------");
 
-                ScanQuery<Integer, double[]> qry = new ScanQuery<>();
-                qry.setFilter(split.getTestFilter());
+            ScanQuery<Integer, double[]> qry = new ScanQuery<>();
+            qry.setFilter(split.getTestFilter());
 
-                try (QueryCursor<Cache.Entry<Integer, double[]>> observations = dataCache.query(qry)) {
-                    for (Cache.Entry<Integer, double[]> observation : observations) {
-                        double[] val = observation.getValue();
-                        double[] inputs = Arrays.copyOfRange(val, 1, val.length);
-                        double groundTruth = val[0];
+            try (QueryCursor<Cache.Entry<Integer, double[]>> observations = dataCache.query(qry)) {
+                for (Cache.Entry<Integer, double[]> observation : observations) {
+                    double[] val = observation.getValue();
+                    double[] inputs = Arrays.copyOfRange(val, 1, val.length);
+                    double groundTruth = val[0];
 
-                        double prediction = mdl.apply(new DenseVector(inputs));
+                    double prediction = mdl.apply(new DenseVector(inputs));
 
-                        System.out.printf(">>> | %.4f\t\t| %.4f\t\t|\n", prediction, groundTruth);
-                    }
+                    System.out.printf(">>> | %.4f\t\t| %.4f\t\t|\n", prediction, groundTruth);
                 }
+            }
 
-                System.out.println(">>> ---------------------------------");
-            });
-
-            igniteThread.start();
-
-            igniteThread.join();
+            System.out.println(">>> ---------------------------------");
+            System.out.println(">>> Linear regression model over cache based dataset usage example completed.");
         }
-    }
-
-    /**
-     * Fills cache with data and returns it.
-     *
-     * @param ignite Ignite instance.
-     * @return Filled Ignite Cache.
-     */
-    private static IgniteCache<Integer, double[]> getTestCache(Ignite ignite) {
-        CacheConfiguration<Integer, double[]> cacheConfiguration = new CacheConfiguration<>();
-        cacheConfiguration.setName("TEST_" + UUID.randomUUID());
-        cacheConfiguration.setAffinity(new RendezvousAffinityFunction(false, 3));
-
-        IgniteCache<Integer, double[]> cache = ignite.createCache(cacheConfiguration);
-
-        for (int i = 0; i < data.length; i++)
-            cache.put(i, data[i]);
-
-        return cache;
     }
 }

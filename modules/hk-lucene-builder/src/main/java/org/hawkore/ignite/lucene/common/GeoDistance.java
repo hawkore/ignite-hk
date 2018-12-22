@@ -16,10 +16,10 @@
 package org.hawkore.ignite.lucene.common;
 
 import org.hawkore.ignite.lucene.IndexException;
+import org.locationtech.spatial4j.distance.DistanceUtils;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.google.common.base.MoreObjects;
-import com.spatial4j.core.distance.DistanceUtils;
 
 /**
  * Class representing a geographical distance.

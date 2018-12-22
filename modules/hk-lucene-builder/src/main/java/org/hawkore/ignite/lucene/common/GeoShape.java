@@ -21,14 +21,15 @@ import static org.hawkore.ignite.lucene.common.GeospatialUtilsJTS.geometry;
 import java.util.Arrays;
 import java.util.List;
 
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.spatial4j.shape.Rectangle;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
+
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.google.common.base.MoreObjects;
-import com.spatial4j.core.shape.Rectangle;
-import com.spatial4j.core.shape.jts.JtsGeometry;
-import com.vividsolutions.jts.geom.Geometry;
 
 /**
  * Class representing the transformation of a JTS geographical shape into a new shape.
@@ -151,8 +152,8 @@ public interface GeoShape {
         @Override
         public JtsGeometry apply() {
             Rectangle rectangle = shape.apply().getBoundingBox();
-            Geometry geometry = CONTEXT.getGeometryFrom(rectangle);
-            return CONTEXT.makeShape(geometry);
+            Geometry geometry = CONTEXT.getShapeFactory().getGeometryFrom(rectangle);
+            return CONTEXT.getShapeFactory().makeShape(geometry);
         }
 
         /** {@inheritDoc} */

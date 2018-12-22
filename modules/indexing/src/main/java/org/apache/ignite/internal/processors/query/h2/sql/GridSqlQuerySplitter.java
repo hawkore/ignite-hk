@@ -61,7 +61,9 @@ import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.cache.query.CacheQueryPartitionInfo;
 import org.apache.ignite.internal.processors.cache.query.GridCacheSqlQuery;
 import org.apache.ignite.internal.processors.cache.query.GridCacheTwoStepQuery;
+import org.apache.ignite.internal.processors.cache.query.IgniteQueryErrorCode;
 import org.apache.ignite.internal.processors.cache.query.QueryTable;
+import org.apache.ignite.internal.processors.query.IgniteSQLException;
 import org.apache.ignite.internal.processors.query.QueryUtils;
 import org.apache.ignite.internal.processors.query.h2.H2Utils;
 import org.apache.ignite.internal.processors.query.h2.IgniteH2Indexing;
@@ -83,6 +85,29 @@ import org.h2.value.Value;
 import org.hawkore.ignite.lucene.search.Search;
 import org.hawkore.ignite.lucene.search.SearchBuilder;
 import org.jetbrains.annotations.Nullable;
+
+
+import static org.apache.ignite.internal.processors.query.h2.opt.GridH2CollocationModel.isCollocated;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlConst.TRUE;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlFunctionType.AVG;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlFunctionType.CAST;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlFunctionType.COUNT;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlFunctionType.GROUP_CONCAT;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlFunctionType.MAX;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlFunctionType.MIN;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlFunctionType.SUM;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlJoin.LEFT_TABLE_CHILD;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlJoin.ON_CHILD;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlJoin.RIGHT_TABLE_CHILD;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlPlaceholder.EMPTY;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlQuery.LIMIT_CHILD;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlQuery.OFFSET_CHILD;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlQueryParser.prepared;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlSelect.FROM_CHILD;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlSelect.WHERE_CHILD;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlSelect.childIndexForColumn;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlUnion.LEFT_CHILD;
+import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlUnion.RIGHT_CHILD;
 
 /**
  * Splits a single SQL query into two step map-reduce query.
@@ -228,8 +253,10 @@ public class GridSqlQuerySplitter {
         qry = parse(optimize(h2, conn, qry.getSQL(), params, false, enforceJoinOrder),
             true);
 
+        boolean forUpdate = GridSqlQueryParser.isForUpdateQuery(prepared);
+
         // Do the actual query split. We will update the original query AST, need to be careful.
-        splitter.splitQuery(qry);
+        splitter.splitQuery(qry, forUpdate);
 
         assert !F.isEmpty(splitter.mapSqlQrys): "map"; // We must have at least one map query.
         assert splitter.rdcSqlQry != null: "rdc"; // We must have a reduce query.
@@ -269,13 +296,16 @@ public class GridSqlQuerySplitter {
         // all map queries must have non-empty derivedPartitions to use this feature.
         twoStepQry.derivedPartitions(mergePartitionsFromMultipleQueries(twoStepQry.mapQueries()));
 
+        twoStepQry.forUpdate(forUpdate);
+
         return twoStepQry;
     }
 
     /**
      * @param qry Optimized and normalized query to split.
+     * @param forUpdate {@code SELECT FOR UPDATE} flag.
      */
-    private void splitQuery(GridSqlQuery qry) throws IgniteCheckedException {
+    private void splitQuery(GridSqlQuery qry, boolean forUpdate) throws IgniteCheckedException {
         // Create a fake parent AST element for the query to allow replacing the query in the parent by split.
         GridSqlSubquery fakeQryPrnt = new GridSqlSubquery(qry);
 
@@ -315,6 +345,15 @@ public class GridSqlQuerySplitter {
 
         // Get back the updated query from the fake parent. It will be our reduce query.
         qry = fakeQryPrnt.subquery();
+
+        // Reset SELECT FOR UPDATE flag for reduce query.
+        if (forUpdate) {
+            assert qry instanceof GridSqlSelect;
+
+            GridSqlSelect sel = (GridSqlSelect)qry;
+
+            sel.forUpdate(false);
+        }
 
         String rdcQry = qry.getSQL();
 
@@ -1329,7 +1368,7 @@ public class GridSqlQuerySplitter {
                 prntModel.add(model);
             }
 
-            if (((GridSqlUnion)child).unionType() != SelectUnion.UNION_ALL)
+            if (((GridSqlUnion)child).unionType() != SelectUnion.UnionType.UNION_ALL)
                 model.unionAll = false;
 
             buildQueryModel(model, child, LEFT_CHILD, null);
@@ -1458,12 +1497,10 @@ public class GridSqlQuerySplitter {
         // prepare lucene sorting      
         final boolean luceneSearchFound =  luceneQuery.getKey() != null;
 
-        // sorting is required if present on lucene query and has multiple partitions to search
+        // sorting is required when lucene filter is present and has multiple partitions to search
         // otherwise data will be returned from an UNIQUE node, so no need sort results on reduce query
         final boolean luceneSortingRequired = 
             luceneSearchFound && // has lucene search filter
-            luceneQuery.getValue() != null && // advanced JSON lucene query found
-            luceneQuery.getValue().usesSorting() && // advanced JSON lucene query uses sorting
             hasPartitionedTables(mapQry) && // is a partitioned search and not derived partitions found on query or possible derived partitions != 1
             (derivePartitionsFromQuery(mapQry, ctx) == null || derivePartitionsFromQuery(mapQry, ctx).length != 1);
         
@@ -1481,7 +1518,7 @@ public class GridSqlQuerySplitter {
             
             GridSqlTable tab = tables.iterator().next();
 
-            // scoreDocCol must have same table alias as luceneColumn
+            // scoreDocCol must belongs to same table as luceneColumn
             GridSqlColumn scoreDocCol = new GridSqlColumn(scoreDocColumn, tab, luceneColumn.schema(), luceneColumn.tableAlias(), scoreDocColumn.getName());
             scoreDocCol.resultType(GridSqlType.fromColumn(scoreDocColumn));
             
@@ -1536,7 +1573,7 @@ public class GridSqlQuerySplitter {
             mapQry.havingColumn(-1);
         }
         
-        // -- ORDER BY lucene sorting
+        // -- ORDER BY lucene _SCORE_DOC 
         if (luceneSortingRequired){
             int baseCols = rdcQry.columns(false).size() - luceneSortColumns.size();
             for (int i = 0; i < luceneSortColumns.size(); i++){
@@ -2240,6 +2277,24 @@ public class GridSqlQuerySplitter {
                 rdcAgg = aggregate(agg.distinct(), agg.type()).addChild(column(mapAggAlias.alias()));
 
                 break;
+            case GROUP_CONCAT:
+                if (agg.distinct() || agg.hasGroupConcatOrder()) {
+                    throw new IgniteSQLException("Clauses DISTINCT and ORDER BY are unsupported for GROUP_CONCAT " +
+                        "for not collocated data.", IgniteQueryErrorCode.UNSUPPORTED_OPERATION);
+                }
+
+                if (hasDistinctAggregate)
+                    mapAgg = agg.child();
+                else
+                    mapAgg = aggregate(agg.distinct(), agg.type()).resultType(GridSqlType.STRING).addChild(agg.child());
+
+                rdcAgg = aggregate(false, GROUP_CONCAT)
+                    .setGroupConcatSeparator(agg.getGroupConcatSeparator())
+                    .resultType(GridSqlType.STRING)
+                    .addChild(column(mapAggAlias.alias()));
+
+                break;
+                
             default:
                 throw new IgniteException("Unsupported aggregate: " + agg.type());
         }
@@ -2424,7 +2479,8 @@ public class GridSqlQuerySplitter {
 
         GridSqlColumn column = (GridSqlColumn)left;
 
-        assert column.column().getTable() instanceof GridH2Table;
+        if (!(column.column().getTable() instanceof GridH2Table))
+            return null;
 
         GridH2Table tbl = (GridH2Table) column.column().getTable();
 

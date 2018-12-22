@@ -90,8 +90,11 @@ public class GridCacheProxyImpl<K, V> implements IgniteInternalCache<K, V>, Exte
      * @param delegate Delegate object.
      * @param opCtx Optional operation context which will be passed to gateway.
      */
-    public GridCacheProxyImpl(GridCacheContext<K, V> ctx, IgniteInternalCache<K, V> delegate,
-        @Nullable CacheOperationContext opCtx) {
+    public GridCacheProxyImpl(
+        GridCacheContext<K, V> ctx,
+        IgniteInternalCache<K, V> delegate,
+        @Nullable CacheOperationContext opCtx
+    ) {
         assert ctx != null;
         assert delegate != null;
 
@@ -438,30 +441,6 @@ public class GridCacheProxyImpl<K, V> implements IgniteInternalCache<K, V>, Exte
 
         try {
             return delegate.igfsDataSpaceUsed();
-        }
-        finally {
-            gate.leave(prev);
-        }
-    }
-
-    /** {@inheritDoc} */
-    @Override public boolean isMongoDataCache() {
-        CacheOperationContext prev = gate.enter(opCtx);
-
-        try {
-            return delegate.isMongoDataCache();
-        }
-        finally {
-            gate.leave(prev);
-        }
-    }
-
-    /** {@inheritDoc} */
-    @Override public boolean isMongoMetaCache() {
-        CacheOperationContext prev = gate.enter(opCtx);
-
-        try {
-            return delegate.isMongoMetaCache();
         }
         finally {
             gate.leave(prev);

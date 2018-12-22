@@ -18,15 +18,13 @@
 package org.apache.ignite.examples.ml.regression.linear;
 
 import java.util.Arrays;
-import java.util.UUID;
 import javax.cache.Cache;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.Ignition;
-import org.apache.ignite.cache.affinity.rendezvous.RendezvousAffinityFunction;
 import org.apache.ignite.cache.query.QueryCursor;
 import org.apache.ignite.cache.query.ScanQuery;
-import org.apache.ignite.configuration.CacheConfiguration;
+import org.apache.ignite.examples.ml.util.TestCache;
 import org.apache.ignite.ml.math.functions.IgniteBiFunction;
 import org.apache.ignite.ml.math.primitives.vector.Vector;
 import org.apache.ignite.ml.math.primitives.vector.VectorUtils;
@@ -34,14 +32,22 @@ import org.apache.ignite.ml.preprocessing.minmaxscaling.MinMaxScalerPreprocessor
 import org.apache.ignite.ml.preprocessing.minmaxscaling.MinMaxScalerTrainer;
 import org.apache.ignite.ml.regressions.linear.LinearRegressionLSQRTrainer;
 import org.apache.ignite.ml.regressions.linear.LinearRegressionModel;
-import org.apache.ignite.thread.IgniteThread;
 
 /**
- * Run linear regression model over cached dataset.
- *
- * @see LinearRegressionLSQRTrainer
- * @see MinMaxScalerTrainer
- * @see MinMaxScalerPreprocessor
+ * Run linear regression model based on <a href="http://web.stanford.edu/group/SOL/software/lsqr/">LSQR algorithm</a>
+ * ({@link LinearRegressionLSQRTrainer}) over cached dataset that was created using
+ * a minmaxscaling preprocessor ({@link MinMaxScalerTrainer}, {@link MinMaxScalerPreprocessor}).
+ * <p>
+ * Code in this example launches Ignite grid, fills the cache with simple test data, and defines minmaxscaling
+ * trainer and preprocessor.</p>
+ * <p>
+ * After that it trains the linear regression model based on the specified data that has been processed
+ * using minmaxscaling.</p>
+ * <p>
+ * Finally, this example loops over the test set of data points, applies the trained model to predict predict the target
+ * value and compares prediction to expected outcome (ground truth).</p>
+ * <p>
+ * You can change the test data used in this example and re-run it to explore this algorithm further.</p>
  */
 public class LinearRegressionLSQRTrainerWithMinMaxScalerExample {
     /** */
@@ -104,77 +110,52 @@ public class LinearRegressionLSQRTrainerWithMinMaxScalerExample {
     /** Run example. */
     public static void main(String[] args) throws InterruptedException {
         System.out.println();
-        System.out.println(">>> Linear regression model over cached dataset usage example started.");
+        System.out.println(">>> Linear regression model with minmaxscaling preprocessor over cached dataset usage example started.");
         // Start ignite grid.
         try (Ignite ignite = Ignition.start("examples/config/example-ignite.xml")) {
             System.out.println(">>> Ignite grid started.");
 
-            IgniteThread igniteThread = new IgniteThread(ignite.configuration().getIgniteInstanceName(),
-                LinearRegressionLSQRTrainerWithMinMaxScalerExample.class.getSimpleName(), () -> {
-                IgniteCache<Integer, Vector> dataCache = getTestCache(ignite);
+            IgniteCache<Integer, Vector> dataCache = new TestCache(ignite).getVectors(data);
 
-                System.out.println(">>> Create new minmaxscaling trainer object.");
-                MinMaxScalerTrainer<Integer, Vector> normalizationTrainer = new MinMaxScalerTrainer<>();
+            System.out.println(">>> Create new minmaxscaling trainer object.");
+            MinMaxScalerTrainer<Integer, Vector> normalizationTrainer = new MinMaxScalerTrainer<>();
 
-                System.out.println(">>> Perform the training to get the minmaxscaling preprocessor.");
-                IgniteBiFunction<Integer, Vector, Vector> preprocessor = normalizationTrainer.fit(
-                    ignite,
-                    dataCache,
-                    (k, v) -> {
-                        double[] arr = v.asArray();
-                        return VectorUtils.of(Arrays.copyOfRange(arr, 1, arr.length));
-                    }
-                );
-
-                System.out.println(">>> Create new linear regression trainer object.");
-                LinearRegressionLSQRTrainer trainer = new LinearRegressionLSQRTrainer();
-
-                System.out.println(">>> Perform the training to get the model.");
-                LinearRegressionModel mdl = trainer.fit(ignite, dataCache, preprocessor, (k, v) -> v.get(0));
-
-                System.out.println(">>> Linear regression model: " + mdl);
-
-                System.out.println(">>> ---------------------------------");
-                System.out.println(">>> | Prediction\t| Ground Truth\t|");
-                System.out.println(">>> ---------------------------------");
-
-                try (QueryCursor<Cache.Entry<Integer, Vector>> observations = dataCache.query(new ScanQuery<>())) {
-                    for (Cache.Entry<Integer, Vector> observation : observations) {
-                        Integer key = observation.getKey();
-                        Vector val = observation.getValue();
-                        double groundTruth = val.get(0);
-
-                        double prediction = mdl.apply(preprocessor.apply(key, val));
-
-                        System.out.printf(">>> | %.4f\t\t| %.4f\t\t|\n", prediction, groundTruth);
-                    }
+            System.out.println(">>> Perform the training to get the minmaxscaling preprocessor.");
+            IgniteBiFunction<Integer, Vector, Vector> preprocessor = normalizationTrainer.fit(
+                ignite,
+                dataCache,
+                (k, v) -> {
+                    double[] arr = v.asArray();
+                    return VectorUtils.of(Arrays.copyOfRange(arr, 1, arr.length));
                 }
+            );
 
-                System.out.println(">>> ---------------------------------");
-            });
+            System.out.println(">>> Create new linear regression trainer object.");
+            LinearRegressionLSQRTrainer trainer = new LinearRegressionLSQRTrainer();
 
-            igniteThread.start();
+            System.out.println(">>> Perform the training to get the model.");
+            LinearRegressionModel mdl = trainer.fit(ignite, dataCache, preprocessor, (k, v) -> v.get(0));
 
-            igniteThread.join();
+            System.out.println(">>> Linear regression model: " + mdl);
+
+            System.out.println(">>> ---------------------------------");
+            System.out.println(">>> | Prediction\t| Ground Truth\t|");
+            System.out.println(">>> ---------------------------------");
+
+            try (QueryCursor<Cache.Entry<Integer, Vector>> observations = dataCache.query(new ScanQuery<>())) {
+                for (Cache.Entry<Integer, Vector> observation : observations) {
+                    Integer key = observation.getKey();
+                    Vector val = observation.getValue();
+                    double groundTruth = val.get(0);
+
+                    double prediction = mdl.apply(preprocessor.apply(key, val));
+
+                    System.out.printf(">>> | %.4f\t\t| %.4f\t\t|\n", prediction, groundTruth);
+                }
+            }
+
+            System.out.println(">>> ---------------------------------");
+            System.out.println(">>> Linear regression model with minmaxscaling preprocessor over cache based dataset usage example completed.");
         }
-    }
-
-    /**
-     * Fills cache with data and returns it.
-     *
-     * @param ignite Ignite instance.
-     * @return Filled Ignite Cache.
-     */
-    private static IgniteCache<Integer, Vector> getTestCache(Ignite ignite) {
-        CacheConfiguration<Integer, Vector> cacheConfiguration = new CacheConfiguration<>();
-        cacheConfiguration.setName("TEST_" + UUID.randomUUID());
-        cacheConfiguration.setAffinity(new RendezvousAffinityFunction(false, 10));
-
-        IgniteCache<Integer, Vector> cache = ignite.createCache(cacheConfiguration);
-
-        for (int i = 0; i < data.length; i++)
-            cache.put(i, VectorUtils.of(data[i]));
-
-        return cache;
     }
 }

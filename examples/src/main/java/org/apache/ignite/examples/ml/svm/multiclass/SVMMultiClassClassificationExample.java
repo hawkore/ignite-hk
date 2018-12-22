@@ -18,15 +18,13 @@
 package org.apache.ignite.examples.ml.svm.multiclass;
 
 import java.util.Arrays;
-import java.util.UUID;
 import javax.cache.Cache;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.Ignition;
-import org.apache.ignite.cache.affinity.rendezvous.RendezvousAffinityFunction;
 import org.apache.ignite.cache.query.QueryCursor;
 import org.apache.ignite.cache.query.ScanQuery;
-import org.apache.ignite.configuration.CacheConfiguration;
+import org.apache.ignite.examples.ml.util.TestCache;
 import org.apache.ignite.ml.math.functions.IgniteBiFunction;
 import org.apache.ignite.ml.math.primitives.vector.Vector;
 import org.apache.ignite.ml.math.primitives.vector.VectorUtils;
@@ -34,13 +32,22 @@ import org.apache.ignite.ml.math.primitives.vector.impl.DenseVector;
 import org.apache.ignite.ml.preprocessing.minmaxscaling.MinMaxScalerTrainer;
 import org.apache.ignite.ml.svm.SVMLinearMultiClassClassificationModel;
 import org.apache.ignite.ml.svm.SVMLinearMultiClassClassificationTrainer;
-import org.apache.ignite.thread.IgniteThread;
 
 /**
- * Run SVM multi-class classification trainer over distributed dataset to build two models:
- * one with minmaxscaling and one without minmaxscaling.
- *
- * @see SVMLinearMultiClassClassificationModel
+ * Run SVM multi-class classification trainer ({@link SVMLinearMultiClassClassificationModel}) over distributed dataset
+ * to build two models: one with minmaxscaling and one without minmaxscaling.
+ * <p>
+ * Code in this example launches Ignite grid and fills the cache with test data points (preprocessed
+ * <a href="https://archive.ics.uci.edu/ml/datasets/Glass+Identification">Glass dataset</a>).</p>
+ * <p>
+ * After that it trains two SVM multi-class models based on the specified data - one model is with minmaxscaling
+ * and one without minmaxscaling.</p>
+ * <p>
+ * Finally, this example loops over the test set of data points, applies the trained models to predict what cluster
+ * does this point belong to, compares prediction to expected outcome (ground truth), and builds
+ * <a href="https://en.wikipedia.org/wiki/Confusion_matrix">confusion matrix</a>.</p>
+ * <p>
+ * You can change the test data used in this example and re-run it to explore this algorithm further.</p>
  */
 public class SVMMultiClassClassificationExample {
     /** Run example. */
@@ -51,124 +58,101 @@ public class SVMMultiClassClassificationExample {
         try (Ignite ignite = Ignition.start("examples/config/example-ignite.xml")) {
             System.out.println(">>> Ignite grid started.");
 
-            IgniteThread igniteThread = new IgniteThread(ignite.configuration().getIgniteInstanceName(),
-                SVMMultiClassClassificationExample.class.getSimpleName(), () -> {
-                IgniteCache<Integer, Vector> dataCache = getTestCache(ignite);
+            IgniteCache<Integer, Vector> dataCache = new TestCache(ignite).getVectors(data);
 
-                SVMLinearMultiClassClassificationTrainer trainer = new SVMLinearMultiClassClassificationTrainer();
+            SVMLinearMultiClassClassificationTrainer trainer = new SVMLinearMultiClassClassificationTrainer();
 
-                SVMLinearMultiClassClassificationModel mdl = trainer.fit(
-                    ignite,
-                    dataCache,
-                    (k, v) -> {
-                        double[] arr = v.asArray();
-                        return VectorUtils.of(Arrays.copyOfRange(arr, 1, arr.length));
-                    },
-                    (k, v) -> v.get(0)
-                );
+            SVMLinearMultiClassClassificationModel mdl = trainer.fit(
+                ignite,
+                dataCache,
+                (k, v) -> {
+                    double[] arr = v.asArray();
+                    return VectorUtils.of(Arrays.copyOfRange(arr, 1, arr.length));
+                },
+                (k, v) -> v.get(0)
+            );
 
-                System.out.println(">>> SVM Multi-class model");
-                System.out.println(mdl.toString());
+            System.out.println(">>> SVM Multi-class model");
+            System.out.println(mdl.toString());
 
-                MinMaxScalerTrainer<Integer, Vector> normalizationTrainer = new MinMaxScalerTrainer<>();
+            MinMaxScalerTrainer<Integer, Vector> normalizationTrainer = new MinMaxScalerTrainer<>();
 
-                IgniteBiFunction<Integer, Vector, Vector> preprocessor = normalizationTrainer.fit(
-                    ignite,
-                    dataCache,
-                    (k, v) -> {
-                        double[] arr = v.asArray();
-                        return VectorUtils.of(Arrays.copyOfRange(arr, 1, arr.length));
-                    }
-                );
-
-                SVMLinearMultiClassClassificationModel mdlWithNormalization = trainer.fit(
-                    ignite,
-                    dataCache,
-                    preprocessor,
-                    (k, v) -> v.get(0)
-                );
-
-                System.out.println(">>> SVM Multi-class model with minmaxscaling");
-                System.out.println(mdlWithNormalization.toString());
-
-                System.out.println(">>> ----------------------------------------------------------------");
-                System.out.println(">>> | Prediction\t| Prediction with Normalization\t| Ground Truth\t|");
-                System.out.println(">>> ----------------------------------------------------------------");
-
-                int amountOfErrors = 0;
-                int amountOfErrorsWithNormalization = 0;
-                int totalAmount = 0;
-
-                // Build confusion matrix. See https://en.wikipedia.org/wiki/Confusion_matrix
-                int[][] confusionMtx = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
-                int[][] confusionMtxWithNormalization = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
-
-                try (QueryCursor<Cache.Entry<Integer, Vector>> observations = dataCache.query(new ScanQuery<>())) {
-                    for (Cache.Entry<Integer, Vector> observation : observations) {
-                        double[] val = observation.getValue().asArray();
-                        double[] inputs = Arrays.copyOfRange(val, 1, val.length);
-                        double groundTruth = val[0];
-
-                        double prediction = mdl.apply(new DenseVector(inputs));
-                        double predictionWithNormalization = mdlWithNormalization.apply(new DenseVector(inputs));
-
-                        totalAmount++;
-
-                        // Collect data for model
-                        if(groundTruth != prediction)
-                            amountOfErrors++;
-
-                        int idx1 = (int)prediction == 1 ? 0 : ((int)prediction == 3 ? 1 : 2);
-                        int idx2 = (int)groundTruth == 1 ? 0 : ((int)groundTruth == 3 ? 1 : 2);
-
-                        confusionMtx[idx1][idx2]++;
-
-                        // Collect data for model with minmaxscaling
-                        if(groundTruth != predictionWithNormalization)
-                            amountOfErrorsWithNormalization++;
-
-                        idx1 = (int)predictionWithNormalization == 1 ? 0 : ((int)predictionWithNormalization == 3 ? 1 : 2);
-                        idx2 = (int)groundTruth == 1 ? 0 : ((int)groundTruth == 3 ? 1 : 2);
-
-                        confusionMtxWithNormalization[idx1][idx2]++;
-
-                        System.out.printf(">>> | %.4f\t\t| %.4f\t\t\t\t\t\t| %.4f\t\t|\n", prediction, predictionWithNormalization, groundTruth);
-                    }
-                    System.out.println(">>> ----------------------------------------------------------------");
-                    System.out.println("\n>>> -----------------SVM model-------------");
-                    System.out.println("\n>>> Absolute amount of errors " + amountOfErrors);
-                    System.out.println("\n>>> Accuracy " + (1 - amountOfErrors / (double)totalAmount));
-                    System.out.println("\n>>> Confusion matrix is " + Arrays.deepToString(confusionMtx));
-
-                    System.out.println("\n>>> -----------------SVM model with Normalization-------------");
-                    System.out.println("\n>>> Absolute amount of errors " + amountOfErrorsWithNormalization);
-                    System.out.println("\n>>> Accuracy " + (1 - amountOfErrorsWithNormalization / (double)totalAmount));
-                    System.out.println("\n>>> Confusion matrix is " + Arrays.deepToString(confusionMtxWithNormalization));
+            IgniteBiFunction<Integer, Vector, Vector> preprocessor = normalizationTrainer.fit(
+                ignite,
+                dataCache,
+                (k, v) -> {
+                    double[] arr = v.asArray();
+                    return VectorUtils.of(Arrays.copyOfRange(arr, 1, arr.length));
                 }
-            });
+            );
 
-            igniteThread.start();
-            igniteThread.join();
+            SVMLinearMultiClassClassificationModel mdlWithNormalization = trainer.fit(
+                ignite,
+                dataCache,
+                preprocessor,
+                (k, v) -> v.get(0)
+            );
+
+            System.out.println(">>> SVM Multi-class model with minmaxscaling");
+            System.out.println(mdlWithNormalization.toString());
+
+            System.out.println(">>> ----------------------------------------------------------------");
+            System.out.println(">>> | Prediction\t| Prediction with Normalization\t| Ground Truth\t|");
+            System.out.println(">>> ----------------------------------------------------------------");
+
+            int amountOfErrors = 0;
+            int amountOfErrorsWithNormalization = 0;
+            int totalAmount = 0;
+
+            // Build confusion matrix. See https://en.wikipedia.org/wiki/Confusion_matrix
+            int[][] confusionMtx = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
+            int[][] confusionMtxWithNormalization = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
+
+            try (QueryCursor<Cache.Entry<Integer, Vector>> observations = dataCache.query(new ScanQuery<>())) {
+                for (Cache.Entry<Integer, Vector> observation : observations) {
+                    double[] val = observation.getValue().asArray();
+                    double[] inputs = Arrays.copyOfRange(val, 1, val.length);
+                    double groundTruth = val[0];
+
+                    double prediction = mdl.apply(new DenseVector(inputs));
+                    double predictionWithNormalization = mdlWithNormalization.apply(new DenseVector(inputs));
+
+                    totalAmount++;
+
+                    // Collect data for model
+                    if(groundTruth != prediction)
+                        amountOfErrors++;
+
+                    int idx1 = (int)prediction == 1 ? 0 : ((int)prediction == 3 ? 1 : 2);
+                    int idx2 = (int)groundTruth == 1 ? 0 : ((int)groundTruth == 3 ? 1 : 2);
+
+                    confusionMtx[idx1][idx2]++;
+
+                    // Collect data for model with minmaxscaling
+                    if(groundTruth != predictionWithNormalization)
+                        amountOfErrorsWithNormalization++;
+
+                    idx1 = (int)predictionWithNormalization == 1 ? 0 : ((int)predictionWithNormalization == 3 ? 1 : 2);
+                    idx2 = (int)groundTruth == 1 ? 0 : ((int)groundTruth == 3 ? 1 : 2);
+
+                    confusionMtxWithNormalization[idx1][idx2]++;
+
+                    System.out.printf(">>> | %.4f\t\t| %.4f\t\t\t\t\t\t| %.4f\t\t|\n", prediction, predictionWithNormalization, groundTruth);
+                }
+                System.out.println(">>> ----------------------------------------------------------------");
+                System.out.println("\n>>> -----------------SVM model-------------");
+                System.out.println("\n>>> Absolute amount of errors " + amountOfErrors);
+                System.out.println("\n>>> Accuracy " + (1 - amountOfErrors / (double)totalAmount));
+                System.out.println("\n>>> Confusion matrix is " + Arrays.deepToString(confusionMtx));
+
+                System.out.println("\n>>> -----------------SVM model with Normalization-------------");
+                System.out.println("\n>>> Absolute amount of errors " + amountOfErrorsWithNormalization);
+                System.out.println("\n>>> Accuracy " + (1 - amountOfErrorsWithNormalization / (double)totalAmount));
+                System.out.println("\n>>> Confusion matrix is " + Arrays.deepToString(confusionMtxWithNormalization));
+
+                System.out.println(">>> Linear regression model over cache based dataset usage example completed.");
+            }
         }
-    }
-
-    /**
-     * Fills cache with data and returns it.
-     *
-     * @param ignite Ignite instance.
-     * @return Filled Ignite Cache.
-     */
-    private static IgniteCache<Integer, Vector> getTestCache(Ignite ignite) {
-        CacheConfiguration<Integer, Vector> cacheConfiguration = new CacheConfiguration<>();
-        cacheConfiguration.setName("TEST_" + UUID.randomUUID());
-        cacheConfiguration.setAffinity(new RendezvousAffinityFunction(false, 10));
-
-        IgniteCache<Integer, Vector> cache = ignite.createCache(cacheConfiguration);
-
-        for (int i = 0; i < data.length; i++)
-            cache.put(i, VectorUtils.of(data[i]));
-
-        return cache;
     }
 
     /** The preprocessed Glass dataset from the Machine Learning Repository https://archive.ics.uci.edu/ml/datasets/Glass+Identification

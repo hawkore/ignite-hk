@@ -32,10 +32,10 @@ import org.hawkore.ignite.lucene.common.GeospatialUtils;
 import org.hawkore.ignite.lucene.schema.mapping.GeoPointMapper;
 import org.hawkore.ignite.lucene.schema.mapping.GeoShapeMapper;
 import org.hawkore.ignite.lucene.schema.mapping.Mapper;
+import org.locationtech.spatial4j.distance.DistanceUtils;
+import org.locationtech.spatial4j.shape.Circle;
 
 import com.google.common.base.MoreObjects;
-import com.spatial4j.core.distance.DistanceUtils;
-import com.spatial4j.core.shape.Circle;
 
 /**
  * A {@link Condition} that matches documents containing a shape contained between two certain circles.

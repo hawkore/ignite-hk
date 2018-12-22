@@ -32,9 +32,9 @@ import org.apache.lucene.spatial.serialized.SerializedDVStrategy;
 import org.hawkore.ignite.lucene.IndexException;
 import org.hawkore.ignite.lucene.column.Columns;
 import org.hawkore.ignite.lucene.common.GeospatialUtils;
+import org.locationtech.spatial4j.shape.Point;
 
 import com.google.common.base.MoreObjects;
-import com.spatial4j.core.shape.Point;
 
 /**
  * A {@link Mapper} to map geographical points.

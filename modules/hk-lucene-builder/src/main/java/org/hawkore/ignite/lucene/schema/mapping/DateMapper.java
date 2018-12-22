@@ -19,12 +19,12 @@ import java.util.Date;
 import java.util.Optional;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.LongField;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortField.Type;
-import org.hawkore.ignite.lucene.common.DateParser;
 import org.apache.lucene.search.SortedNumericSortField;
+import org.hawkore.ignite.lucene.common.DateParser;
 
 /**
  * A {@link Mapper} to map a date field.
@@ -59,7 +59,7 @@ public class DateMapper extends SingleColumnMapper.SingleFieldMapper<Long> {
     /** {@inheritDoc} */
     @Override
     public Optional<Field> indexedField(String name, Long value) {
-        return Optional.of(new LongField(name, value, STORE));
+        return Optional.of(new LongPoint(name, value));
     }
 
     /** {@inheritDoc} */

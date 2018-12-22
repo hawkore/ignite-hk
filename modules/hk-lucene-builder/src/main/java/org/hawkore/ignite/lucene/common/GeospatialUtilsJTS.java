@@ -17,21 +17,22 @@ package org.hawkore.ignite.lucene.common;
  
 import org.apache.commons.lang3.StringUtils;
 import org.hawkore.ignite.lucene.IndexException;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.io.ParseException;
+import org.locationtech.jts.io.WKTReader;
+import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
-import com.spatial4j.core.context.jts.JtsSpatialContext;
-import com.spatial4j.core.shape.jts.JtsGeometry;
-import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.geom.GeometryFactory;
-import com.vividsolutions.jts.io.ParseException;
-import com.vividsolutions.jts.io.WKTReader;
+
 
 /**
  * Utilities for Java Topology Suite (JTS) related stuff.
  *
- * This class depends on <a href="http://www.vividsolutions.com/jts">Java Topology Suite (JTS)</a>. This library can't
- * be distributed together with this project due to license compatibility problems, but you can add it by putting <a
- * href="http://search.maven.org/remotecontent?filepath=com/vividsolutions/jts-core/1.14.0/jts-core-1.14.0.jar">jts-core-1.14.0.jar</a>
- * into your project lib directory.
+ * <p> This class depends on <a href="https://projects.eclipse.org/projects/locationtech.jts">Java Topology
+ * Suite (JTS)</a>. This library can't be distributed together with this project due to license compatibility problems,
+ * but you can add it by putting <a href="http://search.maven.org/remotecontent?filepath=org/locationtech/jts/jts-core/1.15.0/jts-core-1.15.0.jar">jts-core-1.15.0.jar</a>
+ * into project lib directory. 
  *
  * @author Andres de la Pena {@literal <adelapena@stratio.com>}
  */

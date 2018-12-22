@@ -16,15 +16,16 @@
 package org.hawkore.ignite.lucene.search.condition;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocValuesNumbersQuery;
 import org.apache.lucene.search.DocValuesTermsQuery;
-import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.QueryBuilder;
 import org.hawkore.ignite.lucene.IndexException;
 import org.hawkore.ignite.lucene.schema.mapping.SingleColumnMapper;
@@ -110,9 +111,7 @@ public class MatchCondition extends SingleColumnCondition {
         if (docValues) {
             return new DocValuesNumbersQuery(field, docValue(value));
         } else {
-            BytesRefBuilder ref = new BytesRefBuilder();
-            NumericUtils.intToPrefixCoded(value, 0, ref);
-            return new TermQuery(new Term(field, ref.toBytesRef()));
+            return IntPoint.newExactQuery(field, value);
         }
     }
 
@@ -120,22 +119,20 @@ public class MatchCondition extends SingleColumnCondition {
         if (docValues) {
             return new DocValuesNumbersQuery(field, docValue(value));
         } else {
-            BytesRefBuilder ref = new BytesRefBuilder();
-            NumericUtils.longToPrefixCoded(value, 0, ref);
-            return new TermQuery(new Term(field, ref.toBytesRef()));
+            return LongPoint.newExactQuery(field, value);
         }
     }
 
     private Query query(Float value) {
         return docValues
                ? new DocValuesNumbersQuery(field, docValue(value))
-               : NumericRangeQuery.newFloatRange(field, value, value, true, true);
+               : FloatPoint.newExactQuery(field, value);
     }
 
     private Query query(Double value) {
         return docValues
                ? new DocValuesNumbersQuery(field, docValue(value))
-               : NumericRangeQuery.newDoubleRange(field, value, value, true, true);
+               : DoublePoint.newExactQuery(field, value);
     }
 
     /** {@inheritDoc} */

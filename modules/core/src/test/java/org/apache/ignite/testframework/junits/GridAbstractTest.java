@@ -160,9 +160,6 @@ public abstract class GridAbstractTest extends TestCase {
     }};
 
     /** */
-    private static final long DFLT_TEST_TIMEOUT = 5 * 60 * 1000;
-
-    /** */
     private static final int DFLT_TOP_WAIT_TIMEOUT = 2000;
 
     /** */
@@ -842,8 +839,8 @@ public abstract class GridAbstractTest extends TestCase {
      * @return Started grid.
      * @throws Exception If failed.
      */
-    protected Ignite startGrid(String igniteInstanceName) throws Exception {
-        return startGrid(igniteInstanceName, (GridSpringResourceContext)null);
+    protected IgniteEx startGrid(String igniteInstanceName) throws Exception {
+        return (IgniteEx)startGrid(igniteInstanceName, (GridSpringResourceContext)null);
     }
 
     /**
@@ -856,6 +853,28 @@ public abstract class GridAbstractTest extends TestCase {
      */
     protected Ignite startGrid(String igniteInstanceName, GridSpringResourceContext ctx) throws Exception {
         return startGrid(igniteInstanceName, optimize(getConfiguration(igniteInstanceName)), ctx);
+    }
+
+    /**
+     * @param regionCfg Region config.
+     */
+    private void validateDataRegion(DataRegionConfiguration regionCfg) {
+        if (regionCfg.isPersistenceEnabled() && regionCfg.getMaxSize() == DataStorageConfiguration.DFLT_DATA_REGION_MAX_SIZE)
+            throw new AssertionError("Max size of data region should be set explicitly to avoid memory over usage");
+    }
+
+    /**
+     * @param cfg Config.
+     */
+    private void validateConfiguration(IgniteConfiguration cfg) {
+        if (cfg.getDataStorageConfiguration() != null) {
+            validateDataRegion(cfg.getDataStorageConfiguration().getDefaultDataRegionConfiguration());
+
+            if (cfg.getDataStorageConfiguration().getDataRegionConfigurations() != null) {
+                for (DataRegionConfiguration reg : cfg.getDataStorageConfiguration().getDataRegionConfigurations())
+                    validateDataRegion(reg);
+            }
+        }
     }
 
     /**
@@ -1327,6 +1346,8 @@ public abstract class GridAbstractTest extends TestCase {
     protected Ignite startGrid(String igniteInstanceName, String springCfgPath) throws Exception {
         IgniteConfiguration cfg = loadConfiguration(springCfgPath);
 
+        cfg.setFailureHandler(getFailureHandler(igniteInstanceName));
+
         cfg.setGridLogger(getTestResources().getLogger());
 
         return startGrid(igniteInstanceName, cfg);
@@ -1504,6 +1525,9 @@ public abstract class GridAbstractTest extends TestCase {
             }
         }
 
+        if (cfg.getDiscoverySpi() instanceof TcpDiscoverySpi)
+            ((TcpDiscoverySpi)cfg.getDiscoverySpi()).setJoinTimeout(getTestTimeout());
+
         if (isMultiJvm())
             ((TcpDiscoverySpi)cfg.getDiscoverySpi()).setIpFinder(LOCAL_IP_FINDER);
 
@@ -1553,6 +1577,14 @@ public abstract class GridAbstractTest extends TestCase {
      */
     public String getTestIgniteInstanceName(int idx) {
         return getTestIgniteInstanceName() + idx;
+    }
+
+    /**
+     * @param idx Index of the Ignite instance.
+     * @return Indexed Ignite instance name.
+     */
+    protected String testNodeName(int idx) {
+        return getTestIgniteInstanceName(idx);
     }
 
     /**
@@ -1741,6 +1773,8 @@ public abstract class GridAbstractTest extends TestCase {
         finally {
             serializedObj.clear();
 
+            Exception err = null;
+
             if (isLastTest()) {
                 info(">>> Stopping test class: " + testClassDescription() + " <<<");
 
@@ -1755,10 +1789,21 @@ public abstract class GridAbstractTest extends TestCase {
                 // Set reset flags, so counters will be reset on the next setUp.
                 counters.setReset(true);
 
-                afterTestsStopped();
+                try {
+                    afterTestsStopped();
+                }
+                catch (Exception e) {
+                    err = e;
+                }
 
-                if(isSafeTopology())
+                if (isSafeTopology()) {
                     stopAllGrids(false);
+
+                    if (stopGridErr) {
+                        err = new RuntimeException("Not all Ignite instances has been stopped. " +
+                            "Please, see log for details.", err);
+                    }
+                }
 
                 // Remove counters.
                 tests.remove(getClass());
@@ -1776,8 +1821,8 @@ public abstract class GridAbstractTest extends TestCase {
 
             cleanReferences();
 
-           if (isLastTest() && isSafeTopology() && stopGridErr)
-               throw new RuntimeException("Not all Ignite instances has been stopped. Please, see log for details.");
+            if (err != null)
+                throw err;
         }
     }
 
@@ -2148,7 +2193,7 @@ public abstract class GridAbstractTest extends TestCase {
         if (timeout != null)
             return Long.parseLong(timeout);
 
-        return DFLT_TEST_TIMEOUT;
+        return GridTestUtils.DFLT_TEST_TIMEOUT;
     }
 
     /**

@@ -61,6 +61,12 @@ public final class SqlStateCode {
     /** Requested operation is not supported. */
     public final static String UNSUPPORTED_OPERATION = "0A000";
 
+    /** Transaction state exception. */
+    public final static String TRANSACTION_STATE_EXCEPTION = "25000";
+
+    /** Transaction state exception. */
+    public final static String SERIALIZATION_FAILURE = "40001";
+
     /** Parsing exception. */
     public final static String PARSING_EXCEPTION = "42000";
 

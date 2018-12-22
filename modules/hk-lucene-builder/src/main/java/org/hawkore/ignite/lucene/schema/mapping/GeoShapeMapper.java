@@ -33,16 +33,20 @@ import org.apache.lucene.spatial.serialized.SerializedDVStrategy;
 import org.hawkore.ignite.lucene.IndexException;
 import org.hawkore.ignite.lucene.common.GeoTransformation;
 import org.hawkore.ignite.lucene.common.GeospatialUtils;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import com.google.common.base.MoreObjects;
-import com.spatial4j.core.shape.jts.JtsGeometry;
 
 /**
  * A {@link Mapper} to map geographical shapes represented according to the <a href="http://en.wikipedia.org/wiki/Well-known_text">
- * Well Known Text (WKT)</a> format. <p> This class depends on <a href="http://www.vividsolutions.com/jts">Java Topology
+ * Well Known Text (WKT)</a> format. 
+ * 
+ * <p> This class depends on <a href="https://projects.eclipse.org/projects/locationtech.jts">Java Topology
  * Suite (JTS)</a>. This library can't be distributed together with this project due to license compatibility problems,
- * but you can add it by putting <a href="http://search.maven.org/remotecontent?filepath=com/vividsolutions/jts-core/1.14.0/jts-core-1.14.0.jar">jts-core-1.14.0.jar</a>
- * into project lib directory. <p> Pole wrapping is not supported.
+ * but you can add it by putting <a href="http://search.maven.org/remotecontent?filepath=org/locationtech/jts/jts-core/1.15.0/jts-core-1.15.0.jar">jts-core-1.15.0.jar</a>
+ * into project lib directory.
+ * 
+ * <p> Pole wrapping is not supported.
  *
  * The indexing is based on a {@link CompositeSpatialStrategy} combining a geohash search tree in front of doc values.
  * The search tree is used to quickly filtering according to a precision level, and the stored BinaryDocValues are used

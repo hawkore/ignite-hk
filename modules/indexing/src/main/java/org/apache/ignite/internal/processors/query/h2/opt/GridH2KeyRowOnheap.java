@@ -17,11 +17,12 @@
 
 package org.apache.ignite.internal.processors.query.h2.opt;
 
+import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.processors.cache.persistence.CacheDataRow;
 import org.h2.value.Value;
 
 /**
- * Heap-based key-only row for remove operations.
+ * Heap-based key-only row for search by key operations.
  */
 public class GridH2KeyRowOnheap extends GridH2Row {
     /** */
@@ -44,6 +45,9 @@ public class GridH2KeyRowOnheap extends GridH2Row {
 
     /** {@inheritDoc} */
     @Override public Value getValue(int idx) {
+        if (idx != 0 ){
+            return null;
+        }
         assert idx == 0 : idx;
 
         return key;
@@ -59,5 +63,15 @@ public class GridH2KeyRowOnheap extends GridH2Row {
     /** {@inheritDoc} */
     @Override public long expireTime() {
         return 0;
+    }
+
+    /** {@inheritDoc} */
+    @Override public int size() throws IgniteCheckedException {
+        throw new UnsupportedOperationException();
+    }
+
+    /** {@inheritDoc} */
+    @Override public int headerSize() {
+        throw new UnsupportedOperationException();
     }
 }

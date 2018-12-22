@@ -17,9 +17,9 @@ package org.hawkore.ignite.lucene.search.condition;
 
 import static org.apache.lucene.search.BooleanClause.Occur.MUST;
 import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
-import static org.apache.lucene.search.NumericRangeQuery.newLongRange;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.hawkore.ignite.lucene.schema.mapping.BitemporalMapper;
@@ -89,28 +89,20 @@ public class BitemporalCondition extends SingleMapperCondition<BitemporalMapper>
         if (!((vtFromTime.equals(0L)) && (vtToTime.equals(Long.MAX_VALUE)))) {
 
             BooleanQuery.Builder validBuilder = new BooleanQuery.Builder();
-            validBuilder.add(newLongRange(field + BitemporalMapper.VT_FROM_FIELD_SUFFIX,
+            validBuilder.add(LongPoint.newRangeQuery(field + BitemporalMapper.VT_FROM_FIELD_SUFFIX,
                                           vtFromTime,
-                                          vtToTime,
-                                          true,
-                                          true), SHOULD);
-            validBuilder.add(newLongRange(field + BitemporalMapper.VT_TO_FIELD_SUFFIX,
+                                          vtToTime), SHOULD);
+            validBuilder.add(LongPoint.newRangeQuery(field + BitemporalMapper.VT_TO_FIELD_SUFFIX,
                                           vtFromTime,
-                                          vtToTime,
-                                          true,
-                                          true), SHOULD);
+                                          vtToTime), SHOULD);
 
             BooleanQuery.Builder containsValidBuilder = new BooleanQuery.Builder();
-            containsValidBuilder.add(newLongRange(field + BitemporalMapper.VT_FROM_FIELD_SUFFIX,
+            containsValidBuilder.add(LongPoint.newRangeQuery(field + BitemporalMapper.VT_FROM_FIELD_SUFFIX,
                                                   minTime,
-                                                  vtFromTime,
-                                                  true,
-                                                  true), MUST);
-            containsValidBuilder.add(newLongRange(field + BitemporalMapper.VT_TO_FIELD_SUFFIX,
+                                                  vtFromTime), MUST);
+            containsValidBuilder.add(LongPoint.newRangeQuery(field + BitemporalMapper.VT_TO_FIELD_SUFFIX,
                                                   vtToTime,
-                                                  maxTime,
-                                                  true,
-                                                  true), MUST);
+                                                  maxTime), MUST);
             validBuilder.add(containsValidBuilder.build(), SHOULD);
             builder.add(validBuilder.build(), MUST);
         }
@@ -118,28 +110,20 @@ public class BitemporalCondition extends SingleMapperCondition<BitemporalMapper>
         if (!((ttFromTime.equals(0L)) && (ttToTime.equals(Long.MAX_VALUE)))) {
 
             BooleanQuery.Builder transactionBuilder = new BooleanQuery.Builder();
-            transactionBuilder.add(newLongRange(field + BitemporalMapper.TT_FROM_FIELD_SUFFIX,
+            transactionBuilder.add(LongPoint.newRangeQuery(field + BitemporalMapper.TT_FROM_FIELD_SUFFIX,
                                                 ttFromTime,
-                                                ttToTime,
-                                                true,
-                                                true), SHOULD);
-            transactionBuilder.add(newLongRange(field + BitemporalMapper.TT_TO_FIELD_SUFFIX,
+                                                ttToTime), SHOULD);
+            transactionBuilder.add(LongPoint.newRangeQuery(field + BitemporalMapper.TT_TO_FIELD_SUFFIX,
                                                 ttFromTime,
-                                                ttToTime,
-                                                true,
-                                                true), SHOULD);
+                                                ttToTime), SHOULD);
 
             BooleanQuery.Builder containsTransactionBuilder = new BooleanQuery.Builder();
-            containsTransactionBuilder.add(newLongRange(field + BitemporalMapper.TT_FROM_FIELD_SUFFIX,
+            containsTransactionBuilder.add(LongPoint.newRangeQuery(field + BitemporalMapper.TT_FROM_FIELD_SUFFIX,
                                                         minTime,
-                                                        ttFromTime,
-                                                        true,
-                                                        true), MUST);
-            containsTransactionBuilder.add(newLongRange(field + BitemporalMapper.TT_TO_FIELD_SUFFIX,
+                                                        ttFromTime), MUST);
+            containsTransactionBuilder.add(LongPoint.newRangeQuery(field + BitemporalMapper.TT_TO_FIELD_SUFFIX,
                                                         ttToTime,
-                                                        maxTime,
-                                                        true,
-                                                        true), MUST);
+                                                        maxTime), MUST);
             transactionBuilder.add(containsTransactionBuilder.build(), SHOULD);
             builder.add(transactionBuilder.build(), MUST);
         }

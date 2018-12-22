@@ -19,15 +19,13 @@ import java.util.Date;
 import java.util.Optional;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.IntField;
+import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortField.Type;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.hawkore.ignite.lucene.IndexException;
 import org.hawkore.ignite.lucene.common.SimpleDate;
-import org.apache.lucene.search.SortedNumericSortField;
 
 /**
  * A {@link Mapper} to map an integer field.
@@ -35,26 +33,6 @@ import org.apache.lucene.search.SortedNumericSortField;
  * @author Andres de la Pena {@literal <adelapena@stratio.com>}
  */
 public class IntegerMapper extends SingleColumnMapper.SingleFieldMapper<Integer> {
-
-	private static final FieldType TYPE_NOT_STORED_OMMIT_NORMS = new FieldType();
-	private static final FieldType TYPE_STORED_OMMIT_NORMS=new FieldType();
-
-	static {
-		TYPE_NOT_STORED_OMMIT_NORMS.setTokenized(true);
-		TYPE_NOT_STORED_OMMIT_NORMS.setOmitNorms(false);
-		TYPE_NOT_STORED_OMMIT_NORMS.setIndexOptions(IndexOptions.DOCS);
-		TYPE_NOT_STORED_OMMIT_NORMS.setNumericType(FieldType.NumericType.INT);
-		TYPE_NOT_STORED_OMMIT_NORMS.setNumericPrecisionStep(8);
-		TYPE_NOT_STORED_OMMIT_NORMS.freeze();
-
-		TYPE_STORED_OMMIT_NORMS.setTokenized(true);
-		TYPE_STORED_OMMIT_NORMS.setOmitNorms(false);
-		TYPE_STORED_OMMIT_NORMS.setIndexOptions(IndexOptions.DOCS);
-		TYPE_STORED_OMMIT_NORMS.setNumericType(FieldType.NumericType.INT);
-		TYPE_STORED_OMMIT_NORMS.setNumericPrecisionStep(8);
-		TYPE_STORED_OMMIT_NORMS.setStored(true);
-		TYPE_STORED_OMMIT_NORMS.freeze();
-	}
 	
     /** The default boost. */
     public static final Float DEFAULT_BOOST = 1.0f;
@@ -95,15 +73,7 @@ public class IntegerMapper extends SingleColumnMapper.SingleFieldMapper<Integer>
     /** {@inheritDoc} */
     @Override
     public Optional<Field> indexedField(String name, Integer value) {
-        IntField field = null;
-		if(boost==DEFAULT_BOOST){
-			field = new IntField(name, value, STORE);
-		}else{
-			//You cannot set an index-time boost on an unindexed field, or one that omits norms if boost!=1.0f
-			FieldType type = (STORE == Field.Store.YES) ? TYPE_STORED_OMMIT_NORMS : TYPE_NOT_STORED_OMMIT_NORMS;
-			field = new IntField(name, value, type);
-		}
-		field.setBoost(boost);
+        IntPoint field = new IntPoint(name, value);
 		return Optional.of(field);
     }
 

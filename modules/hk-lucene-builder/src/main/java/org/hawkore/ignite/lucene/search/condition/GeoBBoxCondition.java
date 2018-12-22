@@ -27,9 +27,9 @@ import org.hawkore.ignite.lucene.common.GeospatialUtils;
 import org.hawkore.ignite.lucene.schema.mapping.GeoPointMapper;
 import org.hawkore.ignite.lucene.schema.mapping.GeoShapeMapper;
 import org.hawkore.ignite.lucene.schema.mapping.Mapper;
+import org.locationtech.spatial4j.shape.Rectangle;
 
 import com.google.common.base.MoreObjects;
-import com.spatial4j.core.shape.Rectangle;
 
 /**
  * A {@link Condition} that matches documents containing a shape contained in a certain bounding box.

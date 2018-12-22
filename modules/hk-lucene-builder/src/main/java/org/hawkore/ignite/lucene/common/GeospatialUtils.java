@@ -17,8 +17,8 @@ package org.hawkore.ignite.lucene.common;
 
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.hawkore.ignite.lucene.IndexException;
-
-import com.spatial4j.core.context.SpatialContext;
+import org.locationtech.spatial4j.context.SpatialContext;
+import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
 
 /**
  * Utilities for geospatial related stuff.

@@ -18,7 +18,7 @@ package org.hawkore.ignite.lucene.common;
 import org.hawkore.ignite.lucene.IndexException;
 
 /**
- * {@link IndexException} to be thrown if <a href="http://www.vividsolutions.com/jts">Java Topology Suite (JTS)</a>
+ * {@link IndexException} to be thrown if <a href="https://projects.eclipse.org/projects/locationtech.jts">Java Topology Suite (JTS)</a>
  * library is not found in classpath
  *
  * @author Eduardo Alonso {@literal <eduardoalonso@stratio.com>}
@@ -26,7 +26,7 @@ import org.hawkore.ignite.lucene.IndexException;
 public class JTSNotFoundException extends IndexException {
 
     private static final String MESSAGE = "JTS JAR is not provided due to license compatibility issues, please " +
-                                          "include jts-core-1.14.0.jar in project lib directory in order to use " +
+                                          "include jts-core-1.15.0.jar in project lib directory in order to use " +
                                           "GeoShapeMapper or GeoShapeCondition";
 
     /**

@@ -47,7 +47,7 @@ namespace Apache.Ignite.Core.Tests.Client.Cache
                 {
                     CompactFooter = false
                 },
-                Host = IPAddress.Loopback.ToString()
+                Endpoints = new[] {IPAddress.Loopback.ToString()}
             };
 
             using (var client = Ignition.StartClient(cfg))

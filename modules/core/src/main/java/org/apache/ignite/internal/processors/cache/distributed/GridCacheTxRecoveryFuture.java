@@ -49,9 +49,9 @@ import static org.apache.ignite.transactions.TransactionState.PREPARED;
  * Future verifying that all remote transactions related to transaction were prepared or committed.
  */
 public class GridCacheTxRecoveryFuture extends GridCacheCompoundIdentityFuture<Boolean> {
-    /** */         
+    /** */
     private static final long serialVersionUID = 0L;
-    
+
     /** Logger reference. */
     private static final AtomicReference<IgniteLogger> logRef = new AtomicReference<>();
 
