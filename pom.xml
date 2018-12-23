@@ -137,6 +137,14 @@
             </modules>
         </profile>
 
+		<!-- generate apache ignite distribution with hk extensions. You must activate profiles: generate-assembly-maven, generate-assembly-docker, attach-assembly-maven, attach-assembly-docker -->
+        <profile>
+            <id>hawkore-dist</id>
+            <modules>
+                <module>modules/hk-distribution</module>
+            </modules>
+        </profile>
+
         <profile>
             <id>test</id>
             <build>
