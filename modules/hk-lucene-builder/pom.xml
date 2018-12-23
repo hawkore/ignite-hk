@@ -14,7 +14,7 @@
 	<groupId>org.hawkore.libs.ignite</groupId>
 	<name>HK-LIB Apache Ignite lucene builder</name>
 	<artifactId>hk-ignite-lucene-builder</artifactId>
-	<version>2.7.0-hk-SNAPSHOT</version>
+	<version>2.7.0-hk</version>
 	<url>http://hawkore.com</url>
 
 	<properties>
