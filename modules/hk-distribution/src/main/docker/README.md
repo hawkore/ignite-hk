@@ -1,40 +1,34 @@
 # Docker image with Hawkore's Ignite extensions
 
-**hk/ignite-hk**
+**docker.hawkore.com/hk/ignite-hk**
 
-Based on hk/oraclejdk
+Based on lwieske/java-8:jdk-8u151
 
 Versions so far:
 
-| Version          | Other tags | From               |
+| image:version          | Other tags | From               |
 | ---------------- | ---------- | ------------------ |
-| $VERSION         |            | hk/oraclejdk:8u151 |
+| **docker.hawkore.com/hk/ignite-hk:2.7.0-hk**           |            | lwieske/java-8:jdk-8u151 |
 
-Commands to build last version:
-
-
-``` sh
-$ echo Note that this will not work 'as is' because Dockerfile is parametrized.
-$ docker build --force-rm --rm=true --squash -t docker.hawkore.com/hk/ignite-hk:$VERSION .
-```
+**Important:** Docker image is based on **lwieske/java-8:jdk-8u151**. Please note that docker image are for testing purposes only. You should manage your own **java-8 base docker image**.
 
 **Important**: build is done through maven command. For the curious:
 
 ``` sh
-mvn install -Phawkore,generate-assembly-maven,generate-assembly-docker,attach-assembly-maven,attach-assembly-docker
+mvn clean install -U -Pgenerate-assembly-maven,generate-assembly-docker,attach-assembly-maven,attach-assembly-docker -f modules/hk-distribution
 ```
 
 # How to run a container
  - Manually. 
 
 ``` sh
-$ docker run --name ignite-hk --rm -t -i hk/ignite-hk:$VERSION /bin/bash
+$ docker run --name ignite-hk --rm -t -i docker.hawkore.com/hk/ignite-hk:2.7.0-hk /bin/bash
 ```
 
  - Background
 
 ``` sh
-docker run --name ignite-hk --rm hk/ignite-hk:$VERSION
+docker run --name ignite-hk --rm docker.hawkore.com/hk/ignite-hk:2.7.0-hk
 ```
 
 # Overwrite default configuration:
