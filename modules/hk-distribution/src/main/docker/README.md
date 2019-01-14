@@ -2,15 +2,15 @@
 
 **docker.hawkore.com/hk/ignite-hk**
 
-Based on lwieske/java-8:jdk-8u151
+Based on hawkore/oraclejdk:8u191
 
 Versions so far:
 
 | image:version          | Other tags | From               |
 | ---------------- | ---------- | ------------------ |
-| **docker.hawkore.com/hk/ignite-hk:2.7.0-hk**           |            | lwieske/java-8:jdk-8u151 |
+| **docker.hawkore.com/hk/ignite-hk:2.7.0-hk**           |            | hawkore/oraclejdk:8u191 |
 
-**Important:** Docker image is based on **lwieske/java-8:jdk-8u151**. Please note that docker image are for testing purposes only. You should manage your own **java-8 base docker image**.
+**Important:** Docker image is based on **hawkore/oraclejdk:8u191**. Please note that docker image are for testing purposes only. You should manage your own **java-8 base docker image**. Using the image, you accept the [Oracle Binary Code License Agreement](https://www.oracle.com/technetwork/java/javase/terms/license/index.html) for Java SE.
 
 **Important**: build is done through maven command. For the curious:
 
