@@ -15,7 +15,9 @@ You can find the full Apache Ignite documentation here: [Full documentation][doc
 
 ## Full Hawkore's Apache Ignite Extensions Documentation
 
-Visit [Hawkore's home page][hawkore-homepage].
+![advanced-indexing](modules/hk-distribution/assets/advanced-indexing.png)
+
+Sign up at [www.hawkore.com](https://www.hawkore.com) to access full documentation.
 
 ## What is Apache Ignite?
 
