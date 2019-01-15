@@ -34,11 +34,6 @@
     <version>2.7.1-hk-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <properties>
-        <!--fix <attachartifact>...< /> at apache-release profile if changed-->
-        <ignite.zip.pattern>${ignite.edition}-${project.version}-bin</ignite.zip.pattern>
-    </properties>
-
     <scm>
         <url>https://github.com/hawkore/ignite-hk.git</url>
         <connection>scm:git:https://github.com/hawkore/ignite-hk.git</connection>
@@ -421,7 +416,7 @@
                                                 <exclude name="**/missing" />
                                             </zipfileset>
                                         </zip>
-                                        <attachartifact file="${basedir}/target/bin/${ignite.zip.pattern}.zip" type="zip" classifier="bin"/>
+                                        <attachartifact file="${basedir}/target/bin/${ignite.edition}-${project.version}-bin.zip" type="zip" classifier="bin"/>
                                     </target>
                                 </configuration>
                             </execution>
@@ -763,6 +758,38 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-deploy-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>1.0.1</version>
+				<inherited>false</inherited>
+				
+                <configuration>
+                    <flattenMode>minimum</flattenMode>
+                    <flattenedPomFilename>pom-installed.xml</flattenedPomFilename>
+                    <updatePomFile>true</updatePomFile>
+                </configuration>
+
+                <executions>
+                    <!-- enable flattening -->
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+
+                    <!-- ensure proper cleanup before start -->
+                    <execution>
+                        <id>flatten.clean.before</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

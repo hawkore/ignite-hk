@@ -1,6 +1,6 @@
 # @project.version@ is set by maven plugin. See 'https://dmp.fabric8.io/#docker:build' filtering.
 
-FROM hawkore/oraclejdk:8u191
+FROM hawkore/openjdk:8u181
 
 MAINTAINER hawkore
 
