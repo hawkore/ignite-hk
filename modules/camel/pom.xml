@@ -31,7 +31,7 @@
     </parent>
 
     <artifactId>ignite-camel</artifactId>
-    <version>2.7.1-hk-SNAPSHOT</version>
+    <version>2.7.2-hk-SNAPSHOT</version>
     <url>http://ignite.apache.org</url>
 
     <properties>
