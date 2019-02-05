@@ -126,13 +126,14 @@ public class IgniteRepositoryFactory extends RepositoryFactorySupport {
 
             final Query annotation = mtd.getAnnotation(Query.class);
 
-            if (annotation != null) {
-                String qryStr = annotation.value();
+            if (annotation != null && (StringUtils.hasText(annotation.value()) || annotation.textQuery())) {
+                // if textQuery flag = true query value will be ignored
+                String qryStr = annotation.textQuery()? "": annotation.value();
 
-                if (key != QueryLookupStrategy.Key.CREATE && StringUtils.hasText(qryStr)) {
-                    return new IgniteRepositoryQuery(metadata,
+                if (key != QueryLookupStrategy.Key.CREATE && (StringUtils.hasText(qryStr) || annotation.textQuery())) {
+                    return new IgniteRepositoryQuery(ignite, metadata,
                             new IgniteQuery(qryStr, isFieldQuery(qryStr), IgniteQueryGenerator.getOptions(mtd)),
-                            mtd, factory, ignite.getOrCreateCache(repoToCache.get(metadata.getRepositoryInterface())));
+                            mtd, factory, ignite.getOrCreateCache(repoToCache.get(metadata.getRepositoryInterface())), annotation);
                 }
             }
 
@@ -141,8 +142,8 @@ public class IgniteRepositoryFactory extends RepositoryFactorySupport {
                         "a query string via org.apache.ignite.springdata.repository.config.Query annotation.");
             }
 
-            return new IgniteRepositoryQuery(metadata, IgniteQueryGenerator.generateSql(mtd, metadata), mtd,
-                factory, ignite.getOrCreateCache(repoToCache.get(metadata.getRepositoryInterface())));
+            return new IgniteRepositoryQuery(ignite, metadata, IgniteQueryGenerator.generateSql(mtd, metadata), mtd,
+                factory, ignite.getOrCreateCache(repoToCache.get(metadata.getRepositoryInterface())), annotation);
         });
     }
 
@@ -151,6 +152,6 @@ public class IgniteRepositoryFactory extends RepositoryFactorySupport {
      * @return {@code true} if query is SQLFieldsQuery.
      */
     private boolean isFieldQuery(String qry) {
-        return qry.matches("^SELECT.*") && !qry.matches("^SELECT\\s+(?:\\w+\\.)?+\\*.*");
+        return qry.matches("(?i)^SELECT.*") && !qry.matches("(?i)^SELECT\\s+(?:\\w+\\.)?+\\*.*");
     }
 }
