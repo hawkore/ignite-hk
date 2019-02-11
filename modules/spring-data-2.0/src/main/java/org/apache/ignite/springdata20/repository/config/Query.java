@@ -32,7 +32,7 @@ import java.lang.annotation.Target;
 public @interface Query {
 
     /**
-     * SQL query text string. If not provided, Ignite query generator for Spring Data framework will be used
+     * Query text string. If not provided, Ignite query generator for Spring Data framework will be used
      * to generate one (only if textQuery = false (default))
      */
     String value() default "";
@@ -108,7 +108,7 @@ public @interface Query {
 
     /**
      *
-     * Whether annotated repository method must use TextQuery search. If this flag = true, SQL text query will be ignored
+     * Whether annotated repository method must use TextQuery search.
      */
      boolean textQuery() default false;
 
