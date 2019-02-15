@@ -18,12 +18,24 @@ package org.apache.ignite.springdata20.repository;
 
 import java.io.Serializable;
 import java.util.Map;
+
+import javax.cache.expiry.ExpiryPolicy;
+import org.apache.ignite.IgniteCache;
 import org.springframework.data.repository.CrudRepository;
+import org.springframework.lang.Nullable;
 
 /**
  * Apache Ignite repository that extends basic capabilities of {@link CrudRepository}.
  */
 public interface IgniteRepository<T, ID extends Serializable> extends CrudRepository<T, ID> {
+
+    /**
+     * Returns the underline IgniteCache
+     *
+     * @return this IgniteRepository's underline IgniteCache
+     */
+    IgniteCache<ID, T> cache();
+
     /**
      * Saves a given entity using provided key.
      * </p>
@@ -48,6 +60,32 @@ public interface IgniteRepository<T, ID extends Serializable> extends CrudReposi
      * @return Saved entities.
      */
     <S extends T> Iterable<S> save(Map<ID, S> entities);
+
+    /**
+     * Saves a given entity using provided key with expiry policy
+     * </p>
+     * It's suggested to use this method instead of default {@link CrudRepository#save(Object)} that generates
+     * IDs (keys) that are not unique cluster wide.
+     *
+     * @param key Entity's key.
+     * @param entity Entity to save.
+     * @param expiryPolicy ExpiryPolicy to apply, if not null.
+     * @param <S> Entity type.
+     * @return Saved entity.
+     */
+    <S extends T> S save(ID key, S entity, @Nullable ExpiryPolicy expiryPolicy);
+      /**
+     * Saves all given keys and entities combinations with expiry policy
+     * </p>
+     * It's suggested to use this method instead of default {@link CrudRepository#save(Object)} that generates
+     * IDs (keys) that are not unique cluster wide.
+     *
+     * @param entities Map of key-entities pairs to save.
+     * @param expiryPolicy ExpiryPolicy to apply, if not null.
+     * @param <S> type of entities.
+     * @return Saved entities.
+     */
+    <S extends T> Iterable<S> save(Map<ID, S> entities, @Nullable ExpiryPolicy expiryPolicy);
 
     /**
      * Deletes all the entities for the provided ids.

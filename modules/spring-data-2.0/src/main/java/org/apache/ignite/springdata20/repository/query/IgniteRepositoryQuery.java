@@ -223,7 +223,10 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
     /**
      * Detect if returned data from method is projected
      */
-    private final boolean isProjecting;
+    private final boolean hasProjection;
+    private final boolean hasDynamicProjection;
+    private final int dynamicProjectionIndex;
+
     /** the return query method */
     private final QueryMethod qMethod;
     /** the return domain class of QueryMethod */
@@ -262,9 +265,6 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
         this.expressionParser = new SpelExpressionParser();
         this.queryMethodEvaluationContextProvider = queryMethodEvaluationContextProvider;
 
-        // whether returned type is a projection (is an interface != cache value type)
-        this.isProjecting = this.getQueryMethod().getResultProcessor().getReturnedType().isProjecting();
-
         // load query tunning
         if (queryConfiguration != null) {
             this.collocated = queryConfiguration.collocated();
@@ -288,6 +288,13 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
         }
 
         qMethod = this.getQueryMethod();
+
+        // control projection
+        this.hasDynamicProjection = this.getQueryMethod().getParameters().hasDynamicProjection();
+        this.hasProjection = hasDynamicProjection || this.getQueryMethod().getResultProcessor().getReturnedType()
+                                                         .isProjecting();
+
+        this.dynamicProjectionIndex = this.qMethod.getParameters().getDynamicProjectionIndex();
 
         returnedDomainClass = this.getQueryMethod().getReturnedObjectType();
 
@@ -418,18 +425,31 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
     @Nullable
     private Object transformQueryCursor(Object[] prmtrs, QueryCursor qryCursor) {
 
+        final Class<?> returnClass;
+
+        if (hasProjection) {
+            if (hasDynamicProjection) {
+                returnClass = (Class<?>)prmtrs[dynamicProjectionIndex];
+            }else{
+                returnClass = returnedDomainClass;
+            }
+        }else{
+            returnClass = returnedDomainClass;
+        }
+
         if (this.qry.isFieldQuery()) {
 
             final List<GridQueryFieldMetadata> meta = ((QueryCursorEx)qryCursor).fieldsMeta();
 
             QueryCursorWrapper<?, ?> cWrapper = new QueryCursorWrapper<>((QueryCursor<List<?>>)qryCursor, row -> {
-                if (type.equals(returnedDomainClass)) {
+                if (type.equals(returnClass)) {
                     // transform qryStr query fields into cache entry's value (domain entity)
                     return rowToEntity(row, meta);
                 } else {
-                    return isProjecting
-                               ? this.factory.createProjection(returnedDomainClass, rowToMap(row, meta))
-                               : rowToMap(row, meta);
+                    if (hasProjection) {
+                        return this.factory.createProjection(returnClass, rowToMap(row, meta));
+                    }
+                    return rowToMap(row, meta);
                 }
             });
 
@@ -460,13 +480,13 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
         } else {
             Iterable<CacheEntryImpl> qryIter = (Iterable<CacheEntryImpl>)qryCursor;
 
-            QueryCursorWrapper<?, ?> cWrapper = new QueryCursorWrapper<>((QueryCursor<CacheEntryImpl>)qryCursor, row ->
-                                                                                                                     isProjecting
-                                                                                                                         ? this.factory
-                                                                                                                               .createProjection(
-                                                                                                                                   returnedDomainClass,
-                                                                                                                                   row.getValue())
-                                                                                                                         : row.getValue());
+            QueryCursorWrapper<?, ?> cWrapper = new QueryCursorWrapper<>((QueryCursor<CacheEntryImpl>)qryCursor,
+                row -> {
+                    if (hasProjection) {
+                        return this.factory.createProjection(returnClass, row.getValue());
+                    }
+                    return row.getValue();
+                });
 
             switch (returnStgy) {
                 case PAGE_OF_VALUES:

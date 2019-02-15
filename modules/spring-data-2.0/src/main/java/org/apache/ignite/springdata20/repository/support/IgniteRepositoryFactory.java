@@ -142,7 +142,7 @@ public class IgniteRepositoryFactory extends RepositoryFactorySupport {
 
                 if (key != QueryLookupStrategy.Key.CREATE && (StringUtils.hasText(qryStr) || annotation.textQuery())) {
                     return new IgniteRepositoryQuery(ignite, metadata,
-                        new IgniteQuery(qryStr, !annotation.textQuery() && isFieldQuery(qryStr), annotation.textQuery() , false, IgniteQueryGenerator.getOptions(mtd)), mtd,
+                        new IgniteQuery(qryStr, !annotation.textQuery() && (isFieldQuery(qryStr) || annotation.forceFieldsQuery()), annotation.textQuery() , false, IgniteQueryGenerator.getOptions(mtd)), mtd,
                         factory, ignite.getOrCreateCache(repoToCache.get(metadata.getRepositoryInterface())),
                         annotation, evaluationContextProvider);
                 }
@@ -165,7 +165,7 @@ public class IgniteRepositoryFactory extends RepositoryFactorySupport {
      * @return {@code true} if query is SQLFieldsQuery.
      */
     private boolean isFieldQuery(String qry) {
-        return qry.matches("(?i)^SELECT.*") && !qry.matches("(?i)^SELECT\\s+(?:\\w+\\.)?+\\*.*");
+        return (qry.matches("(?i)^SELECT.*") && !qry.matches("(?i)^SELECT\\s+(?:\\w+\\.)?+\\*.*"));
     }
 
 }

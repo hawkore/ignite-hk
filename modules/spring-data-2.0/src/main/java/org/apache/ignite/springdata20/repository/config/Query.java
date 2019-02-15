@@ -37,6 +37,17 @@ public @interface Query {
      */
     String value() default "";
 
+    /**
+     * Whether annotated repository method must use TextQuery search.
+     */
+    boolean textQuery() default false;
+
+
+    /**
+     * Force SqlFieldsQuery type, deactivating auto-detection based on SELECT statement.
+     * Useful for non SELECT statements or to not return hidden fields on SELECT * statements.
+     */
+    boolean forceFieldsQuery() default false;
 
     /**
      * Sets flag defining if this query is collocated.
@@ -105,13 +116,6 @@ public @interface Query {
      * Only applicable to SqlFieldsQuery
      */
      boolean lazy() default false;
-
-    /**
-     *
-     * Whether annotated repository method must use TextQuery search.
-     */
-     boolean textQuery() default false;
-
 
     /**
      * Sets whether this query should be executed on local node only.

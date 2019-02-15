@@ -25,10 +25,12 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import javax.cache.Cache;
+import javax.cache.expiry.ExpiryPolicy;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.cache.CachePeekMode;
 import org.apache.ignite.springdata20.repository.IgniteRepository;
 import org.springframework.context.annotation.Conditional;
+import org.springframework.lang.Nullable;
 
 /**
  * General Apache Ignite repository implementation.
@@ -48,6 +50,11 @@ public class IgniteRepositoryImpl<T, ID extends Serializable> implements IgniteR
         this.cache = cache;
     }
 
+    @Override
+    public IgniteCache<ID, T> cache() {
+        return cache;
+    }
+
     /** {@inheritDoc} */
     @Override public <S extends T> S save(ID key, S entity) {
         cache.put(key, entity);
@@ -59,6 +66,26 @@ public class IgniteRepositoryImpl<T, ID extends Serializable> implements IgniteR
     @Override public <S extends T> Iterable<S> save(Map<ID, S> entities) {
         cache.putAll(entities);
 
+        return entities.values();
+    }
+
+    /** {@inheritDoc} */
+    @Override public <S extends T> S save(ID key, S entity, @Nullable ExpiryPolicy expiryPolicy) {
+        if (expiryPolicy != null) {
+            cache.withExpiryPolicy(expiryPolicy).put(key, entity);
+        }else{
+            cache.put(key, entity);
+        }
+        return entity;
+    }
+
+    /** {@inheritDoc} */
+    @Override public <S extends T> Iterable<S> save(Map<ID, S> entities, @Nullable ExpiryPolicy expiryPolicy) {
+        if (expiryPolicy != null) {
+            cache.withExpiryPolicy(expiryPolicy).putAll(entities);
+        }else{
+            cache.putAll(entities);
+        }
         return entities.values();
     }
 
