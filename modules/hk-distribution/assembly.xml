@@ -1,0 +1,80 @@
+<!-- Assembly descriptor for Ignite distribution with HK extensions -->
+<assembly>
+  <id>bin</id>
+  <formats>
+    <format>zip</format>
+  </formats>
+  <fileSets>
+    <!-- Copy ignite distribution, excludes pre-packaged dependencies on default ignite distribution -->
+    <fileSet>
+      <directory>${project.build.directory}/tmp/assembly/apache-ignite-lgpl-${project.version}-bin</directory>
+      <outputDirectory></outputDirectory>
+      <excludes>
+        <exclude>config/**</exclude>
+        <exclude>bin/**/**.sh</exclude>
+        <exclude>bin/**/**.bat</exclude>
+        <exclude>libs/ignite-spring/**</exclude>
+        <exclude>libs/ignite-indexing/**</exclude>
+        <exclude>libs/optional/**</exclude>
+      </excludes>
+    </fileSet>
+
+    <!-- Add optional dependencies -->
+    <fileSet>
+      <directory>${project.build.directory}/tmp/assembly/apache-ignite-lgpl-${project.version}-bin/libs/optional
+      </directory>
+      <outputDirectory>libs</outputDirectory>
+      <includes>
+        <!-- Enable http connectivity for rest server -->
+        <include>ignite-rest-http/**</include>
+        <!-- Slf4j logger -->
+        <include>ignite-slf4j/**</include>
+      </includes>
+    </fileSet>
+
+    <!-- Cluster basic config -->
+    <fileSet>
+      <directory>src/main/resources/config</directory>
+      <outputDirectory>config</outputDirectory>
+    </fileSet>
+
+    <!-- Make binary files executable. -->
+    <fileSet>
+      <directory>src/main/resources/bin</directory>
+      <outputDirectory>bin</outputDirectory>
+      <fileMode>755</fileMode>
+      <includes>
+        <include>**/*.sh</include>
+      </includes>
+    </fileSet>
+    <fileSet>
+      <directory>src/main/resources/bin</directory>
+      <outputDirectory>bin</outputDirectory>
+      <fileMode>644</fileMode>
+      <includes>
+        <include>**/*.bat</include>
+      </includes>
+    </fileSet>
+  </fileSets>
+
+  <!-- ============================ Libraries ============================ -->
+  <dependencySets>
+    <!-- Adds Hawkore's dependencies -->
+    <dependencySet>
+      <outputDirectory>libs/ignite-hawkore</outputDirectory>
+      <useProjectArtifact>false</useProjectArtifact>
+      <useStrictFiltering>true</useStrictFiltering>
+      <!-- avoid timestamp sufix renaming for SNAPSHOTS -->
+      <outputFileNameMapping>${artifact.artifactId}-${artifact.baseVersion}.${artifact.extension}
+      </outputFileNameMapping>
+      <excludes>
+        <!-- excludes pre-packaged dependencies on default ignite distribution-->
+        <exclude>org.jetbrains:annotations</exclude>
+        <exclude>javax.cache:cache-api</exclude>
+        <exclude>org.apache.ignite:ignite-core</exclude>
+        <exclude>org.gridgain:ignite-shmem</exclude>
+        <exclude>commons-io:commons-io</exclude>
+      </excludes>
+    </dependencySet>
+  </dependencySets>
+</assembly>
