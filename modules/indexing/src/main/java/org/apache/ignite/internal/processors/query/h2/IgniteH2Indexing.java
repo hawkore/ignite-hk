@@ -221,6 +221,8 @@ import org.h2.server.web.WebServer;
 import org.h2.table.IndexColumn;
 import org.h2.tools.Server;
 import org.h2.util.JdbcUtils;
+import org.h2.value.DataType;
+import org.h2.value.Value;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -703,7 +705,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
             Connection c = connectionForThread(schema);
 
             stmt = preparedStatementWithParams(c, sql, args != null ? Arrays.asList(args): null, false);
-            
+
             stmt.execute();
         }
         catch (SQLException e) {
@@ -715,7 +717,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
             U.close(stmt, log);
         }
     }
-    
+
     /**
      * Execute statement on H2 INFORMATION_SCHEMA.
      * @param sql SQL statement.
@@ -931,7 +933,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
             throw e;
         }
     }
-	
+
     /** {@inheritDoc} */
     @Override
     public void dynamicIndexesRebuild(final String schemaName, final String tblName, List<String> indexNames,
@@ -941,10 +943,10 @@ public class IgniteH2Indexing implements GridQueryIndexing {
     }
 
     /** {@inheritDoc} */
-    @Override public void dynamicRegisterQueryEntity(String cacheName, String tblName, 
+    @Override public void dynamicRegisterQueryEntity(String cacheName, String tblName,
         QueryTypeDescriptorImpl type, SchemaIndexCacheVisitor cacheVisitor,
         boolean forceRebuildIndexes, boolean forceMutateQueryEntity, boolean async)
-            throws IgniteCheckedException {        
+            throws IgniteCheckedException {
         throw new UnsupportedOperationException();
     }
 
@@ -2923,7 +2925,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
         sql.a(',').a(VER_FIELD_NAME).a(" OTHER INVISIBLE");
 		sql.a(',').a(LUCENE_FIELD_NAME).a(" VARCHAR INVISIBLE");
         sql.a(',').a(LUCENE_SCORE_DOC).a(" OTHER INVISIBLE");
-        
+
         for (Map.Entry<String, Class<?>> e : tbl.type().fields().entrySet()) {
             GridQueryProperty prop = tbl.type().property(e.getKey());
 
@@ -2931,7 +2933,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
                 .a(H2Utils.withQuotes(e.getKey()))
                 .a(' ')
                 .a(dbTypeFromClass(e.getValue(), prop.precision(), prop.scale()))
-                .a(prop.hidden()? " INVISIBLE" : "")                
+                .a(prop.hidden()? " INVISIBLE" : "")
                 .a(prop.notNull() ? " NOT NULL" : "");
         }
 
@@ -3484,7 +3486,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
                     String alias = ann.alias().isEmpty() ? m.getName() : ann.alias();
 
                     boolean onPublicSchema = ann.onPublicSchema();
-                    
+
                     String clause = "CREATE ALIAS IF NOT EXISTS " + alias + (ann.deterministic() ?
                         " DETERMINISTIC FOR \"" :
                         " FOR \"") +
@@ -3495,7 +3497,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
                         executeStatement(QueryUtils.DFLT_SCHEMA, clause);
                         executeStatement(null, clause);
                     }
-                    
+
                     executeStatement(schema, clause);
                 }
             }
@@ -3706,20 +3708,22 @@ public class IgniteH2Indexing implements GridQueryIndexing {
         ArrayList<Integer> list = new ArrayList<>(partInfoList.length);
 
         for (CacheQueryPartitionInfo partInfo: partInfoList) {
-            int partId = (partInfo.partition() >= 0) ? partInfo.partition() :
-                bindPartitionInfoParameter(partInfo, params);
 
             int i = 0;
 
-            while (i < list.size() && list.get(i) < partId)
-                i++;
+            List<Integer> partsId = (partInfo.partition() >= 0) ? Arrays.asList(partInfo.partition()) :
+                bindPartitionInfoParameter(partInfo, params);
 
-            if (i < list.size()) {
-                if (list.get(i) > partId)
-                    list.add(i, partId);
+            for (Integer partId : partsId) {
+                while (i < list.size() && list.get(i) < partId)
+                    i++;
+
+                if (i < list.size()) {
+                    if (list.get(i) > partId)
+                        list.add(i, partId);
+                } else
+                    list.add(partId);
             }
-            else
-                list.add(partId);
         }
 
         int[] result = new int[list.size()];
@@ -3738,17 +3742,33 @@ public class IgniteH2Indexing implements GridQueryIndexing {
      * @return Partition.
      * @throws IgniteCheckedException, If fails.
      */
-    private int bindPartitionInfoParameter(CacheQueryPartitionInfo partInfo, Object[] params)
+    private List<Integer> bindPartitionInfoParameter(CacheQueryPartitionInfo partInfo, Object[] params)
         throws IgniteCheckedException {
         assert partInfo != null;
         assert partInfo.partition() < 0;
 
+        List<Integer> partitions = new ArrayList<>();
+
         GridH2RowDescriptor desc = dataTable(schema(partInfo.cacheName()), partInfo.tableName()).rowDescriptor();
 
-        Object param = H2Utils.convert(params[partInfo.paramIdx()],
-                desc, partInfo.dataType());
+        Object indexedParam = params[partInfo.paramIdx()];
 
-        return kernalContext().affinity().partition(partInfo.cacheName(), param);
+        // add support to array values
+        if (indexedParam != null) {
+            if (DataType.getTypeFromClass(indexedParam.getClass()) == Value.ARRAY){
+                for (Object o : (Object[])indexedParam){
+                    Object param = H2Utils.convert(o,
+                        desc, partInfo.dataType());
+                    partitions.add(kernalContext().affinity().partition(partInfo.cacheName(), param));
+                }
+            }
+        }else{
+            Object param = H2Utils.convert(indexedParam,
+                desc, partInfo.dataType());
+            partitions.add(kernalContext().affinity().partition(partInfo.cacheName(), param));
+        }
+
+        return partitions;
     }
 
     /** {@inheritDoc} */

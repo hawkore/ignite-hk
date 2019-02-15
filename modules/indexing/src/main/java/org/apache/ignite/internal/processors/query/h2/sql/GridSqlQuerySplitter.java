@@ -1408,21 +1408,21 @@ public class GridSqlQuerySplitter {
         return qry.limit() != null || qry.offset() != null;
     }
 
-    
+
     private static IgniteBiTuple<GridSqlColumn, Search> extractLuceneQuery(GridSqlQuery qry, Object[] params){
 
         if (!(qry instanceof GridSqlSelect))
             return new IgniteBiTuple<>(null, null);
 
         GridSqlSelect select = (GridSqlSelect)qry;
- 
+
         if (select.from() == null)
             return new IgniteBiTuple<>(null, null);
 
         return extractLuceneQueryFromConditions(select, select.where(), params);
     }
-    
-    
+
+
     /**
      * @param select Select to check.
      * @return {@code true} If we need to split this select.
@@ -1464,7 +1464,7 @@ public class GridSqlQuerySplitter {
         final GridSqlSelect mapQry = prnt.child(childIdx);
 
         final IgniteBiTuple<GridSqlColumn, Search> luceneQuery = extractLuceneQuery(mapQry, params);
-        
+
         final int visibleCols = mapQry.visibleColumns();
 
         List<GridSqlAst> rdcExps = new ArrayList<>(visibleCols);
@@ -1493,19 +1493,19 @@ public class GridSqlQuerySplitter {
 
         // Create reduce query AST. Use unique merge table for this split.
         GridSqlSelect rdcQry = new GridSqlSelect().from(mergeTable(splitId));
-        
-        // prepare lucene sorting      
-        final boolean luceneSearchFound =  luceneQuery.getKey() != null;
 
+        // prepare lucene sorting
+        final boolean luceneSearchFound =  luceneQuery.getKey() != null;
+        boolean luceneSortingRequired = false;
         // sorting is required when lucene filter is present and has multiple partitions to search
         // otherwise data will be returned from an UNIQUE node, so no need sort results on reduce query
-        final boolean luceneSortingRequired = 
-            luceneSearchFound && // has lucene search filter
-            hasPartitionedTables(mapQry) && // is a partitioned search and not derived partitions found on query or possible derived partitions != 1
-            (derivePartitionsFromQuery(mapQry, ctx) == null || derivePartitionsFromQuery(mapQry, ctx).length != 1);
-        
+        if (luceneSearchFound && hasPartitionedTables(mapQry)){
+            // is a partitioned search and not derived partitions found on query or possible derived partitions != 1
+            CacheQueryPartitionInfo[] derived = derivePartitionsFromQuery(mapQry, ctx);
+            luceneSortingRequired = derived == null || derived.length != 1;
+        }
         List<GridSqlAst> luceneSortColumns = null;
-        
+
         if (luceneSortingRequired){
             luceneSortColumns = new ArrayList<>(1);
             GridSqlColumn luceneColumn = luceneQuery.getKey();
@@ -1515,27 +1515,27 @@ public class GridSqlQuerySplitter {
             Set<GridSqlTable> tables = new HashSet<>();
 
             DmlAstUtils.collectAllGridTablesInTarget((GridSqlElement) mapQry.from(), tables);
-            
+
             GridSqlTable tab = tables.iterator().next();
 
             // scoreDocCol must belongs to same table as luceneColumn
             GridSqlColumn scoreDocCol = new GridSqlColumn(scoreDocColumn, tab, luceneColumn.schema(), luceneColumn.tableAlias(), scoreDocColumn.getName());
             scoreDocCol.resultType(GridSqlType.fromColumn(scoreDocColumn));
-            
+
             // adds column alias
             GridSqlAlias alias = new GridSqlAlias(columnName( mapExps.size() ), scoreDocCol, true);
             alias.resultType(GridSqlType.fromColumn(scoreDocColumn));
-            
+
             luceneSortColumns.add(alias);
             mapExps.add(alias);
         }
-        
+
         // -- SELECT
         mapQry.clearColumns();
-        
+
         for (GridSqlAst exp : mapExps) // Add all map expressions as visible.
-            mapQry.addColumn(exp, true);  
-        
+            mapQry.addColumn(exp, true);
+
         for (int i = 0; i < visibleCols; i++) // Add visible reduce columns.
             rdcQry.addColumn(rdcExps.get(i), true);
 
@@ -1544,7 +1544,7 @@ public class GridSqlQuerySplitter {
 
         for (int i = rdcExps.size(); i < mapExps.size(); i++)  // Add all extra map columns as invisible reduce columns.
             rdcQry.addColumn(column(((GridSqlAlias)mapExps.get(i)).alias()), false);
-        
+
         // -- FROM WHERE: do nothing
 
         // -- GROUP BY
@@ -1572,19 +1572,19 @@ public class GridSqlQuerySplitter {
 
             mapQry.havingColumn(-1);
         }
-        
-        // -- ORDER BY lucene _SCORE_DOC 
+
+        // -- ORDER BY lucene _SCORE_DOC
         if (luceneSortingRequired){
             int baseCols = rdcQry.columns(false).size() - luceneSortColumns.size();
             for (int i = 0; i < luceneSortColumns.size(); i++){
                 rdcQry.addSort(new GridSqlSortColumn( baseCols + i, true, false, false));
             }
         }
-        
+
         // -- ORDER BY
         if (!mapQry.sort().isEmpty()) {
             if (!luceneSearchFound){
-                // standard SQL sorting is only allowed on non lucene search, 
+                // standard SQL sorting is only allowed on non lucene search,
                 // if sort required must be specified on advanced JSON lucene query
                 for (GridSqlSortColumn sortCol : mapQry.sort()){
                     rdcQry.addSort(sortCol);
@@ -2294,7 +2294,7 @@ public class GridSqlQuerySplitter {
                     .addChild(column(mapAggAlias.alias()));
 
                 break;
-                
+
             default:
                 throw new IgniteException("Unsupported aggregate: " + agg.type());
         }
@@ -2390,9 +2390,9 @@ public class GridSqlQuerySplitter {
         return extractPartition(select.where(), ctx);
     }
 
-    
-    
-    
+
+
+
     /**
      * @param el AST element to start with.
      * @param ctx Kernal context.
@@ -2446,16 +2446,16 @@ public class GridSqlQuerySplitter {
 
                 return null;
             }
-            
+
             //FIX: (_key = 1 OR _key = 2) is transformed to (_key IN (1, 2)) so was ignored
-            case IN: 
+            case IN:
                 return extractPartitionFromIN(op, ctx);
 
             default:
                 return null;
         }
-    }    
-    
+    }
+
     /**
      * Analyses the equality operation and extracts the partition if possible
      *
@@ -2512,7 +2512,7 @@ public class GridSqlQuerySplitter {
      * @return Array of partition info objects, or {@code null} if none identified
      */
     private static IgniteBiTuple<GridSqlColumn, Search> extractLuceneQueryFromConditions(GridSqlSelect select, GridSqlAst el, Object[] params) {
-        
+
         if (!(el instanceof GridSqlOperation))
             return new IgniteBiTuple<>(null, null);
 
@@ -2520,17 +2520,17 @@ public class GridSqlQuerySplitter {
 
         switch (op.operationType()) {
 
-            case EQUAL: {         
-                
+            case EQUAL: {
+
                 IgniteBiTuple<GridSqlColumn, Search> condition = extractLuceneConditionFromEquality(select, op, params);
-            
+
                 if (condition == null){
                     return new IgniteBiTuple<>(null, null);
                 }
-                
+
                 return condition;
             }
-            
+
             case AND: {
                 assert op.size() == 2;
 
@@ -2555,12 +2555,12 @@ public class GridSqlQuerySplitter {
                 return new IgniteBiTuple<>(null, null);
         }
     }
-    
+
     /** return IgniteBiTuple<GridSqlColumn, Search> === lucene query column, advanced lucene JSON search*/
     private static IgniteBiTuple<GridSqlColumn, Search> extractLuceneConditionFromEquality(GridSqlSelect select, GridSqlAst el, Object[] params) {
 
         GridSqlOperation op = (GridSqlOperation)el;
-        
+
         if(op.operationType() != GridSqlOperationType.EQUAL){
             return null;
         }
@@ -2570,9 +2570,9 @@ public class GridSqlQuerySplitter {
 
         if (!(left instanceof GridSqlColumn))
             return null;
-        
+
         GridSqlColumn column = (GridSqlColumn)left;
-        
+
         // find main query table on select statement
         Set<GridSqlTable> tbls = new HashSet<>();
 
@@ -2581,24 +2581,24 @@ public class GridSqlQuerySplitter {
         if (tbls.isEmpty()){
             return null;
         }
-        
+
         // first table
         GridSqlTable tab = tbls.iterator().next();
         GridH2Table table = tab.dataTable();
-        
+
         // internal H2 tables
         if (table == null){
             return null;
         }
-        
+
         Column luceneColumn = null;
         try{
-            luceneColumn = table.getColumn(QueryUtils.LUCENE_FIELD_NAME);        
+            luceneColumn = table.getColumn(QueryUtils.LUCENE_FIELD_NAME);
         }catch (Exception e){
             //table has not a lucene column
             return null;
         }
-        
+
         // check if it is a lucene column
         if (!column.column().equals(luceneColumn)){
             return null;
@@ -2608,11 +2608,11 @@ public class GridSqlQuerySplitter {
         if( !table.isPartitioned() ){
             return new IgniteBiTuple<>(column, null);
         }
-        
+
         // check assign
         if (!(right instanceof GridSqlConst) && !(right instanceof GridSqlParameter))
             return null;
-        
+
         // extract and parse lucene query
         String luceneQuery = null;
         if (right instanceof GridSqlConst) {
@@ -2622,7 +2622,7 @@ public class GridSqlQuerySplitter {
             GridSqlParameter param = (GridSqlParameter) right;
             luceneQuery = params[param.index()].toString();
         }
-        
+
         Search search = null;
         try{
            search = SearchBuilder.fromJson(luceneQuery).build();
@@ -2631,10 +2631,10 @@ public class GridSqlQuerySplitter {
         }
         return  new IgniteBiTuple<>(column, search);
     }
-    
+
     /**
      * Analyzes the IN operation and extracts the partitions if possible
-     * 
+     *
      * FIX: (_key = 1 OR _key = 2) was transformed to (_key IN (1, 2)), not processed by extractPartition method
      *
      * @param op AST IN operation.
@@ -2667,32 +2667,49 @@ public class GridSqlQuerySplitter {
             return null;
 
         ArrayList<CacheQueryPartitionInfo> list = new ArrayList<>(op.size()-1);
-        
+
         for (int i = 1; i < op.size(); i++){
-        
+
             GridSqlElement right = op.child(i); //the IN parameters
-            
-            if (!(right instanceof GridSqlConst) && !(right instanceof GridSqlParameter))
+
+            if (!(right instanceof GridSqlConst) && !(right instanceof GridSqlParameter) && !(right instanceof GridSqlSubquery))
                continue;
-            
+
             if (right instanceof GridSqlConst) {
                 GridSqlConst constant = (GridSqlConst)right;
-    
-                list.add(new CacheQueryPartitionInfo(ctx.affinity().partition(tbl.cacheName(),
-                    constant.value().getObject()), null, null, -1, -1));
-            }else{
-    
+
+                list.add(new CacheQueryPartitionInfo(ctx.affinity().partition(tbl.cacheName(), constant.value().getObject()),
+                    null, null, -1, -1));
+            } else if (right instanceof GridSqlParameter) {
+
                 GridSqlParameter param = (GridSqlParameter) right;
-        
+
                 list.add(new CacheQueryPartitionInfo(-1, tbl.cacheName(), tbl.getName(),
                     column.column().getType(), param.index()));
+            } else {
+                // Allow IN select expression with GridSqlParameter (?): column IN (select * from table(t bigint = ?3))
+                // this allows register param as array to calculate partitions on IgniteH2Indexing.bindPartitionInfoParameter
+                if (right.child() != null && right.child() instanceof GridSqlSelect) {
+                    GridSqlSelect sel = right.child();
+                    if (sel.from() != null && sel.from().size() == 1 && sel.from().child() instanceof GridSqlFunction) { // table function
+                        GridSqlFunction function = sel.from().child();
+                        if (function.type == GridSqlFunctionType.TABLE  && function.child() instanceof GridSqlAlias) { // ?3 T
+                            GridSqlAlias paramAlias = function.child();
+                            if (paramAlias.child() instanceof GridSqlParameter) { // ?3
+                                GridSqlParameter param = paramAlias.child();
+                                list.add(new CacheQueryPartitionInfo(-1, tbl.cacheName(), tbl.getName(),
+                                  column.column().getType(), param.index()));
+                            }
+                        }
+                    }
+                }
             }
         }
-        
+
         if (list.isEmpty()){
             return null;
         }
-        
+
         CacheQueryPartitionInfo[] result = new CacheQueryPartitionInfo[list.size()];
 
         for (int i = 0; i < list.size(); i++)
@@ -2700,8 +2717,8 @@ public class GridSqlQuerySplitter {
 
         return result;
     }
-    
-    
+
+
     /**
      * Merges two partition info arrays, removing duplicates
      *
