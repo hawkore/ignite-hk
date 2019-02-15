@@ -299,12 +299,10 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
         returnedDomainClass = this.getQueryMethod().getReturnedObjectType();
 
         if (this.qry.isFieldQuery()) {
-            if (type.equals(returnedDomainClass)) {
-                // ensure domain class is registered on marshaller to operate in binary mode
-                registerClassOnMarshaller(((IgniteEx)ignite).context(), type);
-                binary = (IgniteBinaryImpl)ignite.binary();
-                binType = binary.type(type);
-            }
+            // ensure domain class is registered on marshaller to transform row to entity
+            registerClassOnMarshaller(((IgniteEx)ignite).context(), type);
+            binary = (IgniteBinaryImpl)ignite.binary();
+            binType = binary.type(type);
         }
 
         returnStgy = calcReturnType(mtd, qry.isFieldQuery());
