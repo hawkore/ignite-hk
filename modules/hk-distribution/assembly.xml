@@ -15,7 +15,6 @@
         <exclude>bin/**/**.bat</exclude>
         <exclude>libs/ignite-spring/**</exclude>
         <exclude>libs/ignite-indexing/**</exclude>
-        <exclude>libs/optional/**</exclude>
       </excludes>
     </fileSet>
 
@@ -28,7 +27,7 @@
         <!-- Enable http connectivity for rest server -->
         <include>ignite-rest-http/**</include>
         <!-- Slf4j logger -->
-        <include>ignite-slf4j/**</include>
+        <include>ignite-log4j2/**</include>
       </includes>
     </fileSet>
 
@@ -40,7 +39,7 @@
 
     <!-- Make binary files executable. -->
     <fileSet>
-      <directory>src/main/resources/bin</directory>
+      <directory>${project.build.directory}/tmp/assembly/apache-ignite-lgpl-${project.version}-bin/bin</directory>
       <outputDirectory>bin</outputDirectory>
       <fileMode>755</fileMode>
       <includes>
@@ -48,7 +47,7 @@
       </includes>
     </fileSet>
     <fileSet>
-      <directory>src/main/resources/bin</directory>
+      <directory>${project.build.directory}/tmp/assembly/apache-ignite-lgpl-${project.version}-bin/bin</directory>
       <outputDirectory>bin</outputDirectory>
       <fileMode>644</fileMode>
       <includes>

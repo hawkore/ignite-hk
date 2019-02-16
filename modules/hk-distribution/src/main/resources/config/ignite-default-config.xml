@@ -8,17 +8,6 @@
         http://www.springframework.org/schema/util
         http://www.springframework.org/schema/util/spring-util.xsd">
 
-	<!-- AWS credentials. Provide your access key ID and secret access key. -->
-	<bean id="aws.creds" class="com.amazonaws.auth.BasicAWSCredentials" lazy-init="true">
-	  <constructor-arg value="${ignite.this.node.ipfinder.s3.accessKey}" />
-	  <constructor-arg value="${ignite.this.node.ipfinder.s3.secretKey}" />
-	</bean>
-	
-	<!-- AWS client configuracion. Network configuration, proxy, timeout.. etc. -->
-	<bean id="aws.configuration" class="com.amazonaws.ClientConfiguration" lazy-init="true">
-
-	</bean>
-
 	<!-- Local  IP finder for testing purpose only -->
     <bean name="LocalIpFinder" id="LocalIpFinder" class="com.hawkore.ignite.spi.discovery.tcp.ipfinder.test.IpFinder" lazy-init="true">
       <property name="shared" value="false" />     
@@ -34,15 +23,6 @@
           <property name="multicastGroup" value="${ignite.this.node.ipfinder.multicastGroup}"/>
 	</bean>
 	
-	<!-- S3  IP finder -->
-	<bean name="S3IpFinder" id="S3IpFinder" class="org.apache.ignite.spi.discovery.tcp.ipfinder.s3.TcpDiscoveryS3IpFinder" lazy-init="true">
-	    <property name="awsCredentials" ref="aws.creds"/>
-	    <property name="clientConfiguration" ref="aws.configuration"/>
-	    <property name="bucketName" value="${ignite.this.node.ipfinder.s3.bucketName}"/>
-	    <property name="withPathStyleAccess" value="${ignite.this.node.ipfinder.s3.withPathStyleAccess}"/>
-	    <property name="endpoint" value="${ignite.this.node.ipfinder.s3.endpoint}"/>
-    </bean>
-
 	<!-- Auto cluster activation when persistence is enabled -->
 	<bean name="autoClusterActivation" id="autoClusterActivation" class="com.hawkore.ignite.cache.AutoClusterActivation" lazy-init="true">
 			<property name="delayForClusterActivation" value="${ignite.this.node.delayForClusterActivation}"/>
