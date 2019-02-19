@@ -3761,11 +3761,10 @@ public class IgniteH2Indexing implements GridQueryIndexing {
                         desc, partInfo.dataType());
                     partitions.add(kernalContext().affinity().partition(partInfo.cacheName(), param));
                 }
+            } else {
+                Object param = H2Utils.convert(indexedParam, desc, partInfo.dataType());
+                partitions.add(kernalContext().affinity().partition(partInfo.cacheName(), param));
             }
-        }else{
-            Object param = H2Utils.convert(indexedParam,
-                desc, partInfo.dataType());
-            partitions.add(kernalContext().affinity().partition(partInfo.cacheName(), param));
         }
 
         return partitions;
