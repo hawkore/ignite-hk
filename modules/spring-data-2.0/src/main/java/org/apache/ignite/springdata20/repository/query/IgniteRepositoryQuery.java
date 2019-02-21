@@ -226,7 +226,6 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
     private final boolean hasProjection;
     private final boolean hasDynamicProjection;
     private final int dynamicProjectionIndex;
-
     /** the return query method */
     private final QueryMethod qMethod;
     /** the return domain class of QueryMethod */
@@ -374,7 +373,14 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
      * @return if {@code mtd} return type is assignable from {@code cls}
      */
     private boolean hasAssignableGenericReturnTypeFrom(Class<?> cls, Method mtd) {
-        Type[] actualTypeArguments = ((ParameterizedType)mtd.getGenericReturnType()).getActualTypeArguments();
+
+        Type genericReturnType = mtd.getGenericReturnType();
+
+        if (!(genericReturnType instanceof ParameterizedType)) {
+            return false;
+        }
+
+        Type[] actualTypeArguments = ((ParameterizedType)genericReturnType).getActualTypeArguments();
 
         if (actualTypeArguments.length == 0) {
             return false;
@@ -428,10 +434,10 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
         if (hasProjection) {
             if (hasDynamicProjection) {
                 returnClass = (Class<?>)prmtrs[dynamicProjectionIndex];
-            }else{
+            } else {
                 returnClass = returnedDomainClass;
             }
-        }else{
+        } else {
             returnClass = returnedDomainClass;
         }
 
