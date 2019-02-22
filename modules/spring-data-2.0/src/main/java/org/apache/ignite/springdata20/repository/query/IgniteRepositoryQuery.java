@@ -334,7 +334,7 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
     private ReturnStrategy calcReturnType(Method mtd, boolean isFieldQry) {
         Class<?> returnType = mtd.getReturnType();
 
-        if (returnType.isAssignableFrom(ArrayList.class)) {
+        if (List.class.isAssignableFrom(returnType)) {
             if (isFieldQry) {
                 if (hasAssignableGenericReturnTypeFrom(ArrayList.class, mtd)) {
                     return ReturnStrategy.LIST_OF_LISTS;
