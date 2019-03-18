@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.processors.cache.CacheObject;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.lang.IgniteBiTuple;
@@ -30,7 +31,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class PartitionerOnToken implements Partitioner {
 
     /** Logger. */
-    private static final Logger logger = LoggerFactory.getLogger(PartitionerOnToken.class);
+    private IgniteLogger logger;
 
     private GridCacheContext<?, ?> ctx;
 
@@ -54,6 +55,7 @@ public class PartitionerOnToken implements Partitioner {
      */
     public PartitionerOnToken withContext(GridCacheContext<?, ?> ctx) {
         this.ctx = ctx;
+        this.logger = ctx.logger(getClass());
         return this;
     }
 
@@ -74,9 +76,9 @@ public class PartitionerOnToken implements Partitioner {
             if (!parts.isEmpty()) {
                 if (logger.isDebugEnabled()) {
                     logger.debug(
-                        "Optimized Lucene search partitions by key conditions {}. Total index search partitions {} -> optimized to {} search partition(s): {} ",
-                        Arrays.toString(keys.toArray()), this.partitions, parts.size(),
-                        Arrays.toString(parts.toArray()));
+                        "Optimized Lucene search partitions by key conditions " + Arrays.toString(keys.toArray()) +
+                            ". Total index search partitions " + this.partitions +
+                            " -> optimized to " + parts.size() + " search partition(s): " + Arrays.toString(parts.toArray()));
                 }
                 // returns cursor for a reduced number of partitions
                 return parts.stream()
