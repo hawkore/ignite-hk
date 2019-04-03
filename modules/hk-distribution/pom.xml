@@ -38,7 +38,7 @@
             </plugin>
 	 </plugins>
 	</build>
-	
+
 	<profiles>
 		<profile>
 			<id>generate-assembly-maven</id>
@@ -86,7 +86,7 @@
 							<execution>
 								<phase>package</phase>
 								<goals>
-									<!-- 'single' ensures there's only a single run bound to m2's lifecycle. 
+									<!-- 'single' ensures there's only a single run bound to m2's lifecycle.
 										The default 'assembly' goal would run every plugin in this pom twice. -->
 									<goal>single</goal>
 								</goals>
@@ -131,7 +131,7 @@
 					</plugin>
 				</plugins>
 			</build>
-		</profile>		
+		</profile>
 		<profile>
 			<id>attach-assembly-maven</id>
 			<build>
@@ -190,7 +190,7 @@
 					</plugin>
 				</plugins>
 			</build>
-		</profile>		
+		</profile>
 	</profiles>
 	<dependencies>
 		<dependency>
@@ -207,6 +207,11 @@
 			<groupId>com.hawkore.libs.ignite</groupId>
 			<artifactId>hk-ignite-indexing</artifactId>
 			<version>${project.version}</version>
-		</dependency>		
+		</dependency>
+		<dependency>
+			<groupId>com.hawkore.libs.ignite</groupId>
+			<artifactId>hk-ignite-geospatial</artifactId>
+			<version>${project.version}</version>
+		</dependency>
 	</dependencies>
 </project>
