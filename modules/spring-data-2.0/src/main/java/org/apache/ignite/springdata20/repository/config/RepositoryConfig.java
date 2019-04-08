@@ -24,6 +24,9 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+import org.apache.ignite.Ignite;
+import org.apache.ignite.configuration.IgniteConfiguration;
+
 /**
  * The annotation can be used to pass Ignite specific parameters to a bound repository.
  */
@@ -36,4 +39,19 @@ public @interface RepositoryConfig {
      * @return A name of a distributed Apache Ignite cache an annotated repository will be mapped to.
      */
     String cacheName() default "";
+
+    /**
+     * @return {@link Ignite} instance spring bean name
+     */
+    String igniteInstance() default "igniteInstance";
+
+    /**
+     * @return {@link IgniteConfiguration} spring bean name
+     */
+    String igniteCfg() default "igniteCfg";
+
+    /**
+     * @return A path to Ignite's Spring XML configuration spring bean name
+     */
+    String igniteSpringCfgPath() default "igniteSpringCfgPath";
 }
