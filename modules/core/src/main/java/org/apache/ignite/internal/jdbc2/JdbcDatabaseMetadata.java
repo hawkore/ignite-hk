@@ -19,6 +19,7 @@ package org.apache.ignite.internal.jdbc2;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.PseudoColumnUsage;
 import java.sql.ResultSet;
 import java.sql.RowIdLifetime;
 import java.sql.SQLException;
@@ -61,6 +62,9 @@ public class JdbcDatabaseMetadata implements DatabaseMetaData {
 
     /** Metadata. */
     private Map<String, Map<String, Map<String, ColumnInfo>>> meta;
+
+    /** Metadata hidden columns */
+    private Map<String, Map<String, Map<String, ColumnInfo>>> metaHidden;
 
     /** Index info. */
     private Collection<List<Object>> indexes;
@@ -911,6 +915,36 @@ public class JdbcDatabaseMetadata implements DatabaseMetaData {
         return row;
     }
 
+    /**
+     * @param schema Schema name.
+     * @param tbl Table name.
+     * @param col Column name.
+     * @param type Type.
+     * @param typeName Type name.
+     * @param nullable Nullable flag.
+     * @param pos Ordinal position.
+     * @return speudo column metadata row.
+     */
+    private List<Object> pseudoColumnRow(String schema, String tbl, String col, int type, String typeName,
+        boolean nullable, int pos) {
+        List<Object> row = new ArrayList<>(20);
+
+        row.add(null);                  // 1. TABLE_CAT
+        row.add(schema);                // 2. TABLE_SCHEM
+        row.add(tbl);                   // 3. TABLE_NAME
+        row.add(col);                   // 4. COLUMN_NAME
+        row.add(type);                  // 5. DATA_TYPE
+        row.add(null);                  // 6. COLUMN_SIZE
+        row.add(null);                  // 7. DECIMAL_DIGITS
+        row.add(10);                    // 8. NUM_PREC_RADIX
+        row.add(PseudoColumnUsage.NO_USAGE_RESTRICTIONS);                    // 9. COLUMN_USAGE
+        row.add(null);                  // 10. REMARKS
+        row.add(Integer.MAX_VALUE);     // 11. CHAR_OCTET_LENGTH
+        row.add(nullable ? "YES" : "NO"); // 12. IS_NULLABLE
+
+        return row;
+    }
+
     /** {@inheritDoc} */
     @Override public ResultSet getColumnPrivileges(String catalog, String schema, String tbl,
         String colNamePtrn) throws SQLException {
@@ -1349,13 +1383,58 @@ public class JdbcDatabaseMetadata implements DatabaseMetaData {
     /** {@inheritDoc} */
     @Override public ResultSet getPseudoColumns(String catalog, String schemaPtrn, String tblNamePtrn,
         String colNamePtrn) throws SQLException {
+        updateMetaData();
+
+        List<List<?>> rows = new LinkedList<>();
+
+        int cnt = 0;
+
+        if (validCatalogPattern(catalog)) {
+            for (Map.Entry<String, Map<String, Map<String, ColumnInfo>>> schema : metaHidden.entrySet()) {
+                if (matches(schema.getKey(), schemaPtrn)) {
+                    for (Map.Entry<String, Map<String, ColumnInfo>> tbl : schema.getValue().entrySet()) {
+                        if (matches(tbl.getKey(), tblNamePtrn)) {
+                            for (Map.Entry<String, ColumnInfo> col : tbl.getValue().entrySet()) {
+                                rows.add(pseudoColumnRow(schema.getKey(), tbl.getKey(), col.getKey(),
+                                    JdbcUtils.type(col.getValue().typeName()), JdbcUtils.typeName(col.getValue().typeName()),
+                                    !col.getValue().isNotNull(), ++cnt));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         return new JdbcResultSet(true, null,
             conn.createStatement0(),
             Collections.<String>emptyList(),
-            Collections.<String>emptyList(),
-            Collections.<String>emptyList(),
-            Collections.<List<?>>emptyList(),
-            true
+            Arrays.asList(
+                "TABLE_CAT",        // 1
+                "TABLE_SCHEM",      // 2
+                "TABLE_NAME",       // 3
+                "COLUMN_NAME",      // 4
+                "DATA_TYPE",        // 5
+                "COLUMN_SIZE",      // 6
+                "DECIMAL_DIGITS",   // 7
+                "NUM_PREC_RADIX",   // 8
+                "COLUMN_USAGE",     // 9
+                "REMARKS",          // 10
+                "CHAR_OCTET_LENGTH",// 11
+                "IS_NULLABLE"    ), // 12
+            Arrays.asList(
+                String.class.getName(),     // 1
+                String.class.getName(),     // 2
+                String.class.getName(),     // 3
+                String.class.getName(),     // 4
+                Integer.class.getName(),    // 5
+                Integer.class.getName(),    // 6
+                Integer.class.getName(),    // 7
+                Integer.class.getName(),    // 8
+                String.class.getName(),     // 9
+                String.class.getName(),     // 10
+                Integer.class.getName(),    // 11
+                String.class.getName()),    // 12
+            rows, true
         );
     }
 
@@ -1395,6 +1474,7 @@ public class JdbcDatabaseMetadata implements DatabaseMetaData {
             metas = nodeId == null ? task.call() : ignite.compute(ignite.cluster().forNodeId(nodeId)).call(task);
 
             meta = U.newHashMap(metas.size());
+            metaHidden = U.newHashMap(metas.size());
 
             indexes = new ArrayList<>();
 
@@ -1407,26 +1487,29 @@ public class JdbcDatabaseMetadata implements DatabaseMetaData {
                 Collection<String> types = m.types();
 
                 Map<String, Map<String, ColumnInfo>> typesMap = U.newHashMap(types.size());
+                Map<String, Map<String, ColumnInfo>> hiddenTypesMap = U.newHashMap(types.size());
 
                 for (String type : types) {
                     Collection<String> notNullFields = m.notNullFields(type);
                     Collection<String> hiddenFields = m.hiddenFields(type);
-                    
+
                     Map<String, ColumnInfo> fields = new LinkedHashMap<>();
+                    Map<String, ColumnInfo> fieldsHidden = new LinkedHashMap<>();
+
 
                     for (Map.Entry<String, String> fld : m.fields(type).entrySet()) {
-                        
-                        if (hiddenFields != null && hiddenFields.contains(fld.getKey()) ){
-                            continue;
-                        }
-                        
                         ColumnInfo colInfo = new ColumnInfo(fld.getValue(),
                             notNullFields == null ? false : notNullFields.contains(fld.getKey()));
 
-                        fields.put(fld.getKey(), colInfo);
+                        if (hiddenFields != null && hiddenFields.contains(fld.getKey()) ){
+                            fieldsHidden.put(fld.getKey(), colInfo);
+                        }else{
+                            fields.put(fld.getKey(), colInfo);
+                        }
                     }
 
                     typesMap.put(type.toUpperCase(), fields);
+                    hiddenTypesMap.put(type.toUpperCase(), fieldsHidden);
 
                     for (GridCacheSqlIndexMetadata idx : m.indexes(type)) {
                         int cnt = 0;
@@ -1439,6 +1522,7 @@ public class JdbcDatabaseMetadata implements DatabaseMetaData {
                 }
 
                 meta.put(name, typesMap);
+                metaHidden.put(name, hiddenTypesMap);
             }
         }
         catch (Exception e) {
