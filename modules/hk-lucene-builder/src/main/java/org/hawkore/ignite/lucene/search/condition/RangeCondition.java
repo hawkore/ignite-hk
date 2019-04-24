@@ -137,46 +137,46 @@ public class RangeCondition extends SingleColumnCondition {
                : TermRangeQuery.newStringRange(field, start, stop, includeLower, includeUpper);
     }
 
-    
+
     private Query query(Integer start, Integer stop) {
-        
+
         Query q = null;
-        
-        Integer lower = start;
-        Integer upper = stop;
-        
+
+        Integer lower = start == null ? Integer.MIN_VALUE: start;
+        Integer upper = stop == null ? Integer.MAX_VALUE: stop;
+
         if(!includeLower){
             lower = Math.addExact(lower, 1);
         }
-        
+
         if(!includeUpper){
             upper = Math.addExact(upper, -1);
         }
-        
+
         if (docValues){
             q = new DocValuesNumbersQuery(field, docValue(lower), docValue(upper));
         }else{
             q = IntPoint.newRangeQuery(field, lower, upper);
         }
-        
+
         return q;
     }
 
     private Query query(Long start, Long stop) {
-        
+
         Query q = null;
-        
-        Long lower = start;
-        Long upper = stop;
-        
+
+        Long lower = start == null ? Long.MIN_VALUE: start;
+        Long upper = stop == null ? Long.MAX_VALUE: stop;
+
         if(!includeLower){
             lower = Math.addExact(lower, 1);
         }
-        
+
         if(!includeUpper){
             upper = Math.addExact(upper, -1);
         }
-        
+
         if (docValues){
             q = new DocValuesNumbersQuery(field, lower, upper);
         }else{
@@ -188,18 +188,18 @@ public class RangeCondition extends SingleColumnCondition {
 
     private Query query(Float start, Float stop) {
         Query q = null;
-        
-        Float lower = start;
-        Float upper = stop;
-        
+
+        Float lower = start == null ? Float.NEGATIVE_INFINITY: start;
+        Float upper = stop == null ? Float.POSITIVE_INFINITY: stop;
+
         if(!includeLower){
             lower = FloatPoint.nextUp(lower);
         }
-        
+
         if(!includeUpper){
             upper = FloatPoint.nextDown(lower);
         }
-        
+
         if (docValues){
             q = new DocValuesNumbersQuery(field, docValue(lower), docValue(upper));
         }else{
@@ -211,14 +211,14 @@ public class RangeCondition extends SingleColumnCondition {
 
     private Query query(Double start, Double stop) {
         Query q = null;
-        
-        double lower = start;
-        double upper = stop;
- 
+
+        Double lower = start == null ? Double.NEGATIVE_INFINITY: start;
+        Double upper = stop == null ? Double.POSITIVE_INFINITY: stop;
+
         if(!includeLower){
             lower = DoublePoint.nextUp(lower);
         }
-        
+
         if(!includeUpper){
             upper = DoublePoint.nextDown(lower);
         }
@@ -228,7 +228,7 @@ public class RangeCondition extends SingleColumnCondition {
         }else{
             q = DoublePoint.newRangeQuery(field, lower, upper);
         }
-        
+
         return q;
     }
 
