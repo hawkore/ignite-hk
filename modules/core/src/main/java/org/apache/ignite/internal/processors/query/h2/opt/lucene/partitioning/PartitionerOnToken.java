@@ -15,13 +15,11 @@ import org.apache.ignite.lang.IgniteBiTuple;
 import org.apache.lucene.index.Term;
 import org.h2.value.Value;
 import org.hawkore.ignite.lucene.IndexException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * 
+ *
  * PartitionerOnToken
  *
  * @author Manuel Núñez (manuel.nunez@hawkore.com)
@@ -49,7 +47,7 @@ public class PartitionerOnToken implements Partitioner {
 
     /**
      * Add Ignite context, required before call getPartitionFor
-     * 
+     *
      * @param ctx
      * @return this
      */
@@ -128,7 +126,7 @@ public class PartitionerOnToken implements Partitioner {
 
         /**
          * Partitions
-         * 
+         *
          * @param partitions
          */
         public Builder(@JsonProperty("partitions") int partitions) {
