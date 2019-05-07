@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import javax.cache.Cache;
 import javax.cache.expiry.ExpiryPolicy;
+import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.cache.CachePeekMode;
 import org.apache.ignite.springdata20.repository.IgniteRepository;
@@ -40,19 +41,28 @@ import org.springframework.lang.Nullable;
 public class IgniteRepositoryImpl<T, ID extends Serializable> implements IgniteRepository<T, ID> {
     /** Ignite Cache bound to the repository */
     private final IgniteCache<ID, T> cache;
-
+    /** Ignite instance bound to the repository */
+    private final Ignite ignite;
     /**
      * Repository constructor.
      *
      * @param cache Initialized cache instance.
      */
-    public IgniteRepositoryImpl(IgniteCache<ID, T> cache) {
+    public IgniteRepositoryImpl(Ignite ignite, IgniteCache<ID, T> cache) {
         this.cache = cache;
+        this.ignite = ignite;
     }
 
+    /** {@inheritDoc} */
     @Override
     public IgniteCache<ID, T> cache() {
         return cache;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public Ignite ignite() {
+        return ignite;
     }
 
     /** {@inheritDoc} */

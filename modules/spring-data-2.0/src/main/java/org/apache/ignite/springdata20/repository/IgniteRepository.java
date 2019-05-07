@@ -20,6 +20,7 @@ import java.io.Serializable;
 import java.util.Map;
 
 import javax.cache.expiry.ExpiryPolicy;
+import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.lang.Nullable;
@@ -30,9 +31,16 @@ import org.springframework.lang.Nullable;
 public interface IgniteRepository<T, ID extends Serializable> extends CrudRepository<T, ID> {
 
     /**
-     * Returns the underline IgniteCache
+     * Returns the Ignite instance bound to the repository
      *
-     * @return this IgniteRepository's underline IgniteCache
+     * @return the Ignite instance bound to the repository
+     */
+    Ignite ignite();
+
+    /**
+     * Returns the Ignite Cache bound to the repository
+     *
+     * @return the Ignite Cache bound to the repository
      */
     IgniteCache<ID, T> cache();
 
