@@ -38,9 +38,11 @@ ENV NPM_CONFIG_LOGLEVEL error
 RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 0C49F3730359A14518585931BC711F9BA15703C6 \
     && echo "deb http://repo.mongodb.org/apt/debian jessie/mongodb-org/3.4 main" | tee /etc/apt/sources.list.d/mongodb-org-3.4.list
 
+RUN echo "deb http://deb.debian.org/debian jessie main contrib" | tee /etc/apt/sources.list.d/sources-backports.list
+
 # Update package list & install.
 RUN apt-get update \
-    && apt-get install -y nginx-light mongodb-org-server dos2unix \
+    && apt-get install -y nginx-light libcurl3 openssl mongodb-org-server dos2unix \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

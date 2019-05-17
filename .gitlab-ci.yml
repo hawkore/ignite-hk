@@ -2,7 +2,7 @@
 # Point to your docker repositoty
 variables:
   DOCKER_HOST: "tcp://192.168.1.60:2375"
-    
+
 before_script:
   - pwd
   - mvn -v
@@ -11,7 +11,7 @@ before_script:
 stages:
   - deploy
   - deploy_public
-  
+
 deploy:
   stage: deploy
   only:
@@ -19,7 +19,7 @@ deploy:
     - /^release.*$/
   script:
     # deploy ignite to internal repository
-    - mvn clean deploy -Dignite.edition=apache-ignite-lgpl -Prelease,all-java,all-scala,licenses,lgpl,tensorflow -DskipTests -Dmaven.javadoc.skip=true -DaltReleaseDeploymentRepository=hawkore.releases::default::http://nexus3:8081/repository/hawkore.releases/ -DaltSnapshotDeploymentRepository=hawkore.snapshots::default::http://nexus3:8081/repository/hawkore.snapshots/
+    - mvn clean deploy -Dignite.edition=apache-ignite-lgpl -Prelease,all-java,all-scala,licenses,lgpl,tensorflow,web-console,docker-image -DskipTests -Dmaven.javadoc.skip=true -DaltReleaseDeploymentRepository=hawkore.releases::default::http://nexus3:8081/repository/hawkore.releases/ -DaltSnapshotDeploymentRepository=hawkore.snapshots::default::http://nexus3:8081/repository/hawkore.snapshots/
 
 deployPublic:
   stage: deploy_public
@@ -27,4 +27,4 @@ deployPublic:
     - /^release.*$/
   script:
     # deploy ignite artifacts to public repository
-    - mvn clean deploy -Dignite.edition=apache-ignite-lgpl -Prelease,all-java,all-scala,licenses,lgpl,tensorflow -DskipTests -Dmaven.javadoc.skip=true -Dmaven.test.skip=true -DaltReleaseDeploymentRepository=hawkore.releases::default::http://nexus3:8081/repository/hawkore-public.releases/
+    - mvn clean deploy -Dignite.edition=apache-ignite-lgpl -Prelease,all-java,all-scala,licenses,lgpl,tensorflow,web-console,docker-image -DskipTests -Dmaven.javadoc.skip=true -Dmaven.test.skip=true -DaltReleaseDeploymentRepository=hawkore.releases::default::http://nexus3:8081/repository/hawkore-public.releases/
