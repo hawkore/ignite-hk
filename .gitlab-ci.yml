@@ -27,4 +27,4 @@ deployPublic:
     - /^release.*$/
   script:
     # deploy ignite artifacts to public repository
-    - mvn clean deploy -Dignite.edition=apache-ignite-lgpl -Prelease,all-java,all-scala,licenses,lgpl,tensorflow,web-console,docker-image -DskipTests -Dmaven.javadoc.skip=true -Dmaven.test.skip=true -DaltReleaseDeploymentRepository=hawkore.releases::default::http://nexus3:8081/repository/hawkore-public.releases/
+    - mvn clean deploy -Dignite.edition=apache-ignite-lgpl -Prelease,all-java,all-scala,licenses,lgpl,tensorflow,web-console -DskipTests -Dmaven.javadoc.skip=true -Dmaven.test.skip=true -DaltReleaseDeploymentRepository=hawkore.releases::default::http://nexus3:8081/repository/hawkore-public.releases/
