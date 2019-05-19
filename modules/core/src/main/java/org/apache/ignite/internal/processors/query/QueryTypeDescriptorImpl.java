@@ -187,6 +187,19 @@ public class QueryTypeDescriptorImpl implements GridQueryTypeDescriptor {
         if (res == null)
             res = uppercaseProps.get(name.toUpperCase());
 
+        if (res == null){
+
+            String alias = aliases.get(name);
+
+            if (alias != null) {
+                res = props.get(alias);
+
+                if (res == null)
+                    res = uppercaseProps.get(alias.toUpperCase());
+            }
+
+        }
+
         return res;
     }
 
@@ -203,12 +216,12 @@ public class QueryTypeDescriptorImpl implements GridQueryTypeDescriptor {
         assert field != null;
 
         GridQueryProperty prop = property(field);
-        
+
         if (prop == null){
             if (field.equalsIgnoreCase(QueryUtils.KEY_FIELD_NAME)){
                 return (T)key;
             }
-            
+
             if (field.equalsIgnoreCase(QueryUtils.VAL_FIELD_NAME)){
                 return (T)val;
             }
@@ -324,7 +337,7 @@ public class QueryTypeDescriptorImpl implements GridQueryTypeDescriptor {
         if (fullTextIdx == null)
             fullTextIdx = new QueryIndexDescriptorImpl(this, (this.tblName+Index.LUCENE_INDEX_NAME_SUFIX).toUpperCase(), QueryIndexType.FULLTEXT, 0);
     }
-    
+
     /**
      * Adds field to text index.
      *
@@ -558,7 +571,7 @@ public class QueryTypeDescriptorImpl implements GridQueryTypeDescriptor {
     /** {@inheritDoc} */
     @Override
     public String luceneIndexOptions() {
-        return this.textIndex() == null ? null : this.textIndex().luceneIndexOptions(); 
+        return this.textIndex() == null ? null : this.textIndex().luceneIndexOptions();
     }
 
 
@@ -570,7 +583,7 @@ public class QueryTypeDescriptorImpl implements GridQueryTypeDescriptor {
             this.textIndex().setLuceneIndexOptions(luceneIndexOptions);
         }
     }
-    
+
     /** {@inheritDoc} */
     @SuppressWarnings("ForLoopReplaceableByForEach")
     @Override public void validateKeyAndValue(Object key, Object val) throws IgniteCheckedException {
@@ -605,9 +618,9 @@ public class QueryTypeDescriptorImpl implements GridQueryTypeDescriptor {
 
             if (prop.precision() != -1 &&
                 propVal != null &&
-                String.class == propVal.getClass() && 
+                String.class == propVal.getClass() &&
                 ((String)propVal).length() > prop.precision()) {
-                throw new IgniteSQLException("Value for a column '" + prop.name() + "' is too long. " + 
+                throw new IgniteSQLException("Value for a column '" + prop.name() + "' is too long. " +
                     "Maximum length: " + prop.precision() + ", actual length: " + ((CharSequence)propVal).length(),
                     isKey ? TOO_LONG_KEY : TOO_LONG_VALUE);
             }
