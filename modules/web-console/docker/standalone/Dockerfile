@@ -71,7 +71,7 @@ COPY web-agent/target/ignite-web-agent-*.zip backend/agent_dists
 COPY --from=frontend-build /opt/web-console/frontend/build static
 
 VOLUME ["/etc/nginx"]
-VOLUME ["/data/db"]
+VOLUME ["/var/lib/mongodb"]
 VOLUME ["/opt/web-console/serve/agent_dists"]
 
 EXPOSE 80
