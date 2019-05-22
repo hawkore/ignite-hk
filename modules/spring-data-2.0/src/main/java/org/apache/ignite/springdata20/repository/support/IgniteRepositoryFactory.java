@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import org.apache.ignite.Ignite;
+import org.apache.ignite.IgniteCache;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.Ignition;
 import org.apache.ignite.configuration.IgniteConfiguration;
@@ -132,12 +133,33 @@ public class IgniteRepositoryFactory extends RepositoryFactorySupport {
         return super.getRepositoryMetadata(repoItf);
     }
 
+    /* control underline cache creation to avoid incorrect cache creation */
+    private IgniteCache getRepositoryCache(Class<?> repoIf) {
+        Ignite ignite = repoToIgnite.get(repoIf);
+
+        RepositoryConfig config = repoIf.getAnnotation(RepositoryConfig.class);
+
+        String cacheName = repoToCache.get(repoIf);
+
+        IgniteCache c = config.autoCreateCache() ? ignite.getOrCreateCache(cacheName) : ignite.cache(cacheName);
+
+        if (c == null) {
+            throw new IllegalStateException(
+                "Cache '" + cacheName + "' not found for repository interface " + repoIf.getName()
+                    + ". Please, add a cache configuration to ignite configuration"
+                    + " or pass autoCreateCache=true to org.apache.ignite.springdata20"
+                    + ".repository.config.RepositoryConfig annotation.");
+        }
+
+        return c;
+    }
+
     /** {@inheritDoc} */
     @Override
     protected Object getTargetRepository(RepositoryInformation metadata) {
         Ignite ignite = repoToIgnite.get(metadata.getRepositoryInterface());
-        return getTargetRepositoryViaReflection(metadata, ignite, ignite.getOrCreateCache(
-                                                                  repoToCache.get(metadata.getRepositoryInterface())));
+        return getTargetRepositoryViaReflection(metadata, ignite,
+            getRepositoryCache(metadata.getRepositoryInterface()));
     }
 
     /** {@inheritDoc} */
@@ -158,8 +180,7 @@ public class IgniteRepositoryFactory extends RepositoryFactorySupport {
                     return new IgniteRepositoryQuery(ignite, metadata, new IgniteQuery(qryStr,
                         !annotation.textQuery() && (isFieldQuery(qryStr) || annotation.forceFieldsQuery()),
                         annotation.textQuery(), false, IgniteQueryGenerator.getOptions(mtd)), mtd, factory,
-                        ignite.getOrCreateCache(repoToCache.get(metadata.getRepositoryInterface())), annotation,
-                        evaluationContextProvider);
+                        getRepositoryCache(metadata.getRepositoryInterface()), annotation, evaluationContextProvider);
                 }
             }
 
@@ -170,8 +191,7 @@ public class IgniteRepositoryFactory extends RepositoryFactorySupport {
             }
 
             return new IgniteRepositoryQuery(ignite, metadata, IgniteQueryGenerator.generateSql(mtd, metadata), mtd,
-                factory, ignite.getOrCreateCache(repoToCache.get(metadata.getRepositoryInterface())), annotation,
-                evaluationContextProvider);
+                factory, getRepositoryCache(metadata.getRepositoryInterface()), annotation, evaluationContextProvider);
         });
     }
 

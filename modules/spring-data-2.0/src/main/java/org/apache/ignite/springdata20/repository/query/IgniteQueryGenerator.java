@@ -56,7 +56,7 @@ public class IgniteQueryGenerator {
             if (parts.isCountProjection()) {
                 sql.append("COUNT(1) ");
             } else {
-                sql.append(" * ");
+                sql.append("* ");
             }
         }
 

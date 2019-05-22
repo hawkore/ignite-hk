@@ -82,7 +82,7 @@ import org.springframework.expression.spel.standard.SpelExpressionParser;
  * <li> Supports projections</li>
  * <li> Supports Page and Stream responses</li>
  * <li> Supports SqlFieldsQuery resultset transformation into the domain entity</li>
- * <li> Supports named parameters (:myParam) into SQL queries, declared using @Param("myParam")</li>
+ * <li> Supports named parameters (:myParam) into SQL queries, declared using @Param("myParam") annotation</li>
  * <li> Supports advanced parameter binding and SpEL expressions into SQL queries
  * <ol>
  * <li><b>Template variables</b>:
@@ -813,12 +813,13 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
     }
 
     private static void registerClassOnMarshaller(final GridKernalContext ctx, final Class<?> clazz) {
-        try {// ensure key class registration for marshaller on cluster...
-            if (!org.apache.ignite.internal.util.IgniteUtils.isJdk(clazz)) {
-                org.apache.ignite.internal.util.IgniteUtils.marshal(ctx, clazz.newInstance());
+        try {
+            // ensure class registration for marshaller on cluster...
+            if (!U.isJdk(clazz)) {
+                U.marshal(ctx, clazz.newInstance());
             }
         } catch (final Exception e) {
-
+            // silent
         }
     }
 
