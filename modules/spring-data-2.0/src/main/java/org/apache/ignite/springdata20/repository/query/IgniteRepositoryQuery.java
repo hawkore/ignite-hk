@@ -173,7 +173,8 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
         PAGE_OF_VALUES,
 
         /** Need to return stream of values */
-        STREAM_OF_VALUES,}
+        STREAM_OF_VALUES,
+    }
 
     /** Type. */
     private final Class<?> type;
@@ -445,17 +446,19 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
 
             final List<GridQueryFieldMetadata> meta = ((QueryCursorEx)qryCursor).fieldsMeta();
 
-            QueryCursorWrapper<?, ?> cWrapper = new QueryCursorWrapper<>((QueryCursor<List<?>>)qryCursor, row -> {
-                if (type.equals(returnClass)) {
-                    // transform qryStr query fields into cache entry's value (domain entity)
-                    return rowToEntity(row, meta);
-                } else {
-                    if (hasProjection) {
-                        return this.factory.createProjection(returnClass, rowToMap(row, meta));
-                    }
-                    return rowToMap(row, meta);
+            Function<List<?>, ?> cWrapperTransformFunction = null;
+
+            if (type.equals(returnClass)) {
+                cWrapperTransformFunction = row -> rowToEntity(row, meta);
+            } else {
+                if (hasProjection) {
+                    cWrapperTransformFunction = row -> this.factory.createProjection(returnClass, rowToMap(row, meta));
                 }
-            });
+                cWrapperTransformFunction = row -> rowToMap(row, meta);
+            }
+
+            QueryCursorWrapper<?, ?> cWrapper = new QueryCursorWrapper<>((QueryCursor<List<?>>)qryCursor,
+                cWrapperTransformFunction);
 
             switch (returnStgy) {
                 case PAGE_OF_VALUES:
@@ -484,13 +487,16 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
         } else {
             Iterable<CacheEntryImpl> qryIter = (Iterable<CacheEntryImpl>)qryCursor;
 
+            Function<CacheEntryImpl, ?> cWrapperTransformFunction = null;
+
+            if (hasProjection && !type.equals(returnClass)) {
+                cWrapperTransformFunction = row -> this.factory.createProjection(returnClass, row.getValue());
+            } else {
+                cWrapperTransformFunction = row -> row.getValue();
+            }
+
             QueryCursorWrapper<?, ?> cWrapper = new QueryCursorWrapper<>((QueryCursor<CacheEntryImpl>)qryCursor,
-                row -> {
-                    if (hasProjection) {
-                        return this.factory.createProjection(returnClass, row.getValue());
-                    }
-                    return row.getValue();
-                });
+                cWrapperTransformFunction);
 
             switch (returnStgy) {
                 case PAGE_OF_VALUES:
@@ -894,8 +900,6 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
         /** {@inheritDoc} */
         @Override
         public int size() {
-            // when use toArray method, internal parent implementation
-            // will grow up it until iterator has not more elements
             return 0;
         }
 
