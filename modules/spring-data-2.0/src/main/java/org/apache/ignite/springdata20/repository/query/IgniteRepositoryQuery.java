@@ -453,8 +453,9 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
             } else {
                 if (hasProjection) {
                     cWrapperTransformFunction = row -> this.factory.createProjection(returnClass, rowToMap(row, meta));
+                } else {
+                    cWrapperTransformFunction = row -> rowToMap(row, meta);
                 }
-                cWrapperTransformFunction = row -> rowToMap(row, meta);
             }
 
             QueryCursorWrapper<?, ?> cWrapper = new QueryCursorWrapper<>((QueryCursor<List<?>>)qryCursor,
