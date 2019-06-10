@@ -34,6 +34,7 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import javax.cache.Cache;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.binary.BinaryObjectBuilder;
@@ -642,6 +643,11 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
                     break;
             }
 
+            // remove dynamic projection from parameters
+            if (this.hasDynamicProjection){
+                parameters = ArrayUtils.remove(parameters, this.dynamicProjectionIndex);
+            }
+
             if (qry.isFieldQuery()) {
                 SqlFieldsQuery sqlFieldsQry = new SqlFieldsQuery(queryString);
                 sqlFieldsQry.setArgs(parameters);
@@ -886,7 +892,7 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
         /** {@inheritDoc} */
         @Override
         public void close() {
-            this.delegate.close();
+            U.closeQuiet(this.delegate);
         }
 
         /** {@inheritDoc} */
