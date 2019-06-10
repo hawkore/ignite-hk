@@ -622,6 +622,11 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
                 queryString = squery.getQueryString();
                 parameters = extractBindableValues(parameters, this.getQueryMethod().getParameters(),
                     squery.getParameterBindings());
+            } else {
+                // remove dynamic projection from parameters
+                if (this.hasDynamicProjection){
+                    parameters = ArrayUtils.remove(parameters, this.dynamicProjectionIndex);
+                }
             }
 
             switch (qry.options()) {
@@ -641,11 +646,6 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
                         parameters = Arrays.copyOfRange(parameters, 0, values.length - 1);
                     }
                     break;
-            }
-
-            // remove dynamic projection from parameters
-            if (this.hasDynamicProjection){
-                parameters = ArrayUtils.remove(parameters, this.dynamicProjectionIndex);
             }
 
             if (qry.isFieldQuery()) {
