@@ -197,7 +197,7 @@ public class RangeCondition extends SingleColumnCondition {
         }
 
         if(!includeUpper){
-            upper = FloatPoint.nextDown(lower);
+            upper = FloatPoint.nextDown(upper);
         }
 
         if (docValues){
@@ -220,7 +220,7 @@ public class RangeCondition extends SingleColumnCondition {
         }
 
         if(!includeUpper){
-            upper = DoublePoint.nextDown(lower);
+            upper = DoublePoint.nextDown(upper);
         }
 
         if (docValues){
