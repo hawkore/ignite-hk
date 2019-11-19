@@ -24,6 +24,8 @@ import java.util.function.BiFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.springframework.data.domain.Range;
+import org.springframework.data.domain.Range.Bound;
 import org.springframework.data.repository.query.SpelQueryContext;
 import org.springframework.data.repository.query.SpelQueryContext.SpelExtractor;
 import org.springframework.data.repository.query.parser.Part.Type;
@@ -256,13 +258,14 @@ class StringQuery implements DeclaredQuery {
 
             String resultingQuery = spelExtractor.getQueryString();
             Matcher matcher = PARAMETER_BINDING_PATTERN.matcher(resultingQuery);
+            QuotationMap quotedAreas = new QuotationMap(resultingQuery);
 
             int expressionParameterIndex = parametersShouldBeAccessedByIndex ? greatestParameterIndex : 0;
 
             boolean usesJpaStyleParameters = false;
             while (matcher.find()) {
 
-                if (spelExtractor.isQuoted(matcher.start())) {
+                if (quotedAreas.isQuoted(matcher.start())) {
                     continue;
                 }
 
@@ -465,7 +468,9 @@ class StringQuery implements DeclaredQuery {
                 }
 
                 throw new IllegalArgumentException(String.format("Unsupported parameter binding type %s!", typeSource));
-            }}}
+            }
+        }
+    }
 
     /**
      * A generic parameter binding with name or position information.
@@ -882,6 +887,73 @@ class StringQuery implements DeclaredQuery {
     static class Metadata {
 
         private boolean usesJdbcStyleParameters = false;
+
+    }
+
+    /**
+     * Value object to analyze a {@link String} to determine the parts of the {@link String} that are quoted and offers
+     * an
+     * API to query that information.
+     *
+     * @author Jens Schauder
+     * @author Oliver Gierke
+     * @since 2.1
+     */
+    static class QuotationMap {
+
+        private static final Collection<Character> QUOTING_CHARACTERS = Arrays.asList('"', '\'');
+        private final List<Range<Integer>> quotedRanges = new ArrayList<>();
+
+        /**
+         * Creates a new {@link SpelQueryContext.QuotationMap} for the query.
+         *
+         * @param query
+         *     can be {@literal null}.
+         */
+        public QuotationMap(@Nullable String query) {
+
+            if (query == null) {
+                return;
+            }
+
+            Character inQuotation = null;
+            int start = 0;
+
+            for (int i = 0; i < query.length(); i++) {
+
+                char currentChar = query.charAt(i);
+
+                if (QUOTING_CHARACTERS.contains(currentChar)) {
+
+                    if (inQuotation == null) {
+
+                        inQuotation = currentChar;
+                        start = i;
+                    } else if (currentChar == inQuotation) {
+
+                        inQuotation = null;
+
+                        quotedRanges.add(Range.from(Bound.inclusive(start)).to(Bound.inclusive(i)));
+                    }
+                }
+            }
+
+            if (inQuotation != null) {
+                throw new IllegalArgumentException(
+                    String.format("The string <%s> starts a quoted range at %d, but never ends it.", query, start));
+            }
+        }
+
+        /**
+         * Checks if a given index is within a quoted range.
+         *
+         * @param index
+         *     to check if it is part of a quoted range.
+         * @return whether the query contains a quoted range at {@literal index}.
+         */
+        public boolean isQuoted(int index) {
+            return quotedRanges.stream().anyMatch(r -> r.contains(index));
+        }
 
     }
 
