@@ -447,8 +447,7 @@ public class GridH2Table extends TableBase {
         assert desc != null;
 
         GridH2KeyValueRowOnheap row0 = (GridH2KeyValueRowOnheap)desc.createRow(row);
-        GridH2KeyValueRowOnheap prevRow0 = prevRow != null ? (GridH2KeyValueRowOnheap)desc.createRow(prevRow) :
-            null;
+        GridH2KeyValueRowOnheap prevRow0 = prevRow != null ? (GridH2KeyValueRowOnheap)desc.createRow(prevRow) : null;
 
         row0.prepareValuesCache();
 
@@ -705,6 +704,8 @@ public class GridH2Table extends TableBase {
         lock(true);
 
         try {
+            ensureNotDestroyed();
+
             ArrayList<Index> idxs = new ArrayList<>(this.idxs);
 
             Index targetIdx = (h2Idx instanceof GridH2ProxyIndex) ?
@@ -722,12 +723,24 @@ public class GridH2Table extends TableBase {
                         idx.getSchema().findIndex(session, idx.getName()) != null)
                         database.removeSchemaObject(session, idx);
 
+                    GridCacheContext cctx0 = cache();
+
+                    if (cctx0 != null && idx instanceof GridH2IndexBase) {
+                        cctx0.shared().database().checkpointReadLock();
+
+                        try {
+                            ((GridH2IndexBase)idx).destroy(rmIndex);
+                        }
+                        finally {
+                            cctx0.shared().database().checkpointReadUnlock();
+                        }
+                    }
+
                     continue;
                 }
 
                 i++;
             }
-
             this.idxs = idxs;
         }
         finally {

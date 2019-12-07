@@ -75,6 +75,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileLock;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
+import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
@@ -327,6 +328,9 @@ public abstract class IgniteUtils {
 
     /** Secure socket protocol to use. */
     private static final String HTTPS_PROTOCOL = "TLS";
+
+    /** Default working directory name. */
+    private static final String DEFAULT_WORK_DIR = "work";
 
     /** Correct Mbean cache name pattern. */
     private static Pattern MBEAN_CACHE_NAME_PATTERN = Pattern.compile("^[a-zA-Z_0-9]+$");
@@ -9369,15 +9373,39 @@ public abstract class IgniteUtils {
         else if (!F.isEmpty(IGNITE_WORK_DIR))
             workDir = new File(IGNITE_WORK_DIR);
         else if (!F.isEmpty(userIgniteHome))
-            workDir = new File(userIgniteHome, "work");
+            workDir = new File(userIgniteHome, DEFAULT_WORK_DIR);
         else {
-            String tmpDirPath = System.getProperty("java.io.tmpdir");
+            String userDir = System.getProperty("user.dir");
 
-            if (tmpDirPath == null)
-                throw new IgniteCheckedException("Failed to create work directory in OS temp " +
-                    "(property 'java.io.tmpdir' is null).");
+            if (F.isEmpty(userDir))
+                throw new IgniteCheckedException(
+                    "Failed to resolve Ignite work directory. Either IgniteConfiguration.setWorkDirectory or " +
+                        "one of the system properties (" + IGNITE_HOME + ", " +
+                        IgniteSystemProperties.IGNITE_WORK_DIR + ") must be explicitly set."
+                );
 
-            workDir = new File(tmpDirPath, "ignite" + File.separator + "work");
+            File igniteDir = new File(userDir, "ignite");
+
+            try {
+                igniteDir.mkdirs();
+
+                File readme = new File(igniteDir, "README.txt");
+
+                if (!readme.exists()) {
+                    U.writeStringToFile(readme,
+                        "This is Apache Ignite working directory that contains information that \n" +
+                        "    Ignite nodes need in order to function normally.\n" +
+                        "Don't delete it unless you're sure you know what you're doing.\n\n" +
+                        "You can change the location of working directory with \n" +
+                        "    igniteConfiguration.setWorkingDirectory(location) or \n" +
+                        "    <property name=\"workingDirectory\" value=\"location\"/> in IgniteConfiguration <bean>.\n");
+                }
+            }
+            catch (Exception e) {
+                // Ignore.
+            }
+
+            workDir = new File(igniteDir, DEFAULT_WORK_DIR);
         }
 
         if (!workDir.isAbsolute())
@@ -10946,6 +10974,30 @@ public abstract class IgniteUtils {
          */
         public long getLockUnlockCounter() {
             return cnt.get();
+        }
+    }
+
+    /**
+     *  Safely write buffer fully to blocking socket channel.
+     *  Will throw assert if non blocking channel passed.
+     *
+     * @param sockCh WritableByteChannel.
+     * @param buf Buffer.
+     * @throws IOException IOException.
+     */
+    public static void writeFully(SocketChannel sockCh, ByteBuffer buf) throws IOException {
+        int totalWritten = 0;
+
+        assert sockCh.isBlocking() : "SocketChannel should be in blocking mode " + sockCh;
+
+        while (buf.hasRemaining()) {
+            int written = sockCh.write(buf);
+
+            if (written < 0)
+                throw new IOException("Error writing buffer to channel " +
+                    "[written = " + written + ", buf " + buf + ", totalWritten = " + totalWritten + "]");
+
+            totalWritten += written;
         }
     }
 }

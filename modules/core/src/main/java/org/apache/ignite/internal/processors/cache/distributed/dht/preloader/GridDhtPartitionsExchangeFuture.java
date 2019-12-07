@@ -190,7 +190,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     /** Cache context. */
     private final GridCacheSharedContext<?, ?> cctx;
 
-    /** Busy lock to prevent activities from accessing exchanger while it's stopping. */
+    /**
+     * Busy lock to prevent activities from accessing exchanger while it's stopping. Stopping uses write lock, so every
+     * {@link #enterBusy()} will be failed as false. But regular operation uses read lock acquired multiple times.
+     */
     private ReadWriteLock busyLock;
 
     /** */
@@ -604,7 +607,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     }
 
     /**
-     * @return {@code true} if entered to busy state.
+     * @return {@code true} if entered to busy state. {@code false} for stop node.
      */
     private boolean enterBusy() {
         if (busyLock.readLock().tryLock())
@@ -2328,6 +2331,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         newCrdFut = null;
         exchangeLocE = null;
         exchangeGlobalExceptions.clear();
+        if (finishState != null)
+            finishState.cleanUp();
     }
 
     /**
@@ -3202,6 +3207,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      * @param sndResNodes Additional nodes to send finish message to.
      */
     private void finishExchangeOnCoordinator(@Nullable Collection<ClusterNode> sndResNodes) {
+        if (isDone() || !enterBusy())
+            return;
+
         try {
             if (!F.isEmpty(exchangeGlobalExceptions) && dynamicCacheStartExchange() && isRollbackSupported()) {
                 sendExchangeFailureMessage();
@@ -3488,6 +3496,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 onDone(new IgniteNeedReconnectException(cctx.localNode(), e));
             else
                 onDone(e);
+        }
+        finally {
+            leaveBusy();
         }
     }
 
@@ -3972,6 +3983,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
         long time = System.currentTimeMillis();
 
+        Map<Integer, Map<Integer, Long>> partsSizes = msg.partitionSizes(cctx);
+
         for (Map.Entry<Integer, GridDhtPartitionFullMap> entry : msg.partitions().entrySet()) {
             Integer grpId = entry.getKey();
 
@@ -3985,7 +3998,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     entry.getValue(),
                     cntrMap,
                     msg.partsToReload(cctx.localNodeId(), grpId),
-                    msg.partitionSizes(grpId),
+                    partsSizes.getOrDefault(grpId, Collections.emptyMap()),
                     null);
             }
             else {
@@ -4766,6 +4779,14 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             this.crdId = crdId;
             this.resTopVer = resTopVer;
             this.msg = msg;
+        }
+
+        /**
+         * Cleans up resources to avoid excessive memory usage.
+         */
+        public void cleanUp() {
+            if (msg != null)
+                msg.cleanUp();
         }
     }
 
