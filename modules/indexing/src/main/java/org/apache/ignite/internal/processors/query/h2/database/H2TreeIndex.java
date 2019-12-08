@@ -59,6 +59,8 @@ import org.h2.table.TableFilter;
 import org.h2.value.Value;
 import org.jetbrains.annotations.Nullable;
 
+import static org.apache.ignite.internal.processors.query.QueryUtils.KEY_FIELD_NAME;
+
 /**
  * H2 Index over {@link BPlusTree}.
  */
@@ -272,13 +274,18 @@ public class H2TreeIndex extends GridH2IndexBase {
 
     /** */
     private boolean hasAllIndexColumns(SearchRow searchRow) {
+        // must control if provided searchRow is by primary key (_KEY),
+        // otherwise searchRow must contains all indexed columns (composed key)
+        boolean hasAllIndexColumns = true;
         for (Column c : columns) {
-            // Java null means that column is not specified in a search row, for SQL NULL a special constant is used
-            if (searchRow.getValue(c.getColumnId()) == null)
-                return false;
+            if (KEY_FIELD_NAME.equalsIgnoreCase(c.getName())) {
+                return true;
+            } else if (searchRow.getValue(c.getColumnId()) == null) {
+                // Java null means that column is not specified in a search row, for SQL NULL a special constant is used
+                hasAllIndexColumns = false;
+            }
         }
-
-        return true;
+        return hasAllIndexColumns;
     }
 
     /** {@inheritDoc} */
