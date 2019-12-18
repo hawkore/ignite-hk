@@ -42,11 +42,17 @@ import static java.util.regex.Pattern.compile;
  * @author Sébastien Péralta
  * @author Jens Schauder
  * @author Nils Borrmann
- * @author Reda.Housni-Alaoui
+ * @author Reda.Housni -Alaoui
  */
 public abstract class QueryUtils {
 
+    /**
+     * The constant COUNT_QUERY_STRING.
+     */
     public static final String COUNT_QUERY_STRING = "select count(%s) from %s x";
+    /**
+     * The constant DELETE_ALL_QUERY_STRING.
+     */
     public static final String DELETE_ALL_QUERY_STRING = "delete from %s x";
     // Used Regex/Unicode categories (see http://www.unicode.org/reports/tr18/#General_Category_Property):
     // Z Separator
@@ -54,7 +60,13 @@ public abstract class QueryUtils {
     // Cf Format
     // P Punctuation
     private static final String IDENTIFIER = "[._[\\P{Z}&&\\P{Cc}&&\\P{Cf}&&\\P{P}]]+";
+    /**
+     * The Colon no double colon.
+     */
     static final String COLON_NO_DOUBLE_COLON = "(?<![:\\\\]):";
+    /**
+     * The Identifier group.
+     */
     static final String IDENTIFIER_GROUP = String.format("(%s)", IDENTIFIER);
     private static final String COUNT_REPLACEMENT_TEMPLATE = "select count(%s) $5$6$7";
     private static final String SIMPLE_COUNT_VALUE = "$2";
@@ -142,6 +154,7 @@ public abstract class QueryUtils {
      *     the placeholder for the count clause, must not be {@literal null}.
      * @param idAttributes
      *     the id attributes for the entity, must not be {@literal null}.
+     * @return the exists query string
      */
     public static String getExistsQueryString(String entityName,
         String countQueryPlaceHolder,
@@ -163,7 +176,7 @@ public abstract class QueryUtils {
      * @param entityName
      *     must not be {@literal null}.
      * @return the template with placeholders replaced by the {@literal entityName}. Guaranteed to be not {@literal
-     * null}.
+     *     null}.
      */
     public static String getQueryString(String template, String entityName) {
 
@@ -300,7 +313,7 @@ public abstract class QueryUtils {
      *
      * @param query
      *     must not be {@literal null} or empty.
-     * @return
+     * @return boolean
      * @since 1.10
      */
     public static boolean hasConstructorExpression(String query) {
@@ -315,7 +328,7 @@ public abstract class QueryUtils {
      *
      * @param query
      *     must not be {@literal null} or empty.
-     * @return
+     * @return projection
      * @since 1.10.2
      */
     public static String getProjection(String query) {

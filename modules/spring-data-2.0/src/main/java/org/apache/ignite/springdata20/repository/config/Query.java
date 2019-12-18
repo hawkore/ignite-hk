@@ -42,7 +42,6 @@ public @interface Query {
      */
     boolean textQuery() default false;
 
-
     /**
      * Force SqlFieldsQuery type, deactivating auto-detection based on SELECT statement.
      * Useful for non SELECT statements or to not return hidden fields on SELECT * statements.
@@ -51,7 +50,7 @@ public @interface Query {
 
     /**
      * Sets flag defining if this query is collocated.
-     *
+     * <p>
      * Collocation flag is used for optimization purposes of queries with GROUP BY statements.
      * Whenever Ignite executes a distributed query, it sends sub-queries to individual cluster members.
      * If you know in advance that the elements of your query selection are collocated together on the same node and
@@ -60,17 +59,18 @@ public @interface Query {
      *
      * <p>
      * Only applicable to SqlFieldsQuery
-    */
-     boolean collocated() default false;
+     */
+    boolean collocated() default false;
 
-    /** Query timeout in millis.
+    /**
+     * Query timeout in millis.
      * Sets the query execution timeout.
      * Query will be automatically cancelled if the execution timeout is exceeded. Zero value disables timeout
      *
      * <p>
      * Only applicable to SqlFieldsQuery and SqlQuery
      */
-     int timeout() default 0;
+    int timeout() default 0;
 
     /**
      * Sets flag to enforce join order of tables in the query. If set to {@code true}
@@ -82,23 +82,23 @@ public @interface Query {
      *
      * <p>
      * Only applicable to SqlFieldsQuery
-    */
-      boolean enforceJoinOrder() default false;
+     */
+    boolean enforceJoinOrder() default false;
 
     /**
      * Specify if distributed joins are enabled for this query.
      * <p>
      * Only applicable to SqlFieldsQuery and SqlQuery
-    */
-      boolean distributedJoins() default false;
+     */
+    boolean distributedJoins() default false;
 
     /**
      * Specify if the query contains only replicated tables.
      * This is a hint for potentially more effective execution.
      * <p>
      * Only applicable to SqlFieldsQuery and SqlQuery
-    */
-      boolean replicatedOnly() default false;
+     */
+    boolean replicatedOnly() default false;
 
     /**
      * Sets lazy query execution flag.
@@ -115,12 +115,12 @@ public @interface Query {
      * <p>
      * Only applicable to SqlFieldsQuery
      */
-     boolean lazy() default false;
+    boolean lazy() default false;
 
     /**
      * Sets whether this query should be executed on local node only.
      */
-     boolean local() default false;
+    boolean local() default false;
 
     /**
      * Sets partitions for a query.
@@ -130,5 +130,15 @@ public @interface Query {
      * <p>
      * Only applicable to SqlFieldsQuery and SqlQuery
      */
-     int[] parts() default {};
+    int[] parts() default {};
+
+    /**
+     * Specify whether the annotated method must provide a non null {@link DynamicQueryConfig} parameter
+     * with a non empty value (query string) or {@link DynamicQueryConfig#textQuery} == true.
+     * <p>
+     * Please, note that {@link Query} annotation parameters will be ignored in favor of those defined in
+     * {@link DynamicQueryConfig} parameter if present (runtime ignite query tuning).
+     */
+    boolean dynamicQuery() default false;
+
 }

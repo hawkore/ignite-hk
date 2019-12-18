@@ -26,6 +26,7 @@ import org.apache.ignite.IgniteException;
 import org.apache.ignite.Ignition;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.springdata20.repository.IgniteRepository;
+import org.apache.ignite.springdata20.repository.config.DynamicQueryConfig;
 import org.apache.ignite.springdata20.repository.config.Query;
 import org.apache.ignite.springdata20.repository.config.RepositoryConfig;
 import org.apache.ignite.springdata20.repository.query.IgniteQuery;
@@ -57,7 +58,8 @@ public class IgniteRepositoryFactory extends RepositoryFactorySupport {
     /**
      * Creates the factory with initialized {@link Ignite} instance.
      *
-     * @param ignite
+     * @param ctx
+     *     the ctx
      */
     public IgniteRepositoryFactory(ApplicationContext ctx) {
         this.ctx = ctx;
@@ -90,7 +92,15 @@ public class IgniteRepositoryFactory extends RepositoryFactorySupport {
         }
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc} @param <T>  the type parameter
+     *
+     * @param <ID>
+     *     the type parameter
+     * @param domainClass
+     *     the domain class
+     * @return the entity information
+     */
     @Override
     public <T, ID> EntityInformation<T, ID> getEntityInformation(Class<T> domainClass) {
         return new AbstractEntityInformation<T, ID>(domainClass) {
@@ -106,13 +116,21 @@ public class IgniteRepositoryFactory extends RepositoryFactorySupport {
         };
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc} @param metadata the metadata
+     *
+     * @return the repository base class
+     */
     @Override
     protected Class<?> getRepositoryBaseClass(RepositoryMetadata metadata) {
         return IgniteRepositoryImpl.class;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc} @param repoItf the repo itf
+     *
+     * @return the repository metadata
+     */
     @Override
     protected synchronized RepositoryMetadata getRepositoryMetadata(Class<?> repoItf) {
         Assert.notNull(repoItf, "Repository interface must be set.");
@@ -154,7 +172,11 @@ public class IgniteRepositoryFactory extends RepositoryFactorySupport {
         return c;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc} @param metadata the metadata
+     *
+     * @return the target repository
+     */
     @Override
     protected Object getTargetRepository(RepositoryInformation metadata) {
         Ignite ignite = repoToIgnite.get(metadata.getRepositoryInterface());
@@ -162,25 +184,35 @@ public class IgniteRepositoryFactory extends RepositoryFactorySupport {
             getRepositoryCache(metadata.getRepositoryInterface()));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc} @param key the key
+     *
+     * @param evaluationContextProvider
+     *     the evaluation context provider
+     * @return the query lookup strategy
+     */
     @Override
     protected Optional<QueryLookupStrategy> getQueryLookupStrategy(final QueryLookupStrategy.Key key,
         QueryMethodEvaluationContextProvider evaluationContextProvider) {
         return Optional.of((mtd, metadata, factory, namedQueries) -> {
 
             final Query annotation = mtd.getAnnotation(Query.class);
-
             final Ignite ignite = repoToIgnite.get(metadata.getRepositoryInterface());
 
-            if (annotation != null && (StringUtils.hasText(annotation.value()) || annotation.textQuery())) {
+            if (annotation != null && (StringUtils.hasText(annotation.value()) || annotation.textQuery() || annotation
+                                                                                                                .dynamicQuery())) {
 
                 String qryStr = annotation.value();
-
-                if (key != QueryLookupStrategy.Key.CREATE && (StringUtils.hasText(qryStr) || annotation.textQuery())) {
-                    return new IgniteRepositoryQuery(ignite, metadata, new IgniteQuery(qryStr,
-                        !annotation.textQuery() && (isFieldQuery(qryStr) || annotation.forceFieldsQuery()),
-                        annotation.textQuery(), false, IgniteQueryGenerator.getOptions(mtd)), mtd, factory,
-                        getRepositoryCache(metadata.getRepositoryInterface()), annotation, evaluationContextProvider);
+                boolean annotatedIgniteQuery = !annotation.dynamicQuery() && (StringUtils.hasText(qryStr)
+                                                                                        || annotation.textQuery());
+                IgniteQuery query = annotatedIgniteQuery ? new IgniteQuery(qryStr,
+                    !annotation.textQuery() && (isFieldQuery(qryStr) || annotation.forceFieldsQuery()),
+                    annotation.textQuery(), false, IgniteQueryGenerator.getOptions(mtd)) : null;
+                if (key != QueryLookupStrategy.Key.CREATE) {
+                    return new IgniteRepositoryQuery(ignite, metadata, query, mtd, factory,
+                        getRepositoryCache(metadata.getRepositoryInterface()),
+                        annotatedIgniteQuery ? DynamicQueryConfig.fromQueryAnnotation(annotation) : null,
+                        evaluationContextProvider);
                 }
             }
 
@@ -191,16 +223,19 @@ public class IgniteRepositoryFactory extends RepositoryFactorySupport {
             }
 
             return new IgniteRepositoryQuery(ignite, metadata, IgniteQueryGenerator.generateSql(mtd, metadata), mtd,
-                factory, getRepositoryCache(metadata.getRepositoryInterface()), annotation, evaluationContextProvider);
+                factory, getRepositoryCache(metadata.getRepositoryInterface()),
+                DynamicQueryConfig.fromQueryAnnotation(annotation), evaluationContextProvider);
         });
     }
 
     /**
+     * Is field query boolean.
+     *
      * @param qry
      *     Query string.
      * @return {@code true} if query is SQLFieldsQuery.
      */
-    private boolean isFieldQuery(String qry) {
+    public static boolean isFieldQuery(String qry) {
         return (qry.matches("(?i)^SELECT.*") && !qry.matches("(?i)^SELECT\\s+(?:\\w+\\.)?+\\*.*"));
     }
 

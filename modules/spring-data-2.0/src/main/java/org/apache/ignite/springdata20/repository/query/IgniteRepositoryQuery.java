@@ -54,6 +54,7 @@ import org.apache.ignite.internal.processors.cache.query.QueryCursorEx;
 import org.apache.ignite.internal.processors.query.GridQueryFieldMetadata;
 import org.apache.ignite.internal.processors.query.QueryUtils;
 import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.springdata20.repository.config.DynamicQueryConfig;
 import org.apache.ignite.springdata20.repository.query.StringQuery.ParameterBinding;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -65,6 +66,7 @@ import org.springframework.data.domain.SliceImpl;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.projection.ProjectionFactory;
 import org.springframework.data.repository.core.RepositoryMetadata;
+import org.springframework.data.repository.query.Parameter;
 import org.springframework.data.repository.query.Parameters;
 import org.springframework.data.repository.query.QueryMethod;
 import org.springframework.data.repository.query.QueryMethodEvaluationContextProvider;
@@ -72,6 +74,9 @@ import org.springframework.data.repository.query.RepositoryQuery;
 import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.ParserContext;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
+import org.springframework.util.StringUtils;
+
+import static org.apache.ignite.springdata20.repository.support.IgniteRepositoryFactory.isFieldQuery;
 
 /**
  * Ignite query implementation.
@@ -131,6 +136,24 @@ import org.springframework.expression.spel.standard.SpelExpressionParser;
  * List<User> searchUserByCity({@code @Param}("city") String city, Pageable pageable);
  * </pre>
  * </li>
+ * <li> Supports dynamic query and tuning at runtime by using {@link DynamicQueryConfig} method parameter. Examples:
+ * <pre>
+ * {@code @Query}(value = "SELECT * from #{#entityName} where email = :email")
+ * User searchUserByEmailWithQueryTuning({@code @Param}("email") String email, {@code @Param}("ignoredUsedAsQueryTuning") DynamicQueryConfig config);
+ *
+ * {@code @Query}(dynamicQuery = true)
+ * List<User> searchUsersByCityWithDynamicQuery({@code @Param}("country") String country, {@code @Param}("city") String city,
+ * {@code @Param}("ignoredUsedAsDynamicQueryAndTuning") DynamicQueryConfig config, Pageable pageable);
+ *
+ * ...
+ * DynamicQueryConfig onlyTunning = new DynamicQueryConfig().setCollocated(true);
+ * repo.searchUserByEmailWithQueryTuning("user@mail.com", onlyTunning);
+ *
+ * DynamicQueryConfig withDynamicQuery = new DynamicQueryConfig().value("SELECT * from #{#entityName} where country = ?#{[0] and city = ?#{[1]}").setForceFieldsQuery(true).setLazy(true).setCollocated(true);
+ * repo.searchUsersByCityWithDynamicQuery("Spain", "Madrid", withDynamicQuery, new PageRequest(0, 100));
+ *
+ * </pre>
+ * </li>
  * </ol>
  * <p>
  * Visit <a href="https://docs.hawkore.com/private/apache-ignite-advanced-indexing">Apache Ignite advanced Indexing
@@ -180,14 +203,14 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
     /** Type. */
     private final Class<?> type;
     /** Sql. */
-    private final IgniteQuery qry;
+    private final IgniteQuery staticQuery;
     /** Cache. */
     private final IgniteCache cache;
     /** Ignite instance */
     private final Ignite ignite;
     /** required by qryStr field query type for binary manipulation */
-    private IgniteBinaryImpl binary;
-    private BinaryType binType;
+    private IgniteBinaryImpl igniteBinary;
+    private BinaryType igniteBinType;
     /** Method. */
     private final Method mtd;
     /** Metadata. */
@@ -195,39 +218,14 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
     /** Factory. */
     private final ProjectionFactory factory;
     /** Return strategy. */
-    private final ReturnStrategy returnStgy;
-    /** Collocation flag. */
-    private final boolean collocated;
-    /** Query timeout in millis. */
-    private final int timeout;
-    /**
-     *
-     */
-    private final boolean enforceJoinOrder;
-    /**
-     *
-     */
-    private final boolean distributedJoins;
-    /**
-     *
-     */
-    private final boolean replicatedOnly;
-    /**
-     *
-     */
-    private final boolean lazy;
-    /** Partitions for query */
-    private final int[] parts;
-    /**
-     *
-     */
-    private final boolean local;
+    private final ReturnStrategy staticReturnStgy;
     /**
      * Detect if returned data from method is projected
      */
     private final boolean hasProjection;
     private final boolean hasDynamicProjection;
     private final int dynamicProjectionIndex;
+    private final int dynamicQueryConfigurationIndex;
     /** the return query method */
     private final QueryMethod qMethod;
     /** the return domain class of QueryMethod */
@@ -235,11 +233,16 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
     private final SpelExpressionParser expressionParser;
     /** could provide ExtensionAwareQueryMethodEvaluationContextProvider */
     private final QueryMethodEvaluationContextProvider queryMethodEvaluationContextProvider;
+    private final DynamicQueryConfig staticQueryConfiguration;
 
     /**
+     * Instantiates a new Ignite repository query.
+     *
+     * @param ignite
+     *     the ignite
      * @param metadata
      *     Metadata.
-     * @param qry
+     * @param staticQuery
      *     Query.
      * @param mtd
      *     Method.
@@ -247,48 +250,40 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
      *     Factory.
      * @param cache
      *     Cache.
+     * @param staticQueryConfiguration
+     *     the query configuration
+     * @param queryMethodEvaluationContextProvider
+     *     the query method evaluation context provider
      */
     public IgniteRepositoryQuery(Ignite ignite,
         RepositoryMetadata metadata,
-        IgniteQuery qry,
+        @Nullable IgniteQuery staticQuery,
         Method mtd,
         ProjectionFactory factory,
         IgniteCache cache,
-        org.apache.ignite.springdata20.repository.config.Query queryConfiguration,
+        @Nullable DynamicQueryConfig staticQueryConfiguration,
         QueryMethodEvaluationContextProvider queryMethodEvaluationContextProvider) {
-        type = metadata.getDomainType();
-        this.qry = qry;
-        this.cache = cache;
-        this.ignite = ignite;
         this.metadata = metadata;
         this.mtd = mtd;
         this.factory = factory;
+        this.type = metadata.getDomainType();
+
+        this.cache = cache;
+        this.ignite = ignite;
+
+        this.staticQueryConfiguration = staticQueryConfiguration;
+        this.staticQuery = staticQuery;
+
+        if (this.staticQuery != null) {
+            this.staticReturnStgy = calcReturnType(mtd, this.staticQuery.isFieldQuery());
+        } else {
+            this.staticReturnStgy = null;
+        }
+
         this.expressionParser = new SpelExpressionParser();
         this.queryMethodEvaluationContextProvider = queryMethodEvaluationContextProvider;
 
-        // load query tunning
-        if (queryConfiguration != null) {
-            this.collocated = queryConfiguration.collocated();
-            this.timeout = queryConfiguration.timeout();
-            this.enforceJoinOrder = queryConfiguration.enforceJoinOrder();
-            this.distributedJoins = queryConfiguration.distributedJoins();
-            this.replicatedOnly = queryConfiguration.replicatedOnly();
-            this.lazy = queryConfiguration.lazy();
-            this.parts = queryConfiguration.parts();
-            this.local = queryConfiguration.local();
-        } else {
-            // default values
-            this.collocated = false;
-            this.timeout = 0;
-            this.enforceJoinOrder = false;
-            this.distributedJoins = false;
-            this.replicatedOnly = false;
-            this.lazy = false;
-            this.parts = null;
-            this.local = false;
-        }
-
-        qMethod = this.getQueryMethod();
+        this.qMethod = this.getQueryMethod();
 
         // control projection
         this.hasDynamicProjection = this.getQueryMethod().getParameters().hasDynamicProjection();
@@ -297,33 +292,99 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
 
         this.dynamicProjectionIndex = this.qMethod.getParameters().getDynamicProjectionIndex();
 
-        returnedDomainClass = this.getQueryMethod().getReturnedObjectType();
+        this.returnedDomainClass = this.getQueryMethod().getReturnedObjectType();
 
-        if (this.qry.isFieldQuery()) {
-            // ensure domain class is registered on marshaller to transform row to entity
-            registerClassOnMarshaller(((IgniteEx)ignite).context(), type);
-            binary = (IgniteBinaryImpl)ignite.binary();
-            binType = binary.type(type);
+        this.dynamicQueryConfigurationIndex = getDynamicQueryConfigurationIndex(qMethod);
+
+        // ensure dynamic query configuration param exists if dynamicQuery = true
+        if (this.dynamicQueryConfigurationIndex == -1 && this.staticQuery == null) {
+            throw new IllegalStateException(
+                "When passing dynamicQuery = true via org.apache.ignite.springdata.repository.config.Query "
+                    + "annotation, you must provide a non null method parameter of type DynamicQueryConfig");
         }
-
-        returnStgy = calcReturnType(mtd, qry.isFieldQuery());
+        // ensure domain class is registered on marshaller to transform row to entity
+        registerClassOnMarshaller(((IgniteEx)ignite).context(), type);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc} @param values the values
+     *
+     * @return the object
+     */
     @Override
     public Object execute(Object[] values) {
 
-        Query qry = prepareQuery(values);
+        Object[] parameters = values;
 
-        QueryCursor qryCursor = cache.query(qry);
+        // config via Query annotation (dynamicQuery = false)
+        DynamicQueryConfig config = this.staticQueryConfiguration;
 
-        return transformQueryCursor(values, qryCursor);
+        // or condition to allow query tunning
+        if (config == null || dynamicQueryConfigurationIndex != -1) {
+            DynamicQueryConfig newConfig = (DynamicQueryConfig)values[dynamicQueryConfigurationIndex];
+            parameters = ArrayUtils.removeElement(parameters, dynamicQueryConfigurationIndex);
+            if (newConfig != null) {
+                // upset query configuration
+                config = newConfig;
+            }
+        }
+        // query configuration is required, via Query annotation or per parameter (within provided values param)
+        if (config == null) {
+            throw new IllegalStateException(
+                "Unable to execute query. When passing dynamicQuery = true via org.apache.ignite.springdata"
+                    + ".repository.config.Query annotation, you must provide a non null method parameter of type "
+                    + "DynamicQueryConfig");
+        }
+
+        IgniteQuery qry = getQuery(config);
+
+        ReturnStrategy returnStgy = getReturnStgy(qry);
+
+        Query iQry = prepareQuery(qry, config, returnStgy, parameters);
+
+        QueryCursor qryCursor = cache.query(iQry);
+
+        return transformQueryCursor(qry, returnStgy, parameters, qryCursor);
     }
 
-    /** {@inheritDoc} */
+    /** {@inheritDoc} @return the query method */
     @Override
     public QueryMethod getQueryMethod() {
         return new QueryMethod(mtd, metadata, factory);
+    }
+
+    private <T extends Parameter> int getDynamicQueryConfigurationIndex(QueryMethod method) {
+        Iterator<T> it = (Iterator<T>)method.getParameters().iterator();
+        int i = 0;
+        boolean found = false;
+        int index = -1;
+        while (it.hasNext()) {
+            T parameter = it.next();
+            if (DynamicQueryConfig.class.isAssignableFrom(parameter.getType())) {
+                if (found) {
+                    throw new IllegalStateException("Invalid '" + method.getName() + "' repository method signature. "
+                                                        + "Only ONE DynamicQueryConfig parameter is allowed");
+                }
+                found = true;
+                index = i;
+            }
+            i++;
+        }
+        return index;
+    }
+
+    private synchronized IgniteBinaryImpl binary() {
+        if (this.igniteBinary == null) {
+            this.igniteBinary = (IgniteBinaryImpl)this.ignite.binary();
+        }
+        return this.igniteBinary;
+    }
+
+    private synchronized BinaryType binType() {
+        if (this.igniteBinType == null) {
+            this.igniteBinType = binary().type(this.type);
+        }
+        return this.igniteBinType;
     }
 
     /**
@@ -421,6 +482,35 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
         return (T)object;
     }
 
+    private IgniteQuery getQuery(@Nullable DynamicQueryConfig config) {
+        if (this.staticQuery != null) {
+            return this.staticQuery;
+        }
+        if (config != null && (StringUtils.hasText(config.value()) || config.textQuery())) {
+            return new IgniteQuery(config.value(),
+                !config.textQuery() && (isFieldQuery(config.value()) || config.forceFieldsQuery()), config.textQuery(),
+                false, IgniteQueryGenerator.getOptions(mtd));
+        }
+        throw new IllegalStateException("Unable to obtain a valid query. When passing dynamicQuery = true via org"
+                                            + ".apache.ignite.springdata.repository.config.Query annotation, you must"
+                                            + " provide a non null method parameter of type DynamicQueryConfig with a "
+                                            + "non empty value (query string) or textQuery = true");
+    }
+
+    private ReturnStrategy getReturnStgy(IgniteQuery qry) {
+        if (this.staticReturnStgy != null) {
+            return this.staticReturnStgy;
+        }
+        if (qry != null) {
+            return calcReturnType(mtd, qry.isFieldQuery());
+        }
+        throw new IllegalStateException("Unable to obtain a valid return strategy. When passing dynamicQuery = true "
+                                            + "via org.apache.ignite.springdata.repository.config.Query annotation, "
+                                            + "you must provide a non null method parameter of type "
+                                            + "DynamicQueryConfig with a non empty value (query string) or textQuery "
+                                            + "= true");
+    }
+
     /**
      * @param prmtrs
      *     Prmtrs.
@@ -429,7 +519,10 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
      * @return Query cursor or slice
      */
     @Nullable
-    private Object transformQueryCursor(Object[] prmtrs, QueryCursor qryCursor) {
+    private Object transformQueryCursor(IgniteQuery qry,
+        ReturnStrategy returnStgy,
+        Object[] prmtrs,
+        QueryCursor qryCursor) {
 
         final Class<?> returnClass;
 
@@ -443,14 +536,16 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
             returnClass = returnedDomainClass;
         }
 
-        if (this.qry.isFieldQuery()) {
+        if (qry.isFieldQuery()) {
 
             final List<GridQueryFieldMetadata> meta = ((QueryCursorEx)qryCursor).fieldsMeta();
 
             Function<List<?>, ?> cWrapperTransformFunction = null;
 
             if (type.equals(returnClass)) {
-                cWrapperTransformFunction = row -> rowToEntity(row, meta);
+                IgniteBinaryImpl binary = binary();
+                BinaryType binType = binType();
+                cWrapperTransformFunction = row -> rowToEntity(binary, binType, row, meta);
             } else {
                 if (hasProjection) {
                     cWrapperTransformFunction = row -> this.factory.createProjection(returnClass, rowToMap(row, meta));
@@ -574,7 +669,7 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
 
         // query method param's index by name and position
         queryMethodParams.getBindableParameters().forEach(p -> {
-            if (p.getName().isPresent()) {
+            if (p.isNamedParameter()) {
                 // map by name (annotated by @Param)
                 methodParams.put(p.getName().get(), p.getIndex());
             }
@@ -605,7 +700,7 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
      * @return prepared query for execution
      */
     @NotNull
-    private Query prepareQuery(Object[] values) {
+    private Query prepareQuery(IgniteQuery qry, DynamicQueryConfig config, ReturnStrategy returnStgy, Object[] values) {
 
         Object[] parameters = values;
 
@@ -613,7 +708,7 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
 
         Query query;
 
-        checkRequiredPageable(values);
+        checkRequiredPageable(returnStgy, values);
 
         if (!qry.isTextQuery()) {
 
@@ -624,7 +719,7 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
                     squery.getParameterBindings());
             } else {
                 // remove dynamic projection from parameters
-                if (this.hasDynamicProjection){
+                if (this.hasDynamicProjection) {
                     parameters = ArrayUtils.remove(parameters, this.dynamicProjectionIndex);
                 }
             }
@@ -652,29 +747,29 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
                 SqlFieldsQuery sqlFieldsQry = new SqlFieldsQuery(queryString);
                 sqlFieldsQry.setArgs(parameters);
 
-                sqlFieldsQry.setCollocated(collocated);
-                sqlFieldsQry.setDistributedJoins(distributedJoins);
-                sqlFieldsQry.setEnforceJoinOrder(enforceJoinOrder);
-                sqlFieldsQry.setLazy(lazy);
-                sqlFieldsQry.setLocal(local);
-                if (parts != null && parts.length > 0) {
-                    sqlFieldsQry.setPartitions(parts);
+                sqlFieldsQry.setCollocated(config.collocated());
+                sqlFieldsQry.setDistributedJoins(config.distributedJoins());
+                sqlFieldsQry.setEnforceJoinOrder(config.enforceJoinOrder());
+                sqlFieldsQry.setLazy(config.lazy());
+                sqlFieldsQry.setLocal(config.local());
+                if (config.parts() != null && config.parts().length > 0) {
+                    sqlFieldsQry.setPartitions(config.parts());
                 }
-                sqlFieldsQry.setReplicatedOnly(replicatedOnly);
-                sqlFieldsQry.setTimeout(timeout, TimeUnit.MILLISECONDS);
+                sqlFieldsQry.setReplicatedOnly(config.replicatedOnly());
+                sqlFieldsQry.setTimeout(config.timeout(), TimeUnit.MILLISECONDS);
 
                 query = sqlFieldsQry;
             } else {
                 SqlQuery sqlQry = new SqlQuery(type, queryString);
                 sqlQry.setArgs(parameters);
 
-                sqlQry.setDistributedJoins(distributedJoins);
-                sqlQry.setLocal(local);
-                if (parts != null && parts.length > 0) {
-                    sqlQry.setPartitions(parts);
+                sqlQry.setDistributedJoins(config.distributedJoins());
+                sqlQry.setLocal(config.local());
+                if (config.parts() != null && config.parts().length > 0) {
+                    sqlQry.setPartitions(config.parts());
                 }
-                sqlQry.setReplicatedOnly(replicatedOnly);
-                sqlQry.setTimeout(timeout, TimeUnit.MILLISECONDS);
+                sqlQry.setReplicatedOnly(config.replicatedOnly());
+                sqlQry.setTimeout(config.timeout(), TimeUnit.MILLISECONDS);
 
                 query = sqlQry;
             }
@@ -708,7 +803,7 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
 
             TextQuery textQuery = new TextQuery(type, queryString);
 
-            textQuery.setLocal(local);
+            textQuery.setLocal(config.local());
 
             if (pageSize > -1) {
                 textQuery.setPageSize(pageSize);
@@ -736,7 +831,10 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
     /*
      * convert row ( with list of field values) into domain entity
      */
-    private <V> V rowToEntity(final List<?> row, final List<GridQueryFieldMetadata> meta) {
+    private <V> V rowToEntity(final IgniteBinaryImpl binary,
+        final BinaryType binType,
+        final List<?> row,
+        final List<GridQueryFieldMetadata> meta) {
         // additional data returned by query not present on domain object type
         final TreeMap<String, Object> metadata = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         final BinaryObjectBuilder bldr = binary.builder(binType.typeName());
@@ -749,7 +847,7 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
                     && !metaField.equalsIgnoreCase(QueryUtils.VAL_FIELD_NAME)) {
                 final Object fieldValue = row.get(i);
                 if (fieldValue != null) {
-                    final Class<?> clazz = getClassForBinaryField(fMeta);
+                    final Class<?> clazz = getClassForBinaryField(binary, binType, fMeta);
                     // null values must not be set into binary objects
                     bldr.setField(metaField, fixExpectedType(fieldValue, clazz));
                 }
@@ -767,7 +865,9 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
     /*
      * Obtains real field class from resultset metadata field whether it's available
      */
-    private Class<?> getClassForBinaryField(final GridQueryFieldMetadata fieldMeta) {
+    private Class<?> getClassForBinaryField(final IgniteBinaryImpl binary,
+        final BinaryType binType,
+        final GridQueryFieldMetadata fieldMeta) {
         try {
 
             final String fieldId = fieldMeta.schemaName() + "." + fieldMeta.typeName() + "." + fieldMeta.fieldName();
@@ -812,7 +912,7 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
     }
 
     /* validate operations that requires Pageable parameter */
-    private void checkRequiredPageable(Object[] prmtrs) {
+    private void checkRequiredPageable(ReturnStrategy returnStgy, Object[] prmtrs) {
         try {
             if (returnStgy == ReturnStrategy.PAGE_OF_VALUES || returnStgy == ReturnStrategy.SLICE_OF_VALUES
                     || returnStgy == ReturnStrategy.SLICE_OF_CACHE_ENTRIES) {
@@ -852,6 +952,8 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
         private final Function<T, V> transformer;
 
         /**
+         * Instantiates a new Query cursor wrapper.
+         *
          * @param delegate
          *     delegate QueryCursor with T input elements
          * @param transformer
@@ -862,7 +964,7 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
             this.transformer = transformer;
         }
 
-        /** {@inheritDoc} */
+        /** {@inheritDoc} @return the iterator */
         @Override
         public Iterator<V> iterator() {
 
@@ -895,7 +997,7 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
             U.closeQuiet(this.delegate);
         }
 
-        /** {@inheritDoc} */
+        /** {@inheritDoc} @return the all */
         @Override
         public List<V> getAll() {
             final List<V> data = new ArrayList<>();
@@ -904,7 +1006,7 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
             return data;
         }
 
-        /** {@inheritDoc} */
+        /** {@inheritDoc} @return the int */
         @Override
         public int size() {
             return 0;
