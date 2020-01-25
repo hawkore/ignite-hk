@@ -280,7 +280,7 @@ class ClientImpl extends TcpDiscoveryImpl {
     /** {@inheritDoc} */
     @Override public void spiStart(@Nullable String igniteInstanceName) throws IgniteSpiException {
         spi.initLocalNode(
-            0,
+            spi.locPort,
             true);
 
         locNode = spi.locNode;
@@ -2646,7 +2646,7 @@ class ClientImpl extends TcpDiscoveryImpl {
             this.sock = sock;
 
             int rcvBufSize = sock.getReceiveBufferSize();
-            
+
             this.in = new BufferedInputStream(sock.getInputStream(), rcvBufSize > 0 ? rcvBufSize : 8192);
         }
 
