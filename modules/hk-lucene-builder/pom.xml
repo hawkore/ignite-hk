@@ -14,7 +14,7 @@
 	<groupId>org.hawkore.libs.ignite</groupId>
 	<name>HK-LIB Apache Ignite lucene builder</name>
 	<artifactId>hk-ignite-lucene-builder</artifactId>
-	<version>2.7.6-hk-SNAPSHOT</version>
+	<version>2.7.6-hk</version>
 	<url>http://hawkore.com</url>
 
 	<properties>
@@ -161,16 +161,11 @@
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>flatten-maven-plugin</artifactId>
-				<version>1.1.0-hk-SNAPSHOT</version>
+				<version>1.1.0</version>
 				<configuration>
 					<flattenMode>defaults</flattenMode>
 					<flattenedPomFilename>pom-installed_default.xml</flattenedPomFilename>
 					<updatePomFile>true</updatePomFile>
-					<pomElements>
-						<build>resolve</build>
-						<properties>resolve</properties>
-						<licenses>remove</licenses>
-					</pomElements>
 				</configuration>
 				<executions>
 					<execution>
@@ -180,11 +175,6 @@
 							<goal>flatten</goal>
 						</goals>
 						<configuration>
-							<pomElements>
-								<build>resolve</build>
-								<properties>resolve</properties>
-								<licenses>remove</licenses>
-							</pomElements>
 							<!-- create a flatten reduced pom, with build element -->
 							<flattenedPomFilename>pom-installed_before_package.xml</flattenedPomFilename>
 						</configuration>
@@ -196,11 +186,6 @@
 							<goal>flatten</goal>
 						</goals>
 						<configuration>
-							<pomElements>
-								<build>remove</build>
-								<properties>remove</properties>
-								<licenses>remove</licenses>
-							</pomElements>
 							<removeProvided>true</removeProvided>
 							<!-- use final reduced pom to install on repository -->
 							<flattenedPomFilename>pom-installed_after_package.xml</flattenedPomFilename>

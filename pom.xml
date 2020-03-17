@@ -31,7 +31,7 @@
     </parent>
 
     <artifactId>apache-ignite</artifactId>
-    <version>2.7.6-hk-SNAPSHOT</version>
+    <version>2.7.6-hk</version>
     <packaging>pom</packaging>
 
     <scm>
@@ -781,7 +781,7 @@
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>flatten-maven-plugin</artifactId>
                 <version>1.0.1</version>
-				<inherited>false</inherited>
+				        <inherited>false</inherited>
 
                 <configuration>
                     <flattenMode>minimum</flattenMode>
