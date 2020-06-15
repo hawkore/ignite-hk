@@ -22,6 +22,7 @@ import org.apache.ignite.configuration.ConnectorConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
+import org.junit.Test;
 
 /**
  * Rest processor test.
@@ -55,6 +56,7 @@ public class RestProcessorMultiStartSelfTest extends GridCommonAbstractTest {
      *
      * @throws Exception If failed.
      */
+    @Test
     public void testMultiStart() throws Exception {
         try {
             for (int i = 0; i < GRID_CNT; i++)
@@ -72,6 +74,7 @@ public class RestProcessorMultiStartSelfTest extends GridCommonAbstractTest {
      *
      * @throws Exception If failed.
      */
+    @Test
     public void testMultiStartWithClient() throws Exception {
         try {
             int clnIdx = GRID_CNT - 1;
@@ -79,7 +82,7 @@ public class RestProcessorMultiStartSelfTest extends GridCommonAbstractTest {
             for (int i = 0; i < clnIdx; i++) {
                 startGrid(i);
 
-                GridRestProcessor rest = grid(i).context().rest();
+                IgniteRestProcessor rest = grid(i).context().rest();
 
                 assertNotNull(rest);
                 assertFalse(((Map)GridTestUtils.getFieldValue(rest, "handlers")).isEmpty());
@@ -89,7 +92,7 @@ public class RestProcessorMultiStartSelfTest extends GridCommonAbstractTest {
 
             startGrid(clnIdx);
 
-            GridRestProcessor rest = grid(GRID_CNT - 1).context().rest();
+            IgniteRestProcessor rest = grid(GRID_CNT - 1).context().rest();
 
             // Check that rest processor doesn't start.
             assertNotNull(rest);

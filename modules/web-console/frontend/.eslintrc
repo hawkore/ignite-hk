@@ -1,7 +1,7 @@
-parser: "typescript-eslint-parser"
+parser: '@typescript-eslint/parser'
 
 plugins:
-    - typescript
+    - '@typescript-eslint'
 
 env:
     es6: true
@@ -163,7 +163,6 @@ rules:
     no-unused-expressions: [2, { allowShortCircuit: true }]
     no-unused-vars: [0, {"vars": "all", "args": "after-used"}]
     typescript/no-unused-vars: [0]
-    no-use-before-define: 2
     no-useless-call: 2
     no-void: 0
     no-var: 2

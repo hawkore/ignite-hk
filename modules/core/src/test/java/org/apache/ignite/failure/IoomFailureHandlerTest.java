@@ -28,6 +28,7 @@ import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.mem.IgniteOutOfMemoryException;
 import org.apache.ignite.internal.util.typedef.X;
 import org.apache.ignite.transactions.Transaction;
+import org.junit.Test;
 
 /**
  * IgniteOutOfMemoryError failure handler test.
@@ -60,8 +61,13 @@ public class IoomFailureHandlerTest extends AbstractFailureHandlerTest {
         dfltPlcCfg.setInitialSize(SIZE);
         dfltPlcCfg.setMaxSize(SIZE);
 
-        if (pds)
+        if (pds) {
+            // We need longer failure detection timeout for PDS enabled mode or checkpoint write lock can block tx
+            // checkpoint read lock for too long causing FH triggering on slow hardware.
+            cfg.setFailureDetectionTimeout(30_000);
+
             dfltPlcCfg.setPersistenceEnabled(true);
+        }
 
         dsCfg.setDefaultDataRegionConfiguration(dfltPlcCfg);
         dsCfg.setPageSize(PAGE_SIZE);
@@ -96,6 +102,7 @@ public class IoomFailureHandlerTest extends AbstractFailureHandlerTest {
     /**
      * Test IgniteOutOfMemoryException handling with no store.
      */
+    @Test
     public void testIoomErrorNoStoreHandling() throws Exception {
         testIoomErrorHandling(false, false);
     }
@@ -103,6 +110,7 @@ public class IoomFailureHandlerTest extends AbstractFailureHandlerTest {
     /**
      * Test IgniteOutOfMemoryException handling with PDS.
      */
+    @Test
     public void testIoomErrorPdsHandling() throws Exception {
         testIoomErrorHandling(true, false);
     }
@@ -110,6 +118,7 @@ public class IoomFailureHandlerTest extends AbstractFailureHandlerTest {
     /**
      * Test IgniteOutOfMemoryException handling with no store.
      */
+    @Test
     public void testIoomErrorMvccNoStoreHandling() throws Exception {
         testIoomErrorHandling(false, true);
     }
@@ -117,16 +126,15 @@ public class IoomFailureHandlerTest extends AbstractFailureHandlerTest {
     /**
      * Test IgniteOutOfMemoryException handling with PDS.
      */
+    @Test
     public void testIoomErrorMvccPdsHandling() throws Exception {
-        fail("https://issues.apache.org/jira/browse/IGNITE-10185");
-
         testIoomErrorHandling(true, true);
     }
 
     /**
      * Test IOOME handling.
      */
-    public void testIoomErrorHandling(boolean pds, boolean mvcc) throws Exception {
+    private void testIoomErrorHandling(boolean pds, boolean mvcc) throws Exception {
         this.pds = pds;
         this.mvcc = mvcc;
 
@@ -153,8 +161,13 @@ public class IoomFailureHandlerTest extends AbstractFailureHandlerTest {
             }
 
             assertFalse(dummyFailureHandler(ignite0).failure());
-            assertTrue(dummyFailureHandler(ignite1).failure());
-            assertTrue(X.hasCause(dummyFailureHandler(ignite1).failureContext().error(), IgniteOutOfMemoryException.class));
+
+            if (mvcc && pds)
+                assertFalse(dummyFailureHandler(ignite1).failure());
+            else {
+                assertTrue(dummyFailureHandler(ignite1).failure());
+                assertTrue(X.hasCause(dummyFailureHandler(ignite1).failureContext().error(), IgniteOutOfMemoryException.class));
+            }
         }
         finally {
             stopGrid(1);

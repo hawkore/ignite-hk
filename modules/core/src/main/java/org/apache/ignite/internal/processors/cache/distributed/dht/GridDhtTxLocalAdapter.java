@@ -107,7 +107,6 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
     private Set<ClusterNode> lockTxNodes;
 
     /** Enlist or lock future what is currently in progress. */
-    @SuppressWarnings("UnusedDeclaration")
     @GridToStringExclude
     protected volatile IgniteInternalFuture<?> lockFut;
 
@@ -459,7 +458,7 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
     }
 
     /** {@inheritDoc} */
-    @Override public void addInvalidPartition(GridCacheContext ctx, int part) {
+    @Override public void addInvalidPartition(int cacheId, int part) {
         assert false : "DHT transaction encountered invalid partition [part=" + part + ", tx=" + this + ']';
     }
 
@@ -755,7 +754,6 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
     }
 
     /** {@inheritDoc} */
-    @SuppressWarnings({"CatchGenericClass", "ThrowableInstanceNeverThrown"})
     @Override public boolean localFinish(boolean commit, boolean clearThreadMap) throws IgniteCheckedException {
         if (log.isDebugEnabled())
             log.debug("Finishing dht local tx [tx=" + this + ", commit=" + commit + "]");
@@ -923,7 +921,6 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
      * @param prepFut Prepare future.
      * @return If transaction if finished on prepare step returns future which is completed after transaction finish.
      */
-    @SuppressWarnings("TypeMayBeWeakened")
     protected final IgniteInternalFuture<GridNearTxPrepareResponse> chainOnePhasePrepare(
         final GridDhtTxPrepareFuture prepFut) {
         if (commitOnPrepare()) {
@@ -942,5 +939,21 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
     @Override public String toString() {
         return GridToStringBuilder.toString(GridDhtTxLocalAdapter.class, this, "nearNodes", nearMap.keySet(),
             "dhtNodes", dhtMap.keySet(), "explicitLock", explicitLock, "super", super.toString());
+    }
+
+    /**
+     * Increments lock counter.
+     */
+    public void incrementLockCounter() {
+        txCounters(true).incrementLockCounter();
+    }
+
+    /**
+     * @return Current value of lock counter.
+     */
+    public int lockCounter() {
+        TxCounters txCntrs = txCounters(false);
+
+        return txCntrs != null ? txCntrs.lockCounter() : 0;
     }
 }

@@ -16,6 +16,7 @@
 */
 package org.apache.ignite.internal.processors.cache.persistence.baseline;
 
+import javax.cache.CacheException;
 import java.io.File;
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -31,7 +32,6 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
-import javax.cache.CacheException;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.cache.CacheAtomicityMode;
 import org.apache.ignite.cache.CacheMode;
@@ -46,13 +46,17 @@ import org.apache.ignite.configuration.DataStorageConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.IgniteNodeAttributes;
+import org.apache.ignite.internal.util.typedef.X;
 import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.lang.IgniteFuture;
 import org.apache.ignite.lang.IgnitePredicate;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.apache.ignite.transactions.Transaction;
 import org.apache.ignite.transactions.TransactionConcurrency;
 import org.apache.ignite.transactions.TransactionIsolation;
+import org.junit.Ignore;
+import org.junit.Test;
 
 import static org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager.DFLT_STORE_DIR;
 
@@ -225,6 +229,7 @@ public class ClientAffinityAssignmentWithBaselineTest extends GridCommonAbstract
     /**
      *
      */
+    @Test
     public void testPartitionedAtomicCache() throws Exception {
         testChangingBaselineDown(PARTITIONED_ATOMIC_CACHE_NAME, false);
     }
@@ -232,6 +237,7 @@ public class ClientAffinityAssignmentWithBaselineTest extends GridCommonAbstract
     /**
      *
      */
+    @Test
     public void testPartitionedTxCache() throws Exception {
         testChangingBaselineDown(PARTITIONED_TX_CACHE_NAME, false);
     }
@@ -239,6 +245,7 @@ public class ClientAffinityAssignmentWithBaselineTest extends GridCommonAbstract
     /**
      * Test that activation after client join won't break cache.
      */
+    @Test
     public void testLateActivation() throws Exception {
         testChangingBaselineDown(PARTITIONED_TX_CACHE_NAME, true);
     }
@@ -246,6 +253,7 @@ public class ClientAffinityAssignmentWithBaselineTest extends GridCommonAbstract
     /**
      *
      */
+    @Test
     public void testReplicatedAtomicCache() throws Exception {
         testChangingBaselineDown(REPLICATED_ATOMIC_CACHE_NAME, false);
     }
@@ -253,6 +261,7 @@ public class ClientAffinityAssignmentWithBaselineTest extends GridCommonAbstract
     /**
      *
      */
+    @Test
     public void testReplicatedTxCache() throws Exception {
         testChangingBaselineDown(REPLICATED_TX_CACHE_NAME, false);
     }
@@ -263,6 +272,7 @@ public class ClientAffinityAssignmentWithBaselineTest extends GridCommonAbstract
     private void testChangingBaselineDown(String cacheName, boolean lateActivation) throws Exception {
         IgniteEx ig0 = (IgniteEx)startGrids(DEFAULT_NODES_COUNT);
 
+        ig0.cluster().baselineAutoAdjustEnabled(false);
         IgniteEx client1 = null;
         IgniteEx client2 = null;
 
@@ -328,6 +338,7 @@ public class ClientAffinityAssignmentWithBaselineTest extends GridCommonAbstract
     /**
      * Tests that rejoin of baseline node with clear LFS under load won't break cache.
      */
+    @Test
     public void testRejoinWithCleanLfs() throws Exception {
         IgniteEx ig0 = (IgniteEx)startGrids(DEFAULT_NODES_COUNT - 1);
         startGrid("flaky");
@@ -394,9 +405,11 @@ public class ClientAffinityAssignmentWithBaselineTest extends GridCommonAbstract
     /**
      * Test that changing baseline down under cross-cache txs load won't break cache.
      */
+    @Test
     public void testCrossCacheTxs() throws Exception {
         IgniteEx ig0 = (IgniteEx)startGrids(DEFAULT_NODES_COUNT);
 
+        ig0.cluster().baselineAutoAdjustEnabled(false);
         ig0.cluster().active(true);
 
         AtomicBoolean stopLoad = new AtomicBoolean(false);
@@ -455,6 +468,7 @@ public class ClientAffinityAssignmentWithBaselineTest extends GridCommonAbstract
     /**
      * Tests that join of non-baseline node while long transactions are running won't break dynamically started cache.
      */
+    @Test
     public void testDynamicCacheLongTransactionNodeStart() throws Exception {
         IgniteEx ig0 = (IgniteEx)startGrids(4);
 
@@ -526,13 +540,13 @@ public class ClientAffinityAssignmentWithBaselineTest extends GridCommonAbstract
      * Tests that if dynamic cache has no affinity nodes at the moment of start,
      * it will still work correctly when affinity nodes will appear.
      */
+    @Ignore("https://issues.apache.org/jira/browse/IGNITE-8652")
+    @Test
     public void testDynamicCacheStartNoAffinityNodes() throws Exception {
-        fail("IGNITE-8652");
-
         IgniteEx ig0 = startGrid(0);
 
         ig0.cluster().active(true);
-        
+
         IgniteEx client = (IgniteEx)startGrid("client");
 
         CacheConfiguration<Integer, String> dynamicCacheCfg = new CacheConfiguration<Integer, String>()
@@ -544,7 +558,7 @@ public class ClientAffinityAssignmentWithBaselineTest extends GridCommonAbstract
             .setNodeFilter(new ConsistentIdNodeFilter((Serializable)ig0.localNode().consistentId()));
 
         IgniteCache<Integer, String> dynamicCache = client.getOrCreateCache(dynamicCacheCfg);
-        
+
         for (int i = 1; i < 4; i++)
             startGrid(i);
 
@@ -552,29 +566,29 @@ public class ClientAffinityAssignmentWithBaselineTest extends GridCommonAbstract
 
         for (int i = 0; i < ENTRIES; i++)
             dynamicCache.put(i, "abacaba" + i);
-        
+
         AtomicBoolean releaseTx = new AtomicBoolean(false);
         CountDownLatch allTxsDoneLatch = new CountDownLatch(10);
-        
+
         for (int i = 0; i < 10; i++) {
             final int i0 = i;
-            
+
             GridTestUtils.runAsync(new Runnable() {
                 @Override public void run() {
                     try (Transaction tx = client.transactions().txStart(TransactionConcurrency.PESSIMISTIC,
                         TransactionIsolation.REPEATABLE_READ)) {
                         dynamicCache.put(i0, "txtxtxtx" + i0);
-                        
+
                         while (!releaseTx.get())
                             LockSupport.parkNanos(1_000_000);
-                        
+
                         tx.commit();
-                        
+
                         System.out.println("Tx #" + i0 + " committed");
                     }
                     catch (Throwable t) {
                         System.out.println("Tx #" + i0 + " failed");
-                        
+
                         t.printStackTrace();
                     }
                     finally {
@@ -583,7 +597,7 @@ public class ClientAffinityAssignmentWithBaselineTest extends GridCommonAbstract
                 }
             });
         }
-        
+
         GridTestUtils.runAsync(new Runnable() {
             @Override public void run() {
                 try {
@@ -608,6 +622,7 @@ public class ClientAffinityAssignmentWithBaselineTest extends GridCommonAbstract
     /**
      * Tests that join of non-baseline node while long transactions are running won't break cache started on client join.
      */
+    @Test
     public void testClientJoinCacheLongTransactionNodeStart() throws Exception {
         IgniteEx ig0 = (IgniteEx)startGrids(4);
 
@@ -784,7 +799,7 @@ public class ClientAffinityAssignmentWithBaselineTest extends GridCommonAbstract
 
                 IgniteCache<Integer, String> cache = ig.cache(cacheName).withAllowAtomicOpsInTx();
 
-                boolean pessimistic = r.nextBoolean();
+                boolean pessimistic = atomicityMode(cache) == CacheAtomicityMode.TRANSACTIONAL_SNAPSHOT || r.nextBoolean();
 
                 boolean rollback = r.nextBoolean();
 
@@ -820,8 +835,12 @@ public class ClientAffinityAssignmentWithBaselineTest extends GridCommonAbstract
                                 (tId, ops) -> ops == null ? 1 : ops + 1);
                         }
                         catch (CacheException e) {
-                            if (e.getCause() instanceof ClusterTopologyException)
-                                ((ClusterTopologyException)e.getCause()).retryReadyFuture().get();
+                            if (e.getCause() instanceof ClusterTopologyException) {
+                                IgniteFuture retryFut = ((ClusterTopologyException)e.getCause()).retryReadyFuture();
+
+                                if (retryFut != null)
+                                    retryFut.get();
+                            }
                         }
                         catch (ClusterTopologyException e) {
                             e.retryReadyFuture().get();
@@ -860,7 +879,8 @@ public class ClientAffinityAssignmentWithBaselineTest extends GridCommonAbstract
                 IgniteCache<Integer, String> cache1 = ig.cache(cacheName1);
                 IgniteCache<Integer, String> cache2 = ig.cache(cacheName2);
 
-                boolean pessimistic = r.nextBoolean();
+                boolean pessimistic = atomicityMode(cache1) == CacheAtomicityMode.TRANSACTIONAL_SNAPSHOT ||
+                    atomicityMode(cache2) == CacheAtomicityMode.TRANSACTIONAL_SNAPSHOT || r.nextBoolean();
 
                 boolean rollback = r.nextBoolean();
 
@@ -930,11 +950,10 @@ public class ClientAffinityAssignmentWithBaselineTest extends GridCommonAbstract
         while (U.currentTimeMillis() < startTs + waitMs) {
             Map<Long, Long> view2 = new HashMap<>(threadProgressTracker);
 
-            if (loadError.get() != null) {
-                loadError.get().printStackTrace();
+            Throwable t;
 
-                fail("Unexpected error in load thread: " + loadError.get().toString());
-            }
+            if ((t = loadError.get()) != null)
+                fail("Unexpected error in load thread: " + X.getFullStackTrace(t));
 
             boolean frozenThreadExists = false;
 

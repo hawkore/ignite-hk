@@ -28,6 +28,7 @@ import org.apache.ignite.cache.query.annotations.QuerySqlField;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
+import org.junit.Test;
 
 /** */
 public class SqlPartOfComplexPkLookupTest extends GridCommonAbstractTest {
@@ -37,11 +38,11 @@ public class SqlPartOfComplexPkLookupTest extends GridCommonAbstractTest {
     }
 
     /** */
+    @Test
     public void testPartOfComplexPkLookupDdl() throws Exception {
         IgniteEx ign = startGrid(0);
 
-        IgniteCache<Object, Object> cache = ign.getOrCreateCache(new CacheConfiguration<>(DEFAULT_CACHE_NAME)
-            .setSqlSchema("PUBLIC"));
+        IgniteCache<Object, Object> cache = ign.getOrCreateCache(new CacheConfiguration<>(DEFAULT_CACHE_NAME));
 
         cache.query(new SqlFieldsQuery("" +
             "CREATE TABLE Person(\n" +
@@ -58,6 +59,7 @@ public class SqlPartOfComplexPkLookupTest extends GridCommonAbstractTest {
     }
 
     /** */
+    @Test
     public void testPartOfComplexPkLookupQueryEntity() throws Exception {
         IgniteEx ign = startGrid(0);
 

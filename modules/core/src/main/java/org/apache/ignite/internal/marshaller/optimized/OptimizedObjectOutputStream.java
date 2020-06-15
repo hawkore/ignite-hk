@@ -63,7 +63,7 @@ import static org.apache.ignite.internal.marshaller.optimized.OptimizedMarshalle
 /**
  * Optimized object output stream.
  */
-class OptimizedObjectOutputStream extends ObjectOutputStream {
+public class OptimizedObjectOutputStream extends ObjectOutputStream {
     /** */
     private final GridHandleTable handles = new GridHandleTable(10, 3.00f);
 
@@ -334,7 +334,6 @@ class OptimizedObjectOutputStream extends ObjectOutputStream {
      * @param fields class fields details.
      * @throws IOException In case of error.
      */
-    @SuppressWarnings("ForLoopReplaceableByForEach")
     void writeSerializable(Object obj, List<Method> mtds, OptimizedClassDescriptor.Fields fields)
         throws IOException {
         for (int i = 0; i < mtds.size(); i++) {
@@ -487,7 +486,6 @@ class OptimizedObjectOutputStream extends ObjectOutputStream {
      * @param fields Fields.
      * @throws IOException In case of error.
      */
-    @SuppressWarnings("ForLoopReplaceableByForEach")
     private void writeFields(Object obj, OptimizedClassDescriptor.ClassFields fields) throws IOException {
         for (int i = 0; i < fields.size(); i++) {
             OptimizedClassDescriptor.FieldInfo t = fields.get(i);
@@ -827,6 +825,7 @@ class OptimizedObjectOutputStream extends ObjectOutputStream {
 
         /** Fields info. */
         private final OptimizedClassDescriptor.ClassFields curFields;
+
         /** Values. */
         private final IgniteBiTuple<OptimizedFieldType, Object>[] objs;
 

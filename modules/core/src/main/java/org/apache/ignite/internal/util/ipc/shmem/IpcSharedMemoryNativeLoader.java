@@ -324,7 +324,6 @@ public class IpcSharedMemoryNativeLoader {
      * @param target Target.
      * @return {@code True} if resource was found and loaded.
      */
-    @SuppressWarnings("ResultOfMethodCallIgnored")
     private static boolean extract(Collection<Throwable> errs, URL src, File target) {
         FileOutputStream os = null;
         InputStream is = null;
@@ -379,7 +378,6 @@ public class IpcSharedMemoryNativeLoader {
      * @param target Target.
      * @return {@code True} if resource was found and loaded.
      */
-    @SuppressWarnings("ResultOfMethodCallIgnored")
     private static boolean extract(Collection<Throwable> errs, ZipEntry src, JarFile jar, File target) {
         FileOutputStream os = null;
         InputStream is = null;

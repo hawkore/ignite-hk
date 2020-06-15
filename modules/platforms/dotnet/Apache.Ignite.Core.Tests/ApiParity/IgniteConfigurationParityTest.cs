@@ -23,6 +23,7 @@ namespace Apache.Ignite.Core.Tests.ApiParity
     /// <summary>
     /// Tests that .NET <see cref="IgniteConfiguration"/> has all properties from Java configuration APIs.
     /// </summary>
+    [Ignore(ParityTest.IgnoreReason)]
     public class IgniteConfigurationParityTest
     {
         /** Known property name mappings Java -> .NET. */
@@ -63,15 +64,19 @@ namespace Apache.Ignite.Core.Tests.ApiParity
             "ClassLoader",
             "CacheStoreSessionListenerFactories",
             "PlatformConfiguration",
-            "ExecutorConfiguration",
             "CommunicationFailureResolver",
-            "EncryptionSpi"
+            "EncryptionSpi",
+            "MetricExporterSpi"
         };
 
         /** Properties that are missing on .NET side. */
         private static readonly string[] MissingProperties =
         {
             "RebalanceThreadPoolSize",
+            "RebalanceTimeout",
+            "RebalanceBatchesPrefetchCount",
+            "RebalanceThrottle",
+            "RebalanceBatchSize",
             "SegmentationPolicy",
             "isWaitForSegmentOnStart",
             "isAllSegmentationResolversPassRequired",
@@ -81,7 +86,11 @@ namespace Apache.Ignite.Core.Tests.ApiParity
             "TimeServerPortBase",
             "TimeServerPortRange",
             "IncludeProperties",
-            "isAutoActivationEnabled"  // IGNITE-7301
+            "isAutoActivationEnabled",  // IGNITE-7301
+            "NetworkCompressionLevel",
+            "PluginProviders",
+            "MetricExporterSpi",
+            "TracingSpi"
         };
 
         /// <summary>
@@ -91,7 +100,7 @@ namespace Apache.Ignite.Core.Tests.ApiParity
         public void TestIgniteConfiguration()
         {
             ParityTest.CheckConfigurationParity(
-                @"modules\core\src\main\java\org\apache\ignite\configuration\IgniteConfiguration.java", 
+                @"modules\core\src\main\java\org\apache\ignite\configuration\IgniteConfiguration.java",
                 typeof(IgniteConfiguration),
                 UnneededProperties,
                 MissingProperties,

@@ -1454,6 +1454,7 @@ public abstract class GridUnsafe {
      * @return Buffer memory address.
      */
     public static long bufferAddress(ByteBuffer buf) {
+        assert buf.isDirect();
         return UNSAFE.getLong(buf, DIRECT_BUF_ADDR_OFF);
     }
 
@@ -1647,7 +1648,6 @@ public abstract class GridUnsafe {
             throw new RuntimeException("Unable to set up byte buffer creation using reflections :" + e.getMessage(), e);
         }
     }
-
 
     /**
      * @param obj Object.

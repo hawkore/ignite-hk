@@ -368,6 +368,8 @@ public class GridDistributedCacheEntry extends GridCacheMapEntry {
 
         GridCacheMvccCandidate doomed;
 
+        GridCacheVersion deferredDelVer;
+
         CacheObject val;
 
         lockEntry();
@@ -406,9 +408,20 @@ public class GridDistributedCacheEntry extends GridCacheMapEntry {
             }
 
             val = this.val;
+
+            deferredDelVer = this.ver;
         }
         finally {
             unlockEntry();
+        }
+
+        if (val == null) {
+            boolean deferred = cctx.deferredDelete() && !detached() && !isInternal();
+
+            if (deferred) {
+                if (deferredDelVer != null)
+                    cctx.onDeferredDelete(this, deferredDelVer);
+            }
         }
 
         if (log.isDebugEnabled())
@@ -601,7 +614,7 @@ public class GridDistributedCacheEntry extends GridCacheMapEntry {
                 }
 
                 if (sysInvalidate && baseVer != null)
-                    mvcc.salvageRemote(baseVer);
+                    mvcc.salvageRemote(baseVer, isNear());
 
                 owner = mvcc.doneRemote(lockVer,
                     maskNull(pendingVers),
@@ -628,8 +641,12 @@ public class GridDistributedCacheEntry extends GridCacheMapEntry {
 
     /**
      * Rechecks if lock should be reassigned.
+     *
+     * @param ver Thread chain version.
+     *
+     * @return {@code True} if thread chain processing must be stopped.
      */
-    public void recheck() {
+    public boolean recheck(GridCacheVersion ver) {
         CacheLockCandidates prev = null;
         CacheLockCandidates owner = null;
 
@@ -661,8 +678,13 @@ public class GridDistributedCacheEntry extends GridCacheMapEntry {
             unlockEntry();
         }
 
+        boolean lockedByThreadChainVer = owner != null && owner.hasCandidate(ver);
+
+        // If locked by the thread chain version no need to do recursive thread chain scans for the same chain.
         // This call must be made outside of synchronization.
-        checkOwnerChanged(prev, owner, val);
+        checkOwnerChanged(prev, owner, val, lockedByThreadChainVer);
+
+        return !lockedByThreadChainVer;
     }
 
     /** {@inheritDoc} */
@@ -705,11 +727,6 @@ public class GridDistributedCacheEntry extends GridCacheMapEntry {
         }
     }
 
-    /** {@inheritDoc} */
-    @Override public final void txUnlock(IgniteInternalTx tx) throws GridCacheEntryRemovedException {
-        removeLock(tx.xidVersion());
-    }
-
     /**
      * @param emptyBefore Empty flag before operation.
      * @param emptyAfter Empty flag after operation.
@@ -727,7 +744,7 @@ public class GridDistributedCacheEntry extends GridCacheMapEntry {
     }
 
     /** {@inheritDoc} */
-    @Override final protected void checkThreadChain(GridCacheMvccCandidate owner) {
+    @Override protected final void checkThreadChain(GridCacheMvccCandidate owner) {
         assert !lockedByCurrentThread();
 
         assert owner != null;
@@ -740,15 +757,17 @@ public class GridDistributedCacheEntry extends GridCacheMapEntry {
 
                 // Allow next lock in the thread to proceed.
                 if (!cand.used()) {
+                    if (cand.owner())
+                        break;
+
                     GridCacheContext cctx0 = cand.parent().context();
 
                     GridDistributedCacheEntry e =
                         (GridDistributedCacheEntry)cctx0.cache().peekEx(cand.parent().key());
 
-                    if (e != null)
-                        e.recheck();
-
-                    break;
+                    // At this point candidate may have been removed and entry destroyed, so we check for null.
+                    if (e == null || e.recheck(owner.version()))
+                        break;
                 }
             }
         }

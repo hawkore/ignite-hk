@@ -27,6 +27,7 @@ import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.util.worker.GridWorker;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.apache.ignite.thread.IgniteThread;
+import org.junit.Test;
 
 /**
  * Tests the handling of long blocking operations in system-critical workers.
@@ -83,6 +84,7 @@ public class SystemWorkersBlockingTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testBlockingWorker() throws Exception {
         IgniteEx ignite = grid(0);
 

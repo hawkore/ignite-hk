@@ -23,7 +23,6 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import org.apache.ignite.IgniteInterruptedException;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.pagemem.FullPageId;
 import org.apache.ignite.internal.processors.cache.persistence.PageStoreWriter;
@@ -51,14 +50,14 @@ public class DelayedPageReplacementTracker {
         @Override protected ByteBuffer initialValue() {
             ByteBuffer buf = ByteBuffer.allocateDirect(pageSize);
 
-            buf.order(ByteOrder.LITTLE_ENDIAN);
+            buf.order(ByteOrder.nativeOrder());
 
             return buf;
         }
     };
 
     /**
-     * Dirty page write for replacement operations thread local. Because page write {@link PageStoreWriter} is
+     * Dirty page write for replacement operations thread local. Because page write {@link DelayedDirtyPageStoreWrite} is
      * stateful and not thread safe, this thread local protects from GC pressure on pages replacement. <br> Map is used
      * instead of build-in thread local to allow GC to remove delayed writers for alive threads after node stop.
      */
@@ -168,17 +167,23 @@ public class DelayedPageReplacementTracker {
                 if (!hasLockedPages)
                     return;
 
+                boolean interrupted = false;
+
                 while (locked.contains(id)) {
                     if (log.isDebugEnabled())
                         log.debug("Found replaced page [" + id + "] which is being written to page store, wait for finish replacement");
 
                     try {
+                        // Uninterruptable wait.
                         locked.wait();
                     }
                     catch (InterruptedException e) {
-                        throw new IgniteInterruptedException(e);
+                        interrupted = true;
                     }
                 }
+
+                if (interrupted)
+                    Thread.currentThread().interrupt();
             }
         }
 

@@ -47,7 +47,6 @@ import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.configuration.NearCacheConfiguration;
 import org.apache.ignite.events.Event;
 import org.apache.ignite.events.EventType;
-import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.store.CacheLocalStore;
@@ -59,13 +58,11 @@ import org.apache.ignite.lang.IgniteBiInClosure;
 import org.apache.ignite.lang.IgniteBiTuple;
 import org.apache.ignite.lang.IgnitePredicate;
 import org.apache.ignite.resources.IgniteInstanceResource;
-import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
-import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
-import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.apache.ignite.transactions.Transaction;
 import org.jetbrains.annotations.Nullable;
+import org.junit.Test;
 
 import static org.apache.ignite.IgniteSystemProperties.IGNITE_LOCAL_STORE_KEEPS_PRIMARY_ONLY;
 import static org.apache.ignite.cache.CacheMode.REPLICATED;
@@ -76,9 +73,6 @@ import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
  *
  */
 public abstract class GridCacheAbstractLocalStoreSelfTest extends GridCommonAbstractTest {
-    /** */
-    private static final TcpDiscoveryIpFinder IP_FINDER = new TcpDiscoveryVmIpFinder(true);
-
     /** */
     public static final TestLocalStore<Integer, Integer> LOCAL_STORE_1 = new TestLocalStore<>();
 
@@ -134,11 +128,7 @@ public abstract class GridCacheAbstractLocalStoreSelfTest extends GridCommonAbst
 
         cfg.setCacheConfiguration(cacheCfg, cacheBackup1Cfg, cacheBackup2Cfg);
 
-        TcpDiscoverySpi spi = new TcpDiscoverySpi();
-
-        spi.setIpFinder(IP_FINDER);
-
-        cfg.setDiscoverySpi(spi);
+        cfg.setIncludeEventTypes(EventType.EVTS_ALL);
 
         return cfg;
     }
@@ -204,6 +194,7 @@ public abstract class GridCacheAbstractLocalStoreSelfTest extends GridCommonAbst
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testEvict() throws Exception {
         Ignite ignite1 = startGrid(1);
 
@@ -232,6 +223,7 @@ public abstract class GridCacheAbstractLocalStoreSelfTest extends GridCommonAbst
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPrimaryNode() throws Exception {
         Ignite ignite1 = startGrid(1);
 
@@ -280,6 +272,7 @@ public abstract class GridCacheAbstractLocalStoreSelfTest extends GridCommonAbst
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testBackupRestorePrimary() throws Exception {
         testBackupRestore();
     }
@@ -287,6 +280,7 @@ public abstract class GridCacheAbstractLocalStoreSelfTest extends GridCommonAbst
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testBackupRestore() throws Exception {
         final IgniteEx ignite1 = startGrid(1);
         Ignite ignite2 = startGrid(2);
@@ -406,6 +400,7 @@ public abstract class GridCacheAbstractLocalStoreSelfTest extends GridCommonAbst
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testLocalStoreCorrespondsAffinityWithBackups() throws Exception {
         testLocalStoreCorrespondsAffinity(BACKUP_CACHE_2);
     }
@@ -413,6 +408,7 @@ public abstract class GridCacheAbstractLocalStoreSelfTest extends GridCommonAbst
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testLocalStoreCorrespondsAffinityWithBackup() throws Exception {
         testLocalStoreCorrespondsAffinity(BACKUP_CACHE_1);
     }
@@ -420,6 +416,7 @@ public abstract class GridCacheAbstractLocalStoreSelfTest extends GridCommonAbst
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testLocalStoreCorrespondsAffinityNoBackups() throws Exception {
         testLocalStoreCorrespondsAffinity(DEFAULT_CACHE_NAME);
     }
@@ -506,6 +503,7 @@ public abstract class GridCacheAbstractLocalStoreSelfTest extends GridCommonAbst
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testLocalStoreWithNearKeysPrimary() throws Exception {
         try {
             System.setProperty(IGNITE_LOCAL_STORE_KEEPS_PRIMARY_ONLY, "true");
@@ -520,6 +518,7 @@ public abstract class GridCacheAbstractLocalStoreSelfTest extends GridCommonAbst
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testLocalStoreWithNearKeysPrimaryAndBackups() throws Exception {
         testLocalStoreWithNearKeys();
     }
@@ -527,6 +526,7 @@ public abstract class GridCacheAbstractLocalStoreSelfTest extends GridCommonAbst
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testLocalStoreWithNearKeys() throws Exception {
         if (getCacheMode() == REPLICATED)
             return;
@@ -619,6 +619,7 @@ public abstract class GridCacheAbstractLocalStoreSelfTest extends GridCommonAbst
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testBackupNode() throws Exception {
         Ignite ignite1 = startGrid(1);
 
@@ -684,6 +685,7 @@ public abstract class GridCacheAbstractLocalStoreSelfTest extends GridCommonAbst
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testSwap() throws Exception {
         Ignite ignite1 = startGrid(1);
 

@@ -17,7 +17,6 @@
 
 package org.apache.ignite.testsuites;
 
-import junit.framework.TestSuite;
 import org.apache.ignite.internal.processors.cache.IgnitePdsSingleNodeWithIndexingAndGroupPutGetPersistenceSelfTest;
 import org.apache.ignite.internal.processors.cache.IgnitePdsSingleNodeWithIndexingPutGetPersistenceTest;
 import org.apache.ignite.internal.processors.cache.persistence.db.IgniteTcBotInitNewPageTest;
@@ -28,29 +27,24 @@ import org.apache.ignite.internal.processors.database.IgniteDbSingleNodeWithInde
 import org.apache.ignite.internal.processors.database.IgnitePersistentStoreQueryWithMultipleClassesPerCacheTest;
 import org.apache.ignite.internal.processors.database.IgnitePersistentStoreSchemaLoadTest;
 import org.apache.ignite.internal.processors.database.IgniteTwoRegionsRebuildIndexTest;
+import org.apache.ignite.internal.processors.database.RebuildIndexWithHistoricalRebalanceTest;
+import org.junit.runner.RunWith;
+import org.junit.runners.Suite;
 
-/**
- *
- */
-public class IgnitePdsWithIndexingTestSuite extends TestSuite {
-    /**
-     * @return Test suite.
-     * @throws Exception Thrown in case of the failure.
-     */
-    public static TestSuite suite() throws Exception {
-        TestSuite suite = new TestSuite("Ignite Db Memory Leaks With Indexing Test Suite");
-
-        suite.addTestSuite(IgniteDbSingleNodeWithIndexingWalRestoreTest.class);
-        suite.addTestSuite(IgniteDbSingleNodeWithIndexingPutGetTest.class);
-        suite.addTestSuite(IgniteDbMultiNodeWithIndexingPutGetTest.class);
-        suite.addTestSuite(IgnitePdsSingleNodeWithIndexingPutGetPersistenceTest.class);
-        suite.addTestSuite(IgnitePdsSingleNodeWithIndexingAndGroupPutGetPersistenceSelfTest.class);
-        suite.addTestSuite(IgnitePersistentStoreSchemaLoadTest.class);
-        suite.addTestSuite(IgnitePersistentStoreQueryWithMultipleClassesPerCacheTest.class);
-        suite.addTestSuite(IgniteTwoRegionsRebuildIndexTest.class);
-        suite.addTestSuite(IgniteTcBotInitNewPageTest.class);
-        suite.addTestSuite(IndexingMultithreadedLoadContinuousRestartTest.class);
-
-        return suite;
-    }
+/** */
+@RunWith(Suite.class)
+@Suite.SuiteClasses({
+    IgniteDbSingleNodeWithIndexingWalRestoreTest.class,
+    IgniteDbSingleNodeWithIndexingPutGetTest.class,
+    IgniteDbMultiNodeWithIndexingPutGetTest.class,
+    IgnitePdsSingleNodeWithIndexingPutGetPersistenceTest.class,
+    IgnitePdsSingleNodeWithIndexingAndGroupPutGetPersistenceSelfTest.class,
+    IgnitePersistentStoreSchemaLoadTest.class,
+    IgnitePersistentStoreQueryWithMultipleClassesPerCacheTest.class,
+    IgniteTwoRegionsRebuildIndexTest.class,
+    IgniteTcBotInitNewPageTest.class,
+    RebuildIndexWithHistoricalRebalanceTest.class,
+    IndexingMultithreadedLoadContinuousRestartTest.class
+})
+public class IgnitePdsWithIndexingTestSuite {
 }

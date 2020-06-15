@@ -26,15 +26,15 @@ import org.apache.ignite.internal.binary.BinaryRawReaderEx;
 import org.apache.ignite.internal.processors.platform.PlatformContext;
 import org.apache.ignite.internal.processors.platform.client.ClientConnectionContext;
 import org.apache.ignite.internal.processors.platform.client.ClientResponse;
+import org.apache.ignite.internal.processors.platform.client.tx.ClientTxAwareRequest;
 import org.apache.ignite.internal.processors.platform.utils.PlatformUtils;
 import org.apache.ignite.lang.IgniteBiPredicate;
-import org.apache.ignite.plugin.security.SecurityPermission;
 
 /**
  * Scan query request.
  */
 @SuppressWarnings("unchecked")
-public class ClientCacheScanQueryRequest extends ClientCacheRequest {
+public class ClientCacheScanQueryRequest extends ClientCacheDataRequest implements ClientTxAwareRequest {
     /** Java filter. */
     private static final byte FILTER_PLATFORM_JAVA = 1;
 
@@ -81,8 +81,6 @@ public class ClientCacheScanQueryRequest extends ClientCacheRequest {
 
     /** {@inheritDoc} */
     @Override public ClientResponse process(ClientConnectionContext ctx) {
-        authorize(ctx, SecurityPermission.CACHE_READ);
-
         IgniteCache cache = filterPlatform == FILTER_PLATFORM_JAVA && !isKeepBinary() ? rawCache(ctx) : cache(ctx);
 
         ScanQuery qry = new ScanQuery()

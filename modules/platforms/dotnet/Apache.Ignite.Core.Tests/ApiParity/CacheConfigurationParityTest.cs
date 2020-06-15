@@ -24,6 +24,7 @@ namespace Apache.Ignite.Core.Tests.ApiParity
     /// <summary>
     /// Tests that .NET <see cref="CacheConfiguration"/> has all properties from Java configuration APIs.
     /// </summary>
+    [Ignore(ParityTest.IgnoreReason)]
     public class CacheConfigurationParityTest
     {
         /** Known property name mappings. */
@@ -60,7 +61,9 @@ namespace Apache.Ignite.Core.Tests.ApiParity
             "EvictionPolicyFactory",  // IGNITE-6649,
             "isSqlOnheapCacheEnabled",  // IGNITE-7379,
             "SqlOnheapCacheMaxSize", // IGNITE-7379,
-            "isEventsDisabled"  // IGNITE-7346
+            "isEventsDisabled",  // IGNITE-7346
+            "DiskPageCompression", // IGNITE-10332
+            "DiskPageCompressionLevel" // IGNITE-10332
         };
 
         /// <summary>

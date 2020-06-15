@@ -72,10 +72,12 @@ namespace Apache.Ignite.Core.Tests.Client.Cache
                 Assert.AreEqual(200, serverCache[2].Id);
 
                 // SQL from server cache.
+#pragma warning disable 618
                 var sqlRes = serverCache.Query(new SqlQuery(typeof(Person), "where id = 100")).GetAll().Single();
                 Assert.AreEqual(1, sqlRes.Key);
                 Assert.AreEqual(100, sqlRes.Value.Id);
                 Assert.AreEqual("foo", sqlRes.Value.Name);
+#pragma warning restore 618
             }
         }
 
@@ -92,12 +94,6 @@ namespace Apache.Ignite.Core.Tests.Client.Cache
 
             /** <inheritdoc /> */
             public List<IBinaryType> GetBinaryTypes()
-            {
-                return null;
-            }
-
-            /** <inheritdoc /> */
-            public int[] GetSchema(int typeId, int schemaId)
             {
                 return null;
             }

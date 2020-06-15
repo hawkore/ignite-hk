@@ -20,9 +20,9 @@ package org.apache.ignite.ml.math;
 import com.github.fommil.netlib.BLAS;
 import com.github.fommil.netlib.F2jBLAS;
 import java.util.Set;
-import org.apache.ignite.ml.math.exceptions.CardinalityException;
-import org.apache.ignite.ml.math.exceptions.MathIllegalArgumentException;
-import org.apache.ignite.ml.math.exceptions.NonSquareMatrixException;
+import org.apache.ignite.ml.math.exceptions.math.CardinalityException;
+import org.apache.ignite.ml.math.exceptions.math.MathIllegalArgumentException;
+import org.apache.ignite.ml.math.exceptions.math.NonSquareMatrixException;
 import org.apache.ignite.ml.math.primitives.matrix.Matrix;
 import org.apache.ignite.ml.math.primitives.matrix.impl.DenseMatrix;
 import org.apache.ignite.ml.math.primitives.matrix.impl.SparseMatrix;
@@ -37,12 +37,12 @@ import org.apache.ignite.ml.math.util.MatrixUtil;
  */
 public class Blas {
     /** F2J implementation of BLAS. */
-    transient static private BLAS f2jBlas = new F2jBLAS();
+    private static transient BLAS f2jBlas = new F2jBLAS();
 
     /**
      * Native implementation of BLAS. F2J implementation will be used as fallback if no native implementation is found.
      */
-    transient static private BLAS nativeBlas = BLAS.getInstance();
+    private static transient BLAS nativeBlas = BLAS.getInstance();
 
     /**
      * Performs y += a * x

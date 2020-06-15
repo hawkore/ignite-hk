@@ -24,7 +24,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import org.apache.ignite.IgniteCacheRestartingException;
 import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.IgniteException;
 import org.apache.ignite.cache.CacheInterceptor;
 import org.apache.ignite.cache.CacheWriteSynchronizationMode;
 import org.apache.ignite.internal.cluster.ClusterTopologyServerNotFoundException;
@@ -33,6 +35,7 @@ import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.KeyCacheObject;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtTopologyFuture;
+import org.apache.ignite.internal.processors.cache.mvcc.MvccCachingManager;
 import org.apache.ignite.internal.processors.cache.store.CacheStoreManager;
 import org.apache.ignite.internal.util.GridIntList;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
@@ -74,6 +77,9 @@ public class IgniteTxStateImpl extends IgniteTxLocalStateAdapter {
     /** */
     @GridToStringInclude
     protected Boolean mvccEnabled;
+
+    /** Cache ids used for mvcc caching. See {@link MvccCachingManager}. */
+    private GridIntList mvccCachingCacheIds = new GridIntList();
 
     /** {@inheritDoc} */
     @Override public boolean implicitSingle() {
@@ -118,6 +124,9 @@ public class IgniteTxStateImpl extends IgniteTxLocalStateAdapter {
         for (int i = 0; i < activeCacheIds.size(); i++) {
             int cacheId = activeCacheIds.get(i);
 
+            if (cctx.cacheContext(cacheId) == null)
+                throw new IgniteException("Cache is stopped, id=" + cacheId);
+
             cctx.cacheContext(cacheId).cache().awaitLastFut();
         }
     }
@@ -149,7 +158,7 @@ public class IgniteTxStateImpl extends IgniteTxLocalStateAdapter {
 
             assert ctx != null : cacheId;
 
-            Throwable err = topFut.validateCache(ctx, recovery != null && recovery, read, null, e.getValue());
+            Throwable err = topFut.validateCache(ctx, recovery(), read, null, e.getValue());
 
             if (err != null) {
                 if (invalidCaches != null)
@@ -178,6 +187,11 @@ public class IgniteTxStateImpl extends IgniteTxLocalStateAdapter {
         }
 
         return null;
+    }
+
+    /** {@inheritDoc} */
+    @Override public boolean recovery() {
+        return recovery != null && recovery;
     }
 
     /** {@inheritDoc} */
@@ -255,8 +269,12 @@ public class IgniteTxStateImpl extends IgniteTxLocalStateAdapter {
                     ", cacheSystem=" + cacheCtx.systemTx() +
                     ", txSystem=" + tx.system() + ']');
             }
-            else
+            else {
                 activeCacheIds.add(cacheId);
+
+                if (cacheCtx.mvccEnabled() && (cacheCtx.hasContinuousQueryListeners(tx) || cacheCtx.isDrEnabled()))
+                    mvccCachingCacheIds.add(cacheId);
+            }
 
             if (activeCacheIds.size() == 1)
                 tx.activeCachesDeploymentEnabled(cacheCtx.deploymentEnabled());
@@ -270,15 +288,18 @@ public class IgniteTxStateImpl extends IgniteTxLocalStateAdapter {
 
         GridCacheContext<?, ?> nonLocCtx = null;
 
+        Map<Integer, GridCacheContext> cacheCtxs = U.newHashMap(activeCacheIds.size());
+
         for (int i = 0; i < activeCacheIds.size(); i++) {
             int cacheId = activeCacheIds.get(i);
 
             GridCacheContext<?, ?> cacheCtx = cctx.cacheContext(cacheId);
 
             if (!cacheCtx.isLocal()) {
-                nonLocCtx = cacheCtx;
+                if (nonLocCtx == null)
+                    nonLocCtx = cacheCtx;
 
-                break;
+                cacheCtxs.putIfAbsent(cacheCtx.cacheId(), cacheCtx);
             }
         }
 
@@ -287,10 +308,17 @@ public class IgniteTxStateImpl extends IgniteTxLocalStateAdapter {
 
         nonLocCtx.topology().readLock();
 
-        if (nonLocCtx.topology().stopping()) {
-            fut.onDone(new CacheStoppedException(nonLocCtx.name()));
+        for (Map.Entry<Integer, GridCacheContext> e : cacheCtxs.entrySet()) {
+            GridCacheContext activeCacheCtx = e.getValue();
 
-            return null;
+            if (activeCacheCtx.topology().stopping()) {
+                fut.onDone(
+                    cctx.cache().isCacheRestarting(activeCacheCtx.name()) ?
+                        new IgniteCacheRestartingException(activeCacheCtx.name()) :
+                        new CacheStoppedException(activeCacheCtx.name()));
+
+                return null;
+            }
         }
 
         return nonLocCtx.topology().topologyVersionFuture();
@@ -377,6 +405,8 @@ public class IgniteTxStateImpl extends IgniteTxLocalStateAdapter {
 
             GridCacheContext cacheCtx = cctx.cacheContext(cacheId);
 
+            assert cacheCtx != null : "cacheCtx == null, cacheId=" + cacheId;
+
             onTxEnd(cacheCtx, tx, commit);
         }
     }
@@ -409,7 +439,7 @@ public class IgniteTxStateImpl extends IgniteTxLocalStateAdapter {
      * @return All entries. Returned collection is copy of internal collection.
      */
     public synchronized Collection<IgniteTxEntry> allEntriesCopy() {
-        return txMap == null ? Collections.<IgniteTxEntry>emptySet() : new HashSet<>(txMap.values());
+        return txMap == null ? Collections.<IgniteTxEntry>emptySet() : new ArrayList<>(txMap.values());
     }
 
     /** {@inheritDoc} */
@@ -463,6 +493,11 @@ public class IgniteTxStateImpl extends IgniteTxLocalStateAdapter {
     }
 
     /** {@inheritDoc} */
+    @Override public synchronized void removeEntry(IgniteTxKey key) {
+        txMap.remove(key);
+    }
+
+    /** {@inheritDoc} */
     @Override public void seal() {
         if (readView != null)
             readView.seal();
@@ -479,6 +514,11 @@ public class IgniteTxStateImpl extends IgniteTxLocalStateAdapter {
     /** {@inheritDoc} */
     @Override public boolean mvccEnabled() {
         return Boolean.TRUE == mvccEnabled;
+    }
+
+    /** {@inheritDoc} */
+    @Override public boolean useMvccCaching(int cacheId) {
+        return mvccCachingCacheIds.contains(cacheId);
     }
 
     /** {@inheritDoc} */

@@ -22,12 +22,12 @@ import org.apache.ignite.cache.CachePeekMode;
 import org.apache.ignite.internal.processors.platform.client.ClientConnectionContext;
 import org.apache.ignite.internal.processors.platform.client.ClientLongResponse;
 import org.apache.ignite.internal.processors.platform.client.ClientResponse;
-import org.apache.ignite.plugin.security.SecurityPermission;
+import org.apache.ignite.internal.processors.platform.client.tx.ClientTxAwareRequest;
 
 /**
  * Cache size request.
  */
-public class ClientCacheGetSizeRequest extends ClientCacheRequest {
+public class ClientCacheGetSizeRequest extends ClientCacheDataRequest implements ClientTxAwareRequest {
     /** Peek modes. */
     private final CachePeekMode[] modes;
 
@@ -49,10 +49,7 @@ public class ClientCacheGetSizeRequest extends ClientCacheRequest {
     }
 
     /** {@inheritDoc} */
-    @SuppressWarnings("unchecked")
     @Override public ClientResponse process(ClientConnectionContext ctx) {
-        authorize(ctx, SecurityPermission.CACHE_READ);
-
         long res = cache(ctx).sizeLong(modes);
 
         return new ClientLongResponse(requestId(), res);

@@ -18,7 +18,6 @@
 package org.apache.ignite.internal.util.tostring;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
@@ -36,7 +35,7 @@ class GridToStringClassDescriptor {
     private final String fqn;
 
     /** */
-    private List<GridToStringFieldDescriptor> fields = new ArrayList<>();
+    private ArrayList<GridToStringFieldDescriptor> fields = new ArrayList<>();
 
     /**
      * @param cls Class.
@@ -59,12 +58,9 @@ class GridToStringClassDescriptor {
 
     /** */
     void sortFields() {
-        Collections.sort(fields, new Comparator<GridToStringFieldDescriptor>() {
-            /** {@inheritDoc} */
-            @Override public int compare(GridToStringFieldDescriptor arg0, GridToStringFieldDescriptor arg1) {
-                return arg0.getOrder() < arg1.getOrder() ? -1 : arg0.getOrder() > arg1.getOrder() ? 1 : 0;
-            }
-        });
+        fields.trimToSize();
+
+        fields.sort(Comparator.comparingInt(GridToStringFieldDescriptor::getOrder));
     }
 
     /**

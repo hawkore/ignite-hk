@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.apache.ignite.Ignite;
-import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteDataStreamer;
 import org.apache.ignite.cache.CacheAtomicityMode;
 import org.apache.ignite.cache.CacheRebalanceMode;
@@ -33,20 +32,19 @@ import org.apache.ignite.configuration.DataStorageConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.configuration.WALMode;
 import org.apache.ignite.spi.checkpoint.noop.NoopCheckpointSpi;
+import org.apache.ignite.testframework.GridTestUtils.SF;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
+import org.junit.Test;
 
 /**
  *
  */
 public class IgnitePdsWholeClusterRestartTest extends GridCommonAbstractTest {
     /** */
-    private static final int GRID_CNT = 5;
+    private static final int GRID_CNT = SF.applyLB(5, 3);
 
     /** */
-    private static final int ENTRIES_COUNT = 1_000;
-
-    /** */
-    public static final String CACHE_NAME = "cache1";
+    private static final int ENTRIES_COUNT = SF.apply(1_000);
 
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String gridName) throws Exception {
@@ -59,9 +57,8 @@ public class IgnitePdsWholeClusterRestartTest extends GridCommonAbstractTest {
 
         cfg.setDataStorageConfiguration(memCfg);
 
-        CacheConfiguration ccfg1 = new CacheConfiguration();
+        CacheConfiguration ccfg1 = defaultCacheConfiguration();
 
-        ccfg1.setName(CACHE_NAME);
         ccfg1.setAtomicityMode(CacheAtomicityMode.TRANSACTIONAL);
         ccfg1.setRebalanceMode(CacheRebalanceMode.SYNC);
         ccfg1.setWriteSynchronizationMode(CacheWriteSynchronizationMode.FULL_SYNC);
@@ -94,9 +91,10 @@ public class IgnitePdsWholeClusterRestartTest extends GridCommonAbstractTest {
         cleanPersistenceDir();
     }
 
-        /**
+    /**
      * @throws Exception if failed.
      */
+    @Test
     public void testRestarts() throws Exception {
         startGrids(GRID_CNT);
 
@@ -104,7 +102,7 @@ public class IgnitePdsWholeClusterRestartTest extends GridCommonAbstractTest {
 
         awaitPartitionMapExchange();
 
-        try (IgniteDataStreamer<Object, Object> ds = ignite(0).dataStreamer(CACHE_NAME)) {
+        try (IgniteDataStreamer<Object, Object> ds = ignite(0).dataStreamer(DEFAULT_CACHE_NAME)) {
             for (int i = 0; i < ENTRIES_COUNT; i++)
                 ds.addData(i, i);
         }
@@ -116,7 +114,7 @@ public class IgnitePdsWholeClusterRestartTest extends GridCommonAbstractTest {
         for (int i = 0; i < GRID_CNT; i++)
             idxs.add(i);
 
-        for (int r = 0; r < 10; r++) {
+        for (int r = 0; r < SF.applyLB(10, 3); r++) {
             Collections.shuffle(idxs);
 
             info("Will start in the following order: " + idxs);
@@ -131,9 +129,9 @@ public class IgnitePdsWholeClusterRestartTest extends GridCommonAbstractTest {
                     Ignite ig = ignite(g);
 
                     for (int k = 0; k < ENTRIES_COUNT; k++)
-                        assertEquals("Failed to read [g=" + g + ", part=" + ig.affinity(CACHE_NAME).partition(k) +
-                            ", nodes=" + ig.affinity(CACHE_NAME).mapKeyToPrimaryAndBackups(k) + ']',
-                            k, ig.cache(CACHE_NAME).get(k));
+                        assertEquals("Failed to read [g=" + g + ", part=" + ig.affinity(DEFAULT_CACHE_NAME).partition(k) +
+                                ", nodes=" + ig.affinity(DEFAULT_CACHE_NAME).mapKeyToPrimaryAndBackups(k) + ']',
+                            k, ig.cache(DEFAULT_CACHE_NAME).get(k));
                 }
             }
             finally {

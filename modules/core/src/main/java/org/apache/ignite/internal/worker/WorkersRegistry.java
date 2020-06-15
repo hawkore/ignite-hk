@@ -212,7 +212,7 @@ public class WorkersRegistry implements GridWorkerListener {
                         // That is, if worker is dead, but still resides in registeredWorkers
                         // then something went wrong, the only extra thing is to test
                         // whether the iterator refers to actual state of registeredWorkers.
-                        GridWorker worker0 = registeredWorkers.get(worker.runner().getName());
+                        GridWorker worker0 = registeredWorkers.get(runner.getName());
 
                         if (worker0 != null && worker0 == worker)
                             workerFailedHnd.apply(worker, SYSTEM_WORKER_TERMINATION);
@@ -221,12 +221,13 @@ public class WorkersRegistry implements GridWorkerListener {
                     long heartbeatDelay = U.currentTimeMillis() - worker.heartbeatTs();
 
                     if (heartbeatDelay > sysWorkerBlockedTimeout) {
-                        GridWorker worker0 = registeredWorkers.get(worker.runner().getName());
+                        GridWorker worker0 = registeredWorkers.get(runner.getName());
 
                         if (worker0 != null && worker0 == worker) {
                             log.error("Blocked system-critical thread has been detected. " +
-                                "This can lead to cluster-wide undefined behaviour " +
-                                "[threadName=" + worker.name() + ", blockedFor=" + heartbeatDelay / 1000 + "s]");
+                                    "This can lead to cluster-wide undefined behaviour " +
+                                    "[workerName=" + worker.name() + ", threadName=" + runner.getName() +
+                                    ", blockedFor=" + heartbeatDelay / 1000 + "s]");
 
                             U.dumpThread(worker.runner(), log);
 

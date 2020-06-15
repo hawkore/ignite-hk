@@ -17,19 +17,18 @@
 
 package org.apache.ignite.internal.processors.cache;
 
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
+import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsExchangeFuture;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsFullMessage;
-import org.apache.ignite.internal.util.GridLongList;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.IgniteSystemProperties.getBoolean;
+import static org.apache.ignite.internal.IgniteFeatures.PME_FREE_SWITCH;
+import static org.apache.ignite.internal.IgniteFeatures.allNodesSupports;
 import static org.apache.ignite.internal.events.DiscoveryCustomEvent.EVT_DISCOVERY_CUSTOM_EVT;
 import static org.apache.ignite.internal.processors.cache.GridCachePartitionExchangeManager.exchangeProtocolVersion;
 
@@ -40,11 +39,17 @@ public class ExchangeContext {
     /** */
     public static final String IGNITE_EXCHANGE_COMPATIBILITY_VER_1 = "IGNITE_EXCHANGE_COMPATIBILITY_VER_1";
 
+    /** Logger. */
+    private final IgniteLogger log;
+
     /** Cache groups to request affinity for during local join exchange. */
     private Set<Integer> requestGrpsAffOnJoin;
 
     /** Per-group affinity fetch on join (old protocol). */
     private boolean fetchAffOnJoin;
+
+    /** PME is not required. */
+    private boolean exchangeFreeSwitch;
 
     /** Merges allowed flag. */
     private final boolean merge;
@@ -55,25 +60,31 @@ public class ExchangeContext {
     /** */
     private final boolean compatibilityNode = getBoolean(IGNITE_EXCHANGE_COMPATIBILITY_VER_1, false);
 
-    /** */
-    private final boolean newMvccCrd;
-
-    /** Currently running mvcc queries, initialized when mvcc coordinator is changed. */
-    private Map<UUID, GridLongList> activeQueries;
-
     /**
+     * @param cctx Context.
      * @param crd Coordinator flag.
-     * @param newMvccCrd {@code True} if new coordinator assigned during this exchange.
      * @param fut Exchange future.
      */
-    public ExchangeContext(boolean crd, boolean newMvccCrd, GridDhtPartitionsExchangeFuture fut) {
-        this.newMvccCrd = newMvccCrd;
+    public ExchangeContext(GridCacheSharedContext<?, ?> cctx, boolean crd, GridDhtPartitionsExchangeFuture fut) {
+        log = cctx.logger(getClass());
 
         int protocolVer = exchangeProtocolVersion(fut.firstEventCache().minimumNodeVersion());
 
-        if (compatibilityNode || (crd && fut.localJoinExchange())) {
-            fetchAffOnJoin = true;
+        boolean allNodesSupportsPmeFreeSwitch = allNodesSupports(fut.firstEventCache().allNodes(), PME_FREE_SWITCH);
 
+        if (!allNodesSupportsPmeFreeSwitch)
+            log.warning("Current topology does not support the PME-free switch. Please check all nodes support" +
+                " this feature and it was not explicitly disabled by IGNITE_PME_FREE_SWITCH_DISABLED JVM option.");
+
+        if (!compatibilityNode &&
+            fut.wasRebalanced() &&
+            fut.isBaselineNodeFailed() &&
+            allNodesSupportsPmeFreeSwitch) {
+            exchangeFreeSwitch = true;
+            merge = false;
+        }
+        else if (compatibilityNode || (crd && fut.localJoinExchange())) {
+            fetchAffOnJoin = true;
             merge = false;
         }
         else {
@@ -114,9 +125,16 @@ public class ExchangeContext {
     }
 
     /**
+     * @return {@code True} if it's safe to perform PME-free switch.
+     */
+    public boolean exchangeFreeSwitch() {
+        return exchangeFreeSwitch;
+    }
+
+    /**
      * @param grpId Cache group ID.
      */
-    void addGroupAffinityRequestOnJoin(Integer grpId) {
+    synchronized void addGroupAffinityRequestOnJoin(Integer grpId) {
         if (requestGrpsAffOnJoin == null)
             requestGrpsAffOnJoin = new HashSet<>();
 
@@ -126,7 +144,7 @@ public class ExchangeContext {
     /**
      * @return Groups to request affinity for.
      */
-    @Nullable public Set<Integer> groupsAffinityRequestOnJoin() {
+    @Nullable public synchronized Set<Integer> groupsAffinityRequestOnJoin() {
         return requestGrpsAffOnJoin;
     }
 
@@ -135,34 +153,6 @@ public class ExchangeContext {
      */
     public boolean mergeExchanges() {
         return merge;
-    }
-
-    /**
-     * @return {@code True} if new node assigned as mvcc coordinator node during this exchange.
-     */
-    public boolean newMvccCoordinator() {
-        return newMvccCrd;
-    }
-
-    /**
-     * @return Active queries.
-     */
-    public Map<UUID, GridLongList> activeQueries() {
-        return activeQueries;
-    }
-
-    /**
-     * @param nodeId Node ID.
-     * @param nodeQueries Node queries.
-     */
-    public void addActiveQueries(UUID nodeId, @Nullable GridLongList nodeQueries) {
-        if (nodeQueries == null)
-            return;
-
-        if (activeQueries == null)
-            activeQueries = new HashMap<>();
-
-        activeQueries.put(nodeId, nodeQueries);
     }
 
     /** {@inheritDoc} */

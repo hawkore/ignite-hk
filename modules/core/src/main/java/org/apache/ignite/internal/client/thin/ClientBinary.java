@@ -27,6 +27,7 @@ import org.apache.ignite.binary.BinaryType;
 import org.apache.ignite.internal.binary.BinaryContext;
 import org.apache.ignite.internal.binary.BinaryEnumObjectImpl;
 import org.apache.ignite.internal.binary.BinaryMetadata;
+import org.apache.ignite.internal.binary.BinaryUtils;
 import org.apache.ignite.internal.binary.builder.BinaryObjectBuilderImpl;
 import org.apache.ignite.internal.binary.streams.BinaryHeapInputStream;
 
@@ -50,12 +51,11 @@ class ClientBinary implements IgniteBinary {
     }
 
     /** {@inheritDoc} */
-    @SuppressWarnings("unchecked")
     @Override public <T> T toBinary(Object obj) {
         if (obj == null)
             return null;
 
-        if (obj instanceof IgniteBinary)
+        if (BinaryUtils.isBinaryType(obj.getClass()))
             return (T)obj;
 
         byte[] objBytes = marsh.marshal(obj);

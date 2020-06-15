@@ -22,7 +22,7 @@ import org.apache.ignite.ml.math.primitives.vector.Vector;
 /**
  * Decision tree leaf node which contains value.
  */
-public class DecisionTreeLeafNode implements DecisionTreeNode {
+public final class DecisionTreeLeafNode implements DecisionTreeNode {
     /** */
     private static final long serialVersionUID = -472145568088482206L;
 
@@ -39,7 +39,7 @@ public class DecisionTreeLeafNode implements DecisionTreeNode {
     }
 
     /** {@inheritDoc} */
-    @Override public Double apply(Vector doubles) {
+    @Override public Double predict(Vector doubles) {
         return val;
     }
 

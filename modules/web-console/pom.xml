@@ -50,6 +50,35 @@
             <artifactId>ignite-web-agent</artifactId>
             <version>${project.version}</version>
         </dependency>
+
+        <!-- Test dependencies -->
+        <dependency>
+            <groupId>org.apache.ignite</groupId>
+            <artifactId>ignite-hadoop</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.ignite</groupId>
+            <artifactId>ignite-aws</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.ignite</groupId>
+            <artifactId>ignite-hibernate_5.1</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.ignite</groupId>
+            <artifactId>ignite-urideploy</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <profiles>
@@ -300,54 +329,83 @@
             <build>
                 <plugins>
                     <plugin>
-                        <groupId>io.fabric8</groupId>
-                        <artifactId>docker-maven-plugin</artifactId>
-                        <version>0.30.0</version>
-                        <configuration>
-                            <images>
-                                <image>
-                                    <name>${docker.registry.host}/${docker.repository}/${docker.backend.image}:${project.version}</name>
-                                    <build>
-                                        <contextDir>${project.basedir}</contextDir>
-                                        <dockerFile>docker/compose/backend/Dockerfile</dockerFile>
-                                        <filter>@</filter>
-                                        <cleanup>try</cleanup>
-                                    </build>
-                                </image>
-                                <image>
-                                    <name>${docker.registry.host}/${docker.repository}/${docker.frontend.image}:${project.version}</name>
-                                    <build>
-                                        <contextDir>${project.basedir}</contextDir>
-                                        <dockerFile>docker/compose/frontend/Dockerfile</dockerFile>
-                                        <filter>@</filter>
-                                        <cleanup>try</cleanup>
-                                    </build>
-                                </image>
-                                <image>
-                                    <name>${docker.registry.host}/${docker.repository}/${docker.standalone.image}:${project.version}</name>
-                                    <build>
-                                        <contextDir>${project.basedir}</contextDir>
-                                        <dockerFile>docker/standalone/Dockerfile</dockerFile>
-                                        <filter>@</filter>
-                                        <cleanup>try</cleanup>
-                                    </build>
-                                </image>
-                            </images>
-                        </configuration>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
                         <executions>
                             <execution>
-                                <id>docker-build</id>
-                                <phase>install</phase>
+                                <id>docker-build-backend</id>
+                                <phase>package</phase>
                                 <goals>
-                                    <goal>build</goal>
+                                    <goal>exec</goal>
                                 </goals>
+                                <configuration>
+                                    <executable>docker</executable>
+                                    <arguments>
+                                        <argument>build</argument>
+                                        <argument>-f</argument>
+                                        <argument>docker/compose/backend/Dockerfile</argument>
+                                        <argument>-t</argument>
+                                        <argument>
+                                            ${docker.registry.host}/${docker.repository}/${docker.backend.image}:${project.version}
+                                        </argument>
+                                        <argument>${project.basedir}</argument>
+                                    </arguments>
+                                </configuration>
                             </execution>
+
                             <execution>
-                                <id>docker-push</id>
+                                <id>docker-build-frontend</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>docker</executable>
+                                    <arguments>
+                                        <argument>build</argument>
+                                        <argument>-f</argument>
+                                        <argument>docker/compose/frontend/Dockerfile</argument>
+                                        <argument>-t</argument>
+                                        <argument>
+                                            ${docker.registry.host}/${docker.repository}/${docker.frontend.image}:${project.version}
+                                        </argument>
+                                        <argument>${project.basedir}</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+
+                            <execution>
+                                <id>docker-push-backend</id>
                                 <phase>deploy</phase>
                                 <goals>
-                                    <goal>push</goal>
+                                    <goal>exec</goal>
                                 </goals>
+                                <configuration>
+                                    <executable>docker</executable>
+                                    <arguments>
+                                        <argument>push</argument>
+                                        <argument>
+                                            ${docker.registry.host}/${docker.repository}/${docker.backend.image}:${project.version}
+                                        </argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+
+                            <execution>
+                                <id>docker-push-frontend</id>
+                                <phase>deploy</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>docker</executable>
+                                    <arguments>
+                                        <argument>push</argument>
+                                        <argument>
+                                            ${docker.registry.host}/${docker.repository}/${docker.frontend.image}:${project.version}
+                                        </argument>
+                                    </arguments>
+                                </configuration>
                             </execution>
                         </executions>
                     </plugin>
@@ -364,6 +422,13 @@
                 <configuration>
                     <skip>true</skip>
                 </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>test-jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
 
             <plugin>

@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
@@ -53,7 +54,7 @@ public class CacheGroupDescriptor {
 
     /** */
     @GridToStringExclude
-    private final CacheConfiguration<?, ?> cacheCfg;
+    private volatile CacheConfiguration<?, ?> cacheCfg;
 
     /** */
     @GridToStringInclude
@@ -70,6 +71,12 @@ public class CacheGroupDescriptor {
 
     /** Pending WAL change requests. */
     private final LinkedList<WalStateProposeMessage> walChangeReqs;
+
+    /** Cache config enrichment. */
+    private final CacheConfigurationEnrichment cacheCfgEnrichment;
+
+    /** Is configuration enriched. */
+    private volatile boolean cacheCfgEnriched;
 
     /**
      * @param cacheCfg Cache configuration.
@@ -94,7 +101,9 @@ public class CacheGroupDescriptor {
         Map<String, Integer> caches,
         boolean persistenceEnabled,
         boolean walEnabled,
-        @Nullable Collection<WalStateProposeMessage> walChangeReqs) {
+        @Nullable Collection<WalStateProposeMessage> walChangeReqs,
+        CacheConfigurationEnrichment cacheCfgEnrichment
+    ) {
         assert cacheCfg != null;
         assert grpId != 0;
 
@@ -108,6 +117,7 @@ public class CacheGroupDescriptor {
         this.persistenceEnabled = persistenceEnabled;
         this.walEnabled = walEnabled;
         this.walChangeReqs = walChangeReqs == null ? new LinkedList<>() : new LinkedList<>(walChangeReqs);
+        this.cacheCfgEnrichment = cacheCfgEnrichment;
     }
 
     /**
@@ -255,6 +265,13 @@ public class CacheGroupDescriptor {
     }
 
     /**
+     * @param cacheCfg Cache config.
+     */
+    public void config(CacheConfiguration cacheCfg) {
+        this.cacheCfg = cacheCfg;
+    }
+
+    /**
      * @return Group caches.
      */
     public Map<String, Integer> caches() {
@@ -307,8 +324,47 @@ public class CacheGroupDescriptor {
         return persistenceEnabled;
     }
 
+    /**
+     * @return Cache configuration enrichment.
+     */
+    public CacheConfigurationEnrichment cacheConfigurationEnrichment() {
+        return cacheCfgEnrichment;
+    }
+
+    /**
+     * @return {@code True} if cache configuration is already enriched.
+     */
+    public boolean isConfigurationEnriched() {
+        return cacheCfgEnrichment == null || cacheCfgEnriched;
+    }
+
+    /**
+     * @param cacheCfgEnriched Is configuration enriched.
+     */
+    public void configurationEnriched(boolean cacheCfgEnriched) {
+        this.cacheCfgEnriched = cacheCfgEnriched;
+    }
+
     /** {@inheritDoc} */
     @Override public String toString() {
         return S.toString(CacheGroupDescriptor.class, this, "cacheName", cacheCfg.getName());
+    }
+
+    /** {@inheritDoc} */
+    @Override public boolean equals(Object o) {
+        if (this == o)
+            return true;
+
+        if (o == null || getClass() != o.getClass())
+            return false;
+
+        CacheGroupDescriptor that = (CacheGroupDescriptor) o;
+
+        return grpId == that.grpId;
+    }
+
+    /** {@inheritDoc} */
+    @Override public int hashCode() {
+        return Objects.hash(grpId);
     }
 }

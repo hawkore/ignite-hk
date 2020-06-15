@@ -17,8 +17,6 @@
 
 package org.apache.ignite.internal.processors.datastructures;
 
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
-
 import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
@@ -43,6 +41,8 @@ import org.apache.ignite.IgniteInterruptedException;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.IgniteQueue;
 import org.apache.ignite.configuration.CollectionConfiguration;
+import org.apache.ignite.binary.BinaryObject;
+import org.apache.ignite.internal.processors.cache.CacheOperationContext;
 import org.apache.ignite.internal.processors.cache.GridCacheAdapter;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
@@ -55,6 +55,9 @@ import org.apache.ignite.lang.IgniteCallable;
 import org.apache.ignite.lang.IgniteRunnable;
 import org.apache.ignite.lang.IgniteUuid;
 import org.jetbrains.annotations.Nullable;
+
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.ignite.internal.processors.cache.CacheOperationContext.DFLT_ALLOW_ATOMIC_OPS_IN_TX;
 
 /**
  * Common code for {@link IgniteQueue} implementation.
@@ -144,19 +147,19 @@ public abstract class GridCacheQueueAdapter<T> extends AbstractCollection<T> imp
         this.writeSem = (this.bounded) ? new Semaphore(hdr.capacity() - hdr.size(), true) : null;
 
         if (colConfig!=null) {
-            U.log(log, "******** CONFIGURATION FOR QUEUE " + queueName + "********************");
-            U.log(log, colConfig.toString());
+            U.debug(log, "******** CONFIGURATION FOR QUEUE " + queueName + "********************");
+            U.debug(log, colConfig.toString());
         }
         if (queueCache!=null) {
-            U.log(log, "******** UNDERLINE HDR CACHE " + queueCache.name() + " FOR QUEUE " + queueName
+            U.debug(log, "******** UNDERLINE HDR CACHE " + queueCache.name() + " FOR QUEUE " + queueName
                 + "********************");
             if (queueCache.configuration()!=null) {
-                U.log(log, queueCache.configuration().toString());
+                U.debug(log, queueCache.configuration().toString());
             }
         }
 
     }
-    
+
     /** {@inheritDoc} */
     @Override public String name() {
         return queueName;
@@ -324,7 +327,7 @@ public abstract class GridCacheQueueAdapter<T> extends AbstractCollection<T> imp
             try {
                 if (writeSem.tryAcquire(end - U.currentTimeMillis(), MILLISECONDS)) {
                     checkStopping();
-                    
+
                     retVal = offer(item);
                 }
             }
@@ -412,11 +415,13 @@ public abstract class GridCacheQueueAdapter<T> extends AbstractCollection<T> imp
         A.ensure(batchSize >= 0, "Batch size cannot be negative: " + batchSize);
 
         try {
-            IgniteBiTuple<Long, Long> t =
-                    (IgniteBiTuple<Long, Long>)queueCache.invoke(queueKey, new ClearProcessor(id)).get();
+            Object obj = queueCache.invoke(queueKey, new ClearProcessor(id)).get();
 
-            if (t == null)
+            if (obj == null)
                 return;
+
+            IgniteBiTuple<Long, Long> t = obj instanceof BinaryObject ? ((BinaryObject)obj).deserialize()
+                : (IgniteBiTuple<Long, Long>)obj;
 
             checkRemoved(t.get1());
 
@@ -469,6 +474,30 @@ public abstract class GridCacheQueueAdapter<T> extends AbstractCollection<T> imp
                 ". This operation is supported only for collocated queues.");
 
         return compute.affinityCall(queueCache.name(), queueKey, job);
+    }
+
+    /** {@inheritDoc} */
+    @Override public <V1> IgniteQueue<V1> withKeepBinary() {
+        CacheOperationContext opCtx = cctx.operationContextPerCall();
+
+        if (opCtx != null && opCtx.isKeepBinary())
+            return (GridCacheQueueAdapter<V1>)this;
+
+        opCtx = opCtx == null ? new CacheOperationContext(
+            false,
+            null,
+            true,
+            null,
+            false,
+            null,
+            false,
+            false,
+            DFLT_ALLOW_ATOMIC_OPS_IN_TX)
+            : opCtx.keepBinary();
+
+        cctx.operationContextPerCall(opCtx);
+
+        return (GridCacheQueueAdapter<V1>)this;
     }
 
     /**
@@ -610,7 +639,7 @@ public abstract class GridCacheQueueAdapter<T> extends AbstractCollection<T> imp
 	public UUID getQueueNameUuid() {
 		return queueNameUuid;
 	}
-    
+
     /**
      * Removes item with given index from queue.
      *
@@ -628,7 +657,6 @@ public abstract class GridCacheQueueAdapter<T> extends AbstractCollection<T> imp
     }
 
     /** {@inheritDoc} */
-    @SuppressWarnings("unchecked")
     @Override public void close() {
         if (rmvd)
             return;

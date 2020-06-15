@@ -60,6 +60,7 @@ public class GridLuceneInputStream extends IndexInput implements Cloneable {
 
     /** */
     private boolean isClone;
+
     /**
      * Constructor.
      *

@@ -28,6 +28,7 @@ import static org.junit.Assert.assertEquals;
 public class TreeNodeTest {
     /** Features 1. */
     private final Vector features1 = VectorUtils.of(0., 1.);
+
     /** Features 2. */
     private final Vector features2 = VectorUtils.of(1., 0.);
 
@@ -68,12 +69,10 @@ public class TreeNodeTest {
     public void testPredictProba() {
         TreeNode root = new TreeNode(1, 1);
         List<TreeNode> leaves = root.toConditional(0, 0.1);
-        leaves.forEach(leaf -> {
-            leaf.toLeaf(leaf.getId().nodeId() % 2);
-        });
+        leaves.forEach(leaf -> leaf.toLeaf(leaf.getId().nodeId() % 2));
 
         assertEquals(TreeNode.Type.CONDITIONAL, root.getType());
-        assertEquals(0.0, root.apply(features1), 0.001);
-        assertEquals(1.0, root.apply(features2), 0.001);
+        assertEquals(0.0, root.predict(features1), 0.001);
+        assertEquals(1.0, root.predict(features2), 0.001);
     }
 }

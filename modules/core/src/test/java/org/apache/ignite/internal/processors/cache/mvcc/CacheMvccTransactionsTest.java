@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import javax.cache.Cache;
+import javax.cache.CacheException;
 import javax.cache.expiry.Duration;
 import javax.cache.expiry.TouchedExpiryPolicy;
 import javax.cache.processor.EntryProcessorException;
@@ -73,7 +74,6 @@ import org.apache.ignite.internal.processors.cache.mvcc.msg.MvccAckRequestQueryC
 import org.apache.ignite.internal.processors.cache.mvcc.msg.MvccAckRequestTx;
 import org.apache.ignite.internal.processors.cache.mvcc.msg.MvccSnapshotResponse;
 import org.apache.ignite.internal.processors.cache.persistence.CacheDataRow;
-import org.apache.ignite.internal.processors.cache.transactions.IgniteInternalTx;
 import org.apache.ignite.internal.util.lang.GridAbsPredicate;
 import org.apache.ignite.internal.util.lang.GridInClosure3;
 import org.apache.ignite.internal.util.typedef.CI1;
@@ -82,17 +82,18 @@ import org.apache.ignite.internal.util.typedef.G;
 import org.apache.ignite.internal.util.typedef.X;
 import org.apache.ignite.internal.util.typedef.internal.CU;
 import org.apache.ignite.internal.util.typedef.internal.S;
-import org.apache.ignite.internal.util.typedef.internal.U;
-import org.apache.ignite.lang.IgniteBiInClosure;
 import org.apache.ignite.lang.IgniteBiPredicate;
 import org.apache.ignite.lang.IgniteBiTuple;
 import org.apache.ignite.lang.IgniteInClosure;
 import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.testframework.GridTestUtils;
+import org.apache.ignite.testframework.GridTestUtils.SF;
+import org.apache.ignite.testframework.MvccFeatureChecker;
 import org.apache.ignite.transactions.Transaction;
 import org.apache.ignite.transactions.TransactionIsolation;
 import org.jetbrains.annotations.Nullable;
-import org.junit.Assert;
+import org.junit.Ignore;
+import org.junit.Test;
 
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
 import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
@@ -104,12 +105,13 @@ import static org.apache.ignite.transactions.TransactionConcurrency.PESSIMISTIC;
 import static org.apache.ignite.transactions.TransactionIsolation.REPEATABLE_READ;
 
 /**
- * TODO IGNITE-6739: tests reload
- * TODO IGNITE-6739: extend tests to use single/mutiple nodes, all tx types.
- * TODO IGNITE-6739: test with cache groups.
+ *
  */
 @SuppressWarnings("unchecked")
 public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
+    /** */
+    private static final long SCALED_10SEC_TEST_TIME = SF.applyLB(10_000, 3_000);
+
     /** {@inheritDoc} */
     @Override protected CacheMode cacheMode() {
         return PARTITIONED;
@@ -118,6 +120,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception if failed.
      */
+    @Test
     public void testEmptyTx() throws Exception {
         Ignite node = startGrids(2);
 
@@ -137,6 +140,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception if failed.
      */
+    @Test
     public void testImplicitTxOps() throws Exception {
         checkTxWithAllCaches(new CI1<IgniteCache<Integer, Integer>>() {
             @Override public void apply(IgniteCache<Integer, Integer> cache) {
@@ -201,6 +205,34 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
                         val = (Integer)checkAndGet(false, cache, key, SCAN, GET);
 
                         assertNull(val);
+
+                        val = cache.getAndPutIfAbsent(key, 1);
+
+                        assertNull(val);
+
+                        val = (Integer)checkAndGet(false, cache, key, SCAN, GET);
+
+                        assertEquals((Integer)1, val);
+
+                        val = cache.getAndPutIfAbsent(key, 1);
+
+                        assertEquals((Integer)1, val);
+
+                        val = (Integer)checkAndGet(false, cache, key, SCAN, GET);
+
+                        assertEquals((Integer)1, val);
+
+                        assertFalse(cache.remove(key, 2));
+
+                        val = (Integer)checkAndGet(false, cache, key, SCAN, GET);
+
+                        assertEquals((Integer)1, val);
+
+                        cache.remove(key, 1);
+
+                        val = (Integer)checkAndGet(false, cache, key, SCAN, GET);
+
+                        assertNull(val);
                     }
                 }
                 catch (Exception e) {
@@ -213,6 +245,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPessimisticTx1() throws Exception {
         checkTxWithAllCaches(new CI1<IgniteCache<Integer, Integer>>() {
             @Override public void apply(IgniteCache<Integer, Integer> cache) {
@@ -253,6 +286,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPessimisticTx2() throws Exception {
         checkTxWithAllCaches(new CI1<IgniteCache<Integer, Integer>>() {
             @Override public void apply(IgniteCache<Integer, Integer> cache) {
@@ -288,6 +322,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPessimisticTx3() throws Exception {
         checkTxWithAllCaches(new CI1<IgniteCache<Integer, Integer>>() {
             @Override public void apply(IgniteCache<Integer, Integer> cache) {
@@ -376,6 +411,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testWithCacheGroups() throws Exception {
         Ignite srv0 = startGrid(0);
 
@@ -434,6 +470,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testCacheRecreate() throws Exception {
         cacheRecreate(null);
     }
@@ -441,6 +478,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testActiveQueriesCleanup() throws Exception {
         activeQueriesCleanup(false);
     }
@@ -448,6 +486,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testActiveQueriesCleanupTx() throws Exception {
         activeQueriesCleanup(true);
     }
@@ -512,6 +551,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testTxReadIsolationSimple() throws Exception {
         Ignite srv0 = startGrids(4);
 
@@ -598,6 +638,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPutGetAllSimple() throws Exception {
         Ignite node = startGrid(0);
 
@@ -657,6 +698,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPutRemoveSimple() throws Exception {
         putRemoveSimple(false);
     }
@@ -664,6 +706,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPutRemoveSimple_LargeKeys() throws Exception {
         putRemoveSimple(true);
     }
@@ -798,6 +841,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testThreadUpdatesAreVisibleForThisThread() throws Exception {
         final Ignite ignite = startGrid(0);
 
@@ -850,9 +894,8 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testWaitPreviousTxAck() throws Exception {
-        fail("https://issues.apache.org/jira/browse/IGNITE-9470");
-
         testSpi = true;
 
         startGrid(0);
@@ -867,33 +910,18 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
         try (Transaction tx = ignite.transactions().txStart(PESSIMISTIC, REPEATABLE_READ)) {
             cache.put(1, 1);
             cache.put(2, 1);
-            cache.put(3, 1);
 
             tx.commit();
         }
 
         TestRecordingCommunicationSpi clientSpi = TestRecordingCommunicationSpi.spi(ignite);
 
-        clientSpi.blockMessages(new IgniteBiPredicate<ClusterNode, Message>() {
-            /** */
-            boolean block = true;
-
-            @Override public boolean apply(ClusterNode node, Message msg) {
-                if (block && msg instanceof MvccAckRequestTx) {
-                    block = false;
-
-                    return true;
-                }
-
-                return false;
-            }
-        });
+        clientSpi.blockMessages((node, msg) -> msg instanceof MvccAckRequestTx);
 
         IgniteInternalFuture<?> txFut1 = GridTestUtils.runAsync(new Callable<Void>() {
             @Override public Void call() throws Exception {
                 try (Transaction tx = ignite.transactions().txStart(PESSIMISTIC, REPEATABLE_READ)) {
-                    cache.put(2, 2);
-                    cache.put(3, 2);
+                    cache.put(1, 2);
 
                     tx.commit();
                 }
@@ -905,24 +933,22 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
         IgniteInternalFuture<?> txFut2 = GridTestUtils.runAsync(new Callable<Void>() {
             @Override public Void call() throws Exception {
                 try (Transaction tx = ignite.transactions().txStart(PESSIMISTIC, REPEATABLE_READ)) {
-                    cache.put(1, 3);
                     cache.put(2, 3);
 
                     tx.commit();
                 }
 
-                // Should see changes mady by both tx1 and tx2.
-                Map<Object, Object> res = checkAndGetAll(false, cache, F.asSet(1, 2, 3), SCAN, GET);
+                // Should see changes made by both tx1 and tx2.
+                Map<Object, Object> res = checkAndGetAll(false, cache, F.asSet(1, 2), SCAN, GET);
 
-                assertEquals(3, res.get(1));
+                assertEquals(2, res.get(1));
                 assertEquals(3, res.get(2));
-                assertEquals(2, res.get(3));
 
                 return null;
             }
         });
 
-        clientSpi.waitForBlocked();
+        clientSpi.waitForBlocked(2);
 
         Thread.sleep(1000);
 
@@ -931,16 +957,16 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
         txFut1.get();
         txFut2.get();
 
-        Map<Object, Object> res = checkAndGetAll(false, cache, F.asSet(1, 2, 3), SCAN, GET);
+        Map<Object, Object> res = checkAndGetAll(false, cache, F.asSet(1, 2), SCAN, GET);
 
-        assertEquals(3, res.get(1));
+        assertEquals(2, res.get(1));
         assertEquals(3, res.get(2));
-        assertEquals(2, res.get(3));
     }
 
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPartialCommitResultNoVisible() throws Exception {
         testSpi = true;
 
@@ -1044,8 +1070,9 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testCleanupWaitsForGet1() throws Exception {
-        boolean vals[] = {true, false};
+        boolean[] vals = {true, false};
 
         for (boolean otherPuts : vals) {
             for (boolean putOnStart : vals) {
@@ -1081,8 +1108,10 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
 
         awaitPartitionMapExchange();
 
-        final IgniteCache<Object, Object> srvCache =
-            srv.createCache(cacheConfiguration(PARTITIONED, FULL_SYNC, 0, 16));
+        final IgniteCache<Object, Object> clientCache =
+            client.createCache(cacheConfiguration(PARTITIONED, FULL_SYNC, 0, 16));
+
+        final IgniteCache<Object, Object> srvCache = srv.cache(clientCache.getName());
 
         final Integer key1 = 1;
         final Integer key2 = 2;
@@ -1112,19 +1141,17 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
 
         IgniteInternalFuture<?> getFut = GridTestUtils.runAsync(new Callable<Void>() {
             @Override public Void call() throws Exception {
-                IgniteCache<Integer, Integer> cache = client.cache(srvCache.getName());
-
                 Map<Integer, Integer> vals;
 
                 if (inTx) {
                     try (Transaction tx = client.transactions().txStart(PESSIMISTIC, REPEATABLE_READ)) {
-                        vals = checkAndGetAll(false, cache, F.asSet(key1, key2), SCAN, GET);
+                        vals = checkAndGetAll(false, clientCache, F.asSet(key1, key2), SCAN, GET);
 
                         tx.rollback();
                     }
                 }
                 else
-                    vals = checkAndGetAll(false, cache, F.asSet(key1, key2), SCAN, GET);
+                    vals = checkAndGetAll(false, clientCache, F.asSet(key1, key2), SCAN, GET);
 
                 if (putOnStart) {
                     assertEquals(2, vals.size());
@@ -1165,114 +1192,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
-    public void testCleanupWaitsForGet2() throws Exception {
-        fail("https://issues.apache.org/jira/browse/IGNITE-9470");
-        /*
-        Simulate case when there are two active transactions modifying the same key
-        (it is possible if key lock is released but ack message is delayed), and at this moment
-        query is started.
-         */
-        testSpi = true;
-
-        client = false;
-
-        startGrids(2);
-
-        client = true;
-
-        final Ignite client = startGrid(2);
-
-        awaitPartitionMapExchange();
-
-        final IgniteCache<Object, Object> cache = client.createCache(cacheConfiguration(PARTITIONED, FULL_SYNC, 0, 16).
-            setNodeFilter(new TestCacheNodeExcludingFilter(ignite(0).name())));
-
-        final Integer key1 = 1;
-        final Integer key2 = 2;
-
-        try (Transaction tx = client.transactions().txStart(PESSIMISTIC, REPEATABLE_READ)) {
-            cache.put(key1, 0);
-            cache.put(key2, 0);
-
-            tx.commit();
-        }
-
-        TestRecordingCommunicationSpi crdSpi = TestRecordingCommunicationSpi.spi(grid(0));
-
-        TestRecordingCommunicationSpi clientSpi = TestRecordingCommunicationSpi.spi(client);
-
-        final CountDownLatch getLatch = new CountDownLatch(1);
-
-        clientSpi.closure(new IgniteBiInClosure<ClusterNode, Message>() {
-            @Override public void apply(ClusterNode node, Message msg) {
-                if (msg instanceof MvccAckRequestTx)
-                    doSleep(2000);
-            }
-        });
-
-        crdSpi.closure(new IgniteBiInClosure<ClusterNode, Message>() {
-            /** */
-            private AtomicInteger cntr = new AtomicInteger();
-
-            @Override public void apply(ClusterNode node, Message msg) {
-                if (msg instanceof MvccSnapshotResponse) {
-                    if (cntr.incrementAndGet() == 2) {
-                        getLatch.countDown();
-
-                        doSleep(1000);
-                    }
-                }
-            }
-        });
-
-        final IgniteInternalFuture<?> putFut1 = GridTestUtils.runAsync(new Callable<Void>() {
-            @Override public Void call() throws Exception {
-                try (Transaction tx = client.transactions().txStart(PESSIMISTIC, REPEATABLE_READ)) {
-                    cache.put(key1, 1);
-
-                    tx.commit();
-                }
-
-                return null;
-            }
-        }, "put1");
-
-        final IgniteInternalFuture<?> putFut2 = GridTestUtils.runAsync(new Callable<Void>() {
-            @Override public Void call() throws Exception {
-                try (Transaction tx = client.transactions().txStart(PESSIMISTIC, REPEATABLE_READ)) {
-                    cache.put(key1, 2);
-
-                    tx.commit();
-                }
-
-                return null;
-            }
-        }, "put2");
-
-        IgniteInternalFuture<?> getFut = GridTestUtils.runMultiThreadedAsync(new Callable<Void>() {
-            @Override public Void call() throws Exception {
-                U.await(getLatch);
-
-                while (!putFut1.isDone() || !putFut2.isDone()) {
-                    Map<Object, Object> vals1 = checkAndGetAll(false, cache, F.asSet(key1, key2), SCAN);
-                    Map<Object, Object> vals2 = checkAndGetAll(false, cache, F.asSet(key1, key2), GET);
-
-                    assertEquals(2, vals1.size());
-                    assertEquals(2, vals2.size());
-                }
-
-                return null;
-            }
-        }, 4, "get-thread");
-
-        putFut1.get();
-        putFut2.get();
-        getFut.get();
-    }
-
-    /**
-     * @throws Exception If failed.
-     */
+    @Test
     public void testCleanupWaitsForGet3() throws Exception {
         for (int i = 0; i < 4; i++) {
             cleanupWaitsForGet3(i + 1);
@@ -1406,6 +1326,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPutAllGetAll_SingleNode_GetAll() throws Exception {
         putAllGetAll(null, 1, 0, 0, 64, null, GET, PUT);
     }
@@ -1413,6 +1334,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPutAllGetAll_SingleNode_SinglePartition_GetAll() throws Exception {
         putAllGetAll(null, 1, 0, 0, 1, null, GET, PUT);
     }
@@ -1420,6 +1342,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPutAllGetAll_ClientServer_Backups0_GetAll() throws Exception {
         putAllGetAll(null, 4, 2, 0, 64, null, GET, PUT);
     }
@@ -1427,6 +1350,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPutAllGetAll_ClientServer_Backups0_Persistence_GetAll() throws Exception {
         persistence = true;
 
@@ -1436,6 +1360,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPutAllGetAll_ClientServer_Backups1_GetAll() throws Exception {
         putAllGetAll(null, 4, 2, 1, 64, null, GET, PUT);
     }
@@ -1443,6 +1368,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPutAllGetAll_ClientServer_Backups2_GetAll() throws Exception {
         putAllGetAll(null, 4, 2, 2, 64, null, GET, PUT);
     }
@@ -1450,6 +1376,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPutAllGetAll_ClientServer_Backups1_RestartCoordinator_GetAll() throws Exception {
         putAllGetAll(RestartMode.RESTART_CRD, 4, 2, 1, 64, null, GET, PUT);
     }
@@ -1457,6 +1384,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPutAllGetAll_SingleNode_Scan() throws Exception {
         putAllGetAll(null, 1, 0, 0, 64, null, SCAN, PUT);
     }
@@ -1464,6 +1392,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPutAllGetAll_SingleNode_SinglePartition_Scan() throws Exception {
         putAllGetAll(null, 1, 0, 0, 1, null, SCAN, PUT);
     }
@@ -1471,6 +1400,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPutAllGetAll_ClientServer_Backups0_Scan() throws Exception {
         putAllGetAll(null, 4, 2, 0, 64, null, SCAN, PUT);
     }
@@ -1478,6 +1408,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPutAllGetAll_ClientServer_Backups0_Persistence_Scan() throws Exception {
         persistence = true;
 
@@ -1487,6 +1418,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPutAllGetAll_ClientServer_Backups1_Scan() throws Exception {
         putAllGetAll(null, 4, 2, 1, 64, null, SCAN, PUT);
     }
@@ -1494,6 +1426,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPutAllGetAll_ClientServer_Backups2_Scan() throws Exception {
         putAllGetAll(null, 4, 2, 2, 64, null, SCAN, PUT);
     }
@@ -1501,6 +1434,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPutAllGetAll_ClientServer_Backups1_RestartCoordinator_Scan() throws Exception {
         putAllGetAll(RestartMode.RESTART_CRD, 4, 2, 1, 64, null, SCAN, PUT);
     }
@@ -1508,15 +1442,16 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Ignore("https://issues.apache.org/jira/browse/IGNITE-9949")
+    @Test
     public void testPutAllGetAll_ClientServer_Backups1_Restart_Scan() throws Exception {
-        fail("https://issues.apache.org/jira/browse/IGNITE-9774");
-
         putAllGetAll(RestartMode.RESTART_RND_SRV, 4, 2, 1, 64, null, SCAN, PUT);
     }
 
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testAccountsTxGetAll_SingleNode() throws Exception {
         accountsTxReadAll(1, 0, 0, 64, null, false, GET, PUT);
     }
@@ -1524,6 +1459,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testAccountsTxGetAll_WithRemoves_SingleNode() throws Exception {
         accountsTxReadAll(1, 0, 0, 64, null, true, GET, PUT);
     }
@@ -1531,6 +1467,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testAccountsTxGetAll_SingleNode_SinglePartition() throws Exception {
         accountsTxReadAll(1, 0, 0, 1, null, false, GET, PUT);
     }
@@ -1538,6 +1475,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testAccountsTxGetAll_WithRemoves_SingleNode_SinglePartition() throws Exception {
         accountsTxReadAll(1, 0, 0, 1, null, true, GET, PUT);
     }
@@ -1545,6 +1483,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testAccountsTxGetAll_ClientServer_Backups0() throws Exception {
         accountsTxReadAll(4, 2, 0, 64, null, false, GET, PUT);
     }
@@ -1552,6 +1491,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testAccountsTxGetAll_WithRemoves_ClientServer_Backups0() throws Exception {
         accountsTxReadAll(4, 2, 0, 64, null, true, GET, PUT);
     }
@@ -1559,6 +1499,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testAccountsTxGetAll_ClientServer_Backups1() throws Exception {
         accountsTxReadAll(4, 2, 1, 64, null, false, GET, PUT);
     }
@@ -1566,6 +1507,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testAccountsTxGetAll_WithRemoves_ClientServer_Backups1() throws Exception {
         accountsTxReadAll(4, 2, 1, 64, null, true, GET, PUT);
     }
@@ -1573,6 +1515,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testAccountsTxGetAll_ClientServer_Backups2() throws Exception {
         accountsTxReadAll(4, 2, 2, 64, null, false, GET, PUT);
     }
@@ -1580,6 +1523,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testAccountsTxGetAll_WithRemoves_ClientServer_Backups2() throws Exception {
         accountsTxReadAll(4, 2, 2, 64, null, true, GET, PUT);
     }
@@ -1587,6 +1531,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testAccountsTxScan_SingleNode_SinglePartition() throws Exception {
         accountsTxReadAll(1, 0, 0, 1, null, false, SCAN, PUT);
     }
@@ -1594,6 +1539,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testAccountsTxScan_WithRemoves_SingleNode_SinglePartition() throws Exception {
         accountsTxReadAll(1, 0, 0, 1, null, true, SCAN, PUT);
     }
@@ -1601,6 +1547,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testAccountsTxScan_SingleNode() throws Exception {
         accountsTxReadAll(1, 0, 0, 64, null, false, SCAN, PUT);
     }
@@ -1608,6 +1555,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testAccountsTxScan_WithRemoves_SingleNode() throws Exception {
         accountsTxReadAll(1, 0, 0, 64, null, true, SCAN, PUT);
     }
@@ -1615,6 +1563,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testAccountsTxScan_ClientServer_Backups0() throws Exception {
         accountsTxReadAll(4, 2, 0, 64, null, false, SCAN, PUT);
     }
@@ -1622,6 +1571,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testAccountsTxScan_WithRemoves_ClientServer_Backups0() throws Exception {
         accountsTxReadAll(4, 2, 0, 64, null, true, SCAN, PUT);
     }
@@ -1629,6 +1579,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testAccountsTxScan_ClientServer_Backups1() throws Exception {
         accountsTxReadAll(4, 2, 1, 64, null, false, SCAN, PUT);
     }
@@ -1636,6 +1587,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testAccountsTxScan_WithRemoves_ClientServer_Backups1() throws Exception {
         accountsTxReadAll(4, 2, 1, 64, null, true, SCAN, PUT);
     }
@@ -1643,6 +1595,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testAccountsTxScan_ClientServer_Backups2() throws Exception {
         accountsTxReadAll(4, 2, 2, 64, null, false, SCAN, PUT);
     }
@@ -1650,6 +1603,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testAccountsTxScan_WithRemoves_ClientServer_Backups2() throws Exception {
         accountsTxReadAll(4, 2, 2, 64, null, true, SCAN, PUT);
     }
@@ -1657,6 +1611,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPessimisticTxGetAllReadsSnapshot_SingleNode_SinglePartition() throws Exception {
         txReadsSnapshot(1, 0, 0, 1, GET);
     }
@@ -1664,6 +1619,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPessimisticTxGetAllReadsSnapshot_ClientServer() throws Exception {
         txReadsSnapshot(4, 2, 1, 64, GET);
     }
@@ -1671,6 +1627,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPessimisticTxScanReadsSnapshot_SingleNode_SinglePartition() throws Exception {
         txReadsSnapshot(1, 0, 0, 1, SCAN);
     }
@@ -1678,6 +1635,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testPessimisticTxScanReadsSnapshot_ClientServer() throws Exception {
         txReadsSnapshot(4, 2, 1, 64, SCAN);
     }
@@ -1697,8 +1655,6 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
         int cacheParts,
         ReadMode readMode
     ) throws Exception {
-        fail("https://issues.apache.org/jira/browse/IGNITE-9470");
-
         final int ACCOUNTS = 20;
 
         final int ACCOUNT_START_VAL = 1000;
@@ -1772,6 +1728,9 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
                                 cache.cache.put(id2, new MvccTestAccount(a2.val - 1, 1));
 
                                 tx.commit();
+                            }
+                            catch (CacheException ex) {
+                                MvccFeatureChecker.assertMvccWriteConflict(ex);
                             }
                         }
                         finally {
@@ -1868,6 +1827,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed
      */
+    @Test
     public void testOperationsSequenceScanConsistency_SingleNode_SinglePartition() throws Exception {
         operationsSequenceConsistency(1, 0, 0, 1, SCAN);
     }
@@ -1875,6 +1835,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed
      */
+    @Test
     public void testOperationsSequenceScanConsistency_SingleNode() throws Exception {
         operationsSequenceConsistency(1, 0, 0, 64, SCAN);
     }
@@ -1882,6 +1843,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed
      */
+    @Test
     public void testOperationsSequenceScanConsistency_ClientServer_Backups0() throws Exception {
         operationsSequenceConsistency(4, 2, 0, 64, SCAN);
     }
@@ -1889,6 +1851,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed
      */
+    @Test
     public void testOperationsSequenceScanConsistency_ClientServer_Backups1() throws Exception {
         operationsSequenceConsistency(4, 2, 1, 64, SCAN);
     }
@@ -1896,6 +1859,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed
      */
+    @Test
     public void testOperationsSequenceGetConsistency_SingleNode_SinglePartition() throws Exception {
         operationsSequenceConsistency(1, 0, 0, 1, GET);
     }
@@ -1903,6 +1867,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed
      */
+    @Test
     public void testOperationsSequenceGetConsistency_SingleNode() throws Exception {
         operationsSequenceConsistency(1, 0, 0, 64, GET);
     }
@@ -1910,6 +1875,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed
      */
+    @Test
     public void testOperationsSequenceGetConsistency_ClientServer_Backups0() throws Exception {
         operationsSequenceConsistency(4, 2, 0, 64, GET);
     }
@@ -1917,6 +1883,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed
      */
+    @Test
     public void testOperationsSequenceGetConsistency_ClientServer_Backups1() throws Exception {
         operationsSequenceConsistency(4, 2, 1, 64, GET);
     }
@@ -1939,8 +1906,6 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
         final int writers = 4;
 
         final int readers = 4;
-
-        final long time = 10_000;
 
         final AtomicInteger keyCntr = new AtomicInteger();
 
@@ -2056,7 +2021,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
             cacheParts,
             writers,
             readers,
-            time,
+            SCALED_10SEC_TEST_TIME,
             null,
             null,
             writer,
@@ -2064,11 +2029,11 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     }
 
     /**
-     * TODO IGNITE-5935 enable when recovery is implemented.
-     *
      * @throws Exception If failed.
      */
-    public void _testNodesRestartNoHang() throws Exception {
+    @Ignore("https://issues.apache.org/jira/browse/IGNITE-12041")
+    @Test
+    public void testNodesRestartNoHang() throws Exception {
         final int srvs = 4;
         final int clients = 4;
         final int writers = 6;
@@ -2114,7 +2079,8 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
                                 tx.commit();
                             }
                             catch (Exception e) {
-                                Assert.assertTrue("Unexpected error: " + e, X.hasCause(e, ClusterTopologyException.class));
+                                if (!X.hasCause(e, ClusterTopologyException.class))
+                                    MvccFeatureChecker.assertMvccWriteConflict(e);
                             }
                         }
                         finally {
@@ -2183,6 +2149,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testActiveQueryCleanupOnNodeFailure() throws Exception {
         testSpi = true;
 
@@ -2230,6 +2197,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testRebalanceSimple() throws Exception {
         Ignite srv0 = startGrid(0);
 
@@ -2309,6 +2277,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testRebalanceWithRemovedValuesSimple() throws Exception {
         Ignite node = startGrid(0);
 
@@ -2361,6 +2330,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testTxPrepareFailureSimplePessimisticTx() throws Exception {
         testSpi = true;
 
@@ -2434,6 +2404,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testMvccCoordinatorChangeSimple() throws Exception {
         Ignite srv0 = startGrid(0);
 
@@ -2451,6 +2422,8 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
 
         for (int i = 0; i < 3; i++) {
             startGrid(i + 1);
+
+            awaitPartitionMapExchange();
 
             checkPutGet(cacheNames);
 
@@ -2518,6 +2491,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testMvccCoordinatorInfoConsistency() throws Exception {
         for (int i = 0; i < 4; i++) {
             startGrid(i);
@@ -2550,6 +2524,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testMvccCoordinatorInfoConsistency_Persistence() throws Exception {
         persistence = true;
 
@@ -2580,6 +2555,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testGetVersionRequestFailover() throws Exception {
         final int NODES = 5;
 
@@ -2670,6 +2646,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testLoadWithStreamer() throws Exception {
         startGridsMultiThreaded(5);
 
@@ -2703,11 +2680,13 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testUpdate_N_Objects_SingleNode_SinglePartition_Get() throws Exception {
         int[] nValues = {3, 5, 10};
 
         for (int n : nValues) {
-            updateNObjectsTest(n, 1, 0, 0, 1, 10_000, null, GET, PUT, null);
+            updateNObjectsTest(n, 1, 0, 0, 1,
+                SCALED_10SEC_TEST_TIME, null, GET, PUT, null);
 
             afterTest();
         }
@@ -2716,11 +2695,13 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testUpdate_N_Objects_SingleNode_Get() throws Exception {
         int[] nValues = {3, 5, 10};
 
         for (int n : nValues) {
-            updateNObjectsTest(n, 1, 0, 0, 64, 10_000, null, GET, PUT, null);
+            updateNObjectsTest(n, 1, 0, 0, 64,
+                SCALED_10SEC_TEST_TIME, null, GET, PUT, null);
 
             afterTest();
         }
@@ -2729,11 +2710,13 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testUpdate_N_Objects_SingleNode_SinglePartition_Scan() throws Exception {
         int[] nValues = {3, 5, 10};
 
         for (int n : nValues) {
-            updateNObjectsTest(n, 1, 0, 0, 1, 10_000, null, SCAN, PUT, null);
+            updateNObjectsTest(n, 1, 0, 0, 1,
+                SCALED_10SEC_TEST_TIME, null, SCAN, PUT, null);
 
             afterTest();
         }
@@ -2742,11 +2725,13 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testUpdate_N_Objects_SingleNode_Scan() throws Exception {
         int[] nValues = {3, 5, 10};
 
         for (int n : nValues) {
-            updateNObjectsTest(n, 1, 0, 0, 64, 10_000, null, SCAN, PUT, null);
+            updateNObjectsTest(n, 1, 0, 0, 64,
+                SCALED_10SEC_TEST_TIME, null, SCAN, PUT, null);
 
             afterTest();
         }
@@ -2755,11 +2740,13 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testUpdate_N_Objects_ClientServer_Backups2_Get() throws Exception {
         int[] nValues = {3, 5, 10};
 
         for (int n : nValues) {
-            updateNObjectsTest(n, 4, 2, 2, DFLT_PARTITION_COUNT, 10_000, null, GET, PUT, null);
+            updateNObjectsTest(n, 4, 2, 2, DFLT_PARTITION_COUNT,
+                SCALED_10SEC_TEST_TIME, null, GET, PUT, null);
 
             afterTest();
         }
@@ -2768,11 +2755,13 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testUpdate_N_Objects_ClientServer_Backups1_Scan() throws Exception {
         int[] nValues = {3, 5, 10};
 
         for (int n : nValues) {
-            updateNObjectsTest(n, 2, 1, 1, DFLT_PARTITION_COUNT, 10_000, null, SCAN, PUT, null);
+            updateNObjectsTest(n, 2, 1, 1, DFLT_PARTITION_COUNT,
+                SCALED_10SEC_TEST_TIME, null, SCAN, PUT, null);
 
             afterTest();
         }
@@ -2781,36 +2770,41 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testImplicitPartsScan_SingleNode_SinglePartition() throws Exception {
-        doImplicitPartsScanTest(1, 0, 0, 1, 10_000);
+        doImplicitPartsScanTest(1, 0, 0, 1);
     }
 
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testImplicitPartsScan_SingleNode() throws Exception {
-        doImplicitPartsScanTest(1, 0, 0, 64, 10_000);
+        doImplicitPartsScanTest(1, 0, 0, 64);
     }
 
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testImplicitPartsScan_ClientServer_Backups0() throws Exception {
-        doImplicitPartsScanTest(4, 2, 0, 64, 10_000);
+        doImplicitPartsScanTest(4, 2, 0, 64);
     }
 
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testImplicitPartsScan_ClientServer_Backups1() throws Exception {
-        doImplicitPartsScanTest(4, 2, 1, 64, 10_000);
+        doImplicitPartsScanTest(4, 2, 1, 64);
     }
 
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testImplicitPartsScan_ClientServer_Backups2() throws Exception {
-        doImplicitPartsScanTest(4, 2, 2, 64, 10_000);
+        doImplicitPartsScanTest(4, 2, 2, 64);
     }
 
     /**
@@ -2818,17 +2812,13 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
      * @param clients Number of client nodes.
      * @param cacheBackups Number of cache backups.
      * @param cacheParts Number of cache partitions.
-     * @param time Test time.
      * @throws Exception If failed.
      */
     private void doImplicitPartsScanTest(
         final int srvs,
         final int clients,
         int cacheBackups,
-        int cacheParts,
-        long time) throws Exception {
-        fail("https://issues.apache.org/jira/browse/IGNITE-9470");
-
+        int cacheParts) throws Exception {
         final int KEYS_PER_PART = 20;
 
         final int writers = 4;
@@ -2920,6 +2910,9 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
 
                             tx.commit();
                         }
+                        catch (CacheException ex) {
+                            MvccFeatureChecker.assertMvccWriteConflict(ex);
+                        }
                         finally {
                             cache.readUnlock();
                         }
@@ -2997,7 +2990,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
             cacheParts,
             writers,
             readers,
-            time,
+            SCALED_10SEC_TEST_TIME,
             null,
             init,
             writer,
@@ -3007,6 +3000,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws IgniteCheckedException If failed.
      */
+    @Test
     public void testSize() throws Exception {
         Ignite node = startGrid(0);
 
@@ -3170,6 +3164,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws IgniteCheckedException If failed.
      */
+    @Test
     public void testInternalApi() throws Exception {
         Ignite node = startGrid(0);
 
@@ -3181,7 +3176,9 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
         MvccProcessorImpl crd = mvccProcessor(node);
 
         // Start query to prevent cleanup.
-        IgniteInternalFuture<MvccSnapshot> fut = crd.requestSnapshotAsync((IgniteInternalTx)null);
+        MvccSnapshotFuture fut = new MvccSnapshotFuture();
+
+        crd.requestReadSnapshotAsync(crd.currentCoordinator(), fut);
 
         fut.get();
 
@@ -3218,7 +3215,7 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
                 MvccVersion cntr = ver.get2();
 
                 MvccSnapshot readVer =
-                    new MvccSnapshotWithoutTxs(cntr.coordinatorVersion(), cntr.counter(), Integer.MAX_VALUE, 0);
+                    new MvccSnapshotWithoutTxs(cntr.coordinatorVersion(), cntr.counter(), MvccUtils.MVCC_READ_OP_CNTR, 0);
 
                 row = cctx.offheap().mvccRead(cctx, key0, readVer);
 
@@ -3270,9 +3267,9 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Ignore("https://issues.apache.org/jira/browse/IGNITE-7311")
+    @Test
     public void testExpiration() throws Exception {
-        fail("https://issues.apache.org/jira/browse/IGNITE-7311");
-
         final IgniteEx node = startGrid(0);
 
         IgniteCache cache = node.createCache(cacheConfiguration(PARTITIONED, FULL_SYNC, 1, 64));
@@ -3325,9 +3322,9 @@ public class CacheMvccTransactionsTest extends CacheMvccAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Ignore("https://issues.apache.org/jira/browse/IGNITE-7311")
+    @Test
     public void testChangeExpireTime() throws Exception {
-        fail("https://issues.apache.org/jira/browse/IGNITE-7311");
-
         final IgniteEx node = startGrid(0);
 
         IgniteCache cache = node.createCache(cacheConfiguration(PARTITIONED, FULL_SYNC, 1, 64));

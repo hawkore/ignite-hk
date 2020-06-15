@@ -42,18 +42,24 @@ public class IgniteQueryGenerator {
     public static IgniteQuery generateSql(Method mtd, RepositoryMetadata metadata) {
         PartTree parts = new PartTree(mtd.getName(), metadata.getDomainType());
 
+        boolean isCountOrFieldQuery = parts.isCountProjection();
+
         StringBuilder sql = new StringBuilder();
 
         if (parts.isDelete()) {
-            throw new UnsupportedOperationException("DELETE clause is not supported now.");
-        } else {
+            sql.append("DELETE ");
+
+            // For the DML queries aside from SELECT *, they should run over SqlFieldQuery
+            isCountOrFieldQuery = true;
+        }
+        else {
             sql.append("SELECT ");
 
             if (parts.isDistinct()) {
                 throw new UnsupportedOperationException("DISTINCT clause in not supported.");
             }
 
-            if (parts.isCountProjection()) {
+            if (isCountOrFieldQuery)
                 sql.append("COUNT(1) ");
             } else {
                 sql.append("* ");
@@ -88,7 +94,7 @@ public class IgniteQueryGenerator {
             sql.append(parts.getMaxResults().intValue());
         }
 
-        return new IgniteQuery(sql.toString(), parts.isCountProjection(), false, true, getOptions(mtd));
+        return new IgniteQuery(sql.toString(), isCountOrFieldQuery, false, true, getOptions(mtd));
     }
 
     /**

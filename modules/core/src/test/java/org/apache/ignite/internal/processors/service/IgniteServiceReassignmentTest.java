@@ -32,20 +32,16 @@ import org.apache.ignite.resources.IgniteInstanceResource;
 import org.apache.ignite.services.Service;
 import org.apache.ignite.services.ServiceConfiguration;
 import org.apache.ignite.services.ServiceContext;
-import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
-import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
-import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
 import org.apache.ignite.testframework.GridStringLogger;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
+import org.junit.Assume;
+import org.junit.Test;
 
 /**
  *
  */
 public class IgniteServiceReassignmentTest extends GridCommonAbstractTest {
-    /** */
-    private static final TcpDiscoveryIpFinder IP_FINDER = new TcpDiscoveryVmIpFinder(true);
-
     /** */
     private ServiceConfiguration srvcCfg;
 
@@ -58,8 +54,6 @@ public class IgniteServiceReassignmentTest extends GridCommonAbstractTest {
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String igniteInstanceName) throws Exception {
         IgniteConfiguration cfg = super.getConfiguration(igniteInstanceName);
-
-        ((TcpDiscoverySpi)cfg.getDiscoverySpi()).setIpFinder(IP_FINDER);
 
         if (srvcCfg != null)
             cfg.setServiceConfiguration(srvcCfg);
@@ -78,6 +72,16 @@ public class IgniteServiceReassignmentTest extends GridCommonAbstractTest {
     }
 
     /** {@inheritDoc} */
+    @Override protected void beforeTestsStarted() throws Exception {
+        super.beforeTestsStarted();
+    }
+
+    /** {@inheritDoc} */
+    @Override protected void afterTestsStopped() throws Exception {
+        super.afterTestsStopped();
+    }
+
+    /** {@inheritDoc} */
     @Override protected void afterTest() throws Exception {
         stopAllGrids();
 
@@ -87,16 +91,19 @@ public class IgniteServiceReassignmentTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testNodeRestart1() throws Exception {
         srvcCfg = serviceConfiguration();
 
-        Ignite node1 = startGrid(1);
+        IgniteEx node1 = startGrid(1);
+
+        waitForService(node1);
 
         assertEquals(42, serviceProxy(node1).foo());
 
         srvcCfg = serviceConfiguration();
 
-        Ignite node2 = startGrid(2);
+        IgniteEx node2 = startGrid(2);
 
         node1.close();
 
@@ -106,13 +113,19 @@ public class IgniteServiceReassignmentTest extends GridCommonAbstractTest {
 
         srvcCfg = serviceConfiguration();
 
-        Ignite node3 = startGrid(3);
+        IgniteEx node3 = startGrid(3);
+
+        waitForService(node3);
 
         assertEquals(42, serviceProxy(node3).foo());
 
         srvcCfg = serviceConfiguration();
 
         node1 = startGrid(1);
+
+        waitForService(node1);
+        waitForService(node2);
+        waitForService(node3);
 
         assertEquals(42, serviceProxy(node1).foo());
         assertEquals(42, serviceProxy(node2).foo());
@@ -121,6 +134,7 @@ public class IgniteServiceReassignmentTest extends GridCommonAbstractTest {
         node2.close();
 
         waitForService(node1);
+        waitForService(node3);
 
         assertEquals(42, serviceProxy(node1).foo());
         assertEquals(42, serviceProxy(node3).foo());
@@ -129,6 +143,7 @@ public class IgniteServiceReassignmentTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testNodeRestart2() throws Exception {
         startGrids(3);
 
@@ -157,6 +172,7 @@ public class IgniteServiceReassignmentTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testNodeRestartRandom() throws Exception {
         final int NODES = 5;
 
@@ -175,7 +191,7 @@ public class IgniteServiceReassignmentTest extends GridCommonAbstractTest {
                 if (nodeIdx == stopIdx)
                     continue;
 
-                waitForService(ignite(nodeIdx));
+                waitForService(grid(nodeIdx));
 
                 assertEquals(42, serviceProxy(ignite(nodeIdx)).foo());
             }
@@ -190,7 +206,10 @@ public class IgniteServiceReassignmentTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testZombieAssignmentsCleanup() throws Exception {
+        Assume.assumeTrue(!isEventDrivenServiceProcessorEnabled());
+
         useStrLog = true;
 
         final int nodesCnt = 2;
@@ -246,7 +265,10 @@ public class IgniteServiceReassignmentTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    @Test
     public void testNodeStopWhileThereAreCacheActivitiesInServiceProcessor() throws Exception {
+        Assume.assumeTrue(!isEventDrivenServiceProcessorEnabled());
+
         final int nodesCnt = 2;
         final int maxSvc = 1024;
 
@@ -285,19 +307,23 @@ public class IgniteServiceReassignmentTest extends GridCommonAbstractTest {
      * @param node Node.
      * @throws Exception If failed.
      */
-    private void waitForService(final Ignite node) throws Exception {
-        assertTrue(GridTestUtils.waitForCondition(new PA() {
-            @Override public boolean apply() {
-                try {
-                    serviceProxy(node).foo();
+    private void waitForService(final IgniteEx node) throws Exception {
+        if (node.context().service() instanceof IgniteServiceProcessor)
+            waitForServicesReadyTopology(node, node.context().discovery().topologyVersionEx());
+        else {
+            assertTrue(GridTestUtils.waitForCondition(new PA() {
+                @Override public boolean apply() {
+                    try {
+                        serviceProxy(node).foo();
 
-                    return true;
+                        return true;
+                    }
+                    catch (IgniteException ignored) {
+                        return false;
+                    }
                 }
-                catch (IgniteException ignored) {
-                    return false;
-                }
-            }
-        }, 5000));
+            }, 5000));
+        }
     }
 
     /**

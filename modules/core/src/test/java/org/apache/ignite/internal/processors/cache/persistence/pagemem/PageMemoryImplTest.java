@@ -33,7 +33,7 @@ import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.failure.NoOpFailureHandler;
 import org.apache.ignite.internal.IgniteFutureTimeoutCheckedException;
 import org.apache.ignite.internal.managers.encryption.GridEncryptionManager;
-import org.apache.ignite.internal.managers.eventstorage.GridEventStorageManager;
+import org.apache.ignite.internal.managers.systemview.GridSystemViewManager;
 import org.apache.ignite.internal.mem.DirectMemoryProvider;
 import org.apache.ignite.internal.mem.IgniteOutOfMemoryException;
 import org.apache.ignite.internal.mem.unsafe.UnsafeMemoryProvider;
@@ -49,14 +49,18 @@ import org.apache.ignite.internal.processors.cache.persistence.IgniteCacheDataba
 import org.apache.ignite.internal.processors.cache.persistence.PageStoreWriter;
 import org.apache.ignite.internal.processors.cache.persistence.tree.io.PageIO;
 import org.apache.ignite.internal.processors.failure.FailureProcessor;
+import org.apache.ignite.internal.processors.metric.GridMetricManager;
+import org.apache.ignite.internal.processors.metric.impl.LongAdderMetric;
 import org.apache.ignite.internal.processors.plugin.IgnitePluginProcessor;
 import org.apache.ignite.internal.processors.subscription.GridInternalSubscriptionProcessor;
 import org.apache.ignite.internal.util.GridMultiCollectionWrapper;
 import org.apache.ignite.internal.util.future.GridFinishedFuture;
 import org.apache.ignite.internal.util.lang.GridInClosure3X;
+import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.plugin.PluginProvider;
 import org.apache.ignite.spi.encryption.noop.NoopEncryptionSpi;
-import org.apache.ignite.spi.eventstorage.NoopEventStorageSpi;
+import org.apache.ignite.spi.metric.noop.NoopMetricExporterSpi;
+import org.apache.ignite.spi.systemview.jmx.JmxSystemViewExporterSpi;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.junits.GridTestKernalContext;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
@@ -67,6 +71,7 @@ import org.mockito.Mockito;
 import static org.apache.ignite.internal.pagemem.PageIdAllocator.FLAG_IDX;
 import static org.apache.ignite.internal.pagemem.PageIdAllocator.INDEX_PARTITION;
 import static org.apache.ignite.internal.processors.cache.persistence.pagemem.PageMemoryImpl.CHECKPOINT_POOL_OVERFLOW_ERROR_MSG;
+import static org.apache.ignite.internal.processors.database.DataRegionMetricsSelfTest.NO_OP_METRICS;
 
 /**
  *
@@ -329,7 +334,7 @@ public class PageMemoryImplTest extends GridCommonAbstractTest {
             long ptr = mem.writeLock(grpId, pageId, page);
 
             try {
-                new DummyPageIO().initNewPage(ptr, pageId, PAGE_SIZE);
+                DummyPageIO.VERSIONS.latest().initNewPage(ptr, pageId, PAGE_SIZE);
 
                 for (int i = PageIO.COMMON_HEADER_END; i < mem.pageSize(); i++)
                     PageUtils.putByte(ptr, i, val);
@@ -417,6 +422,12 @@ public class PageMemoryImplTest extends GridCommonAbstractTest {
         }
 
         memory.finishCheckpoint();
+
+        LongAdderMetric totalThrottlingTime = U.field(memory.metrics(), "totalThrottlingTime");
+
+        assertNotNull(totalThrottlingTime);
+
+        assertTrue(totalThrottlingTime.value() > 0);
     }
 
     /**
@@ -478,14 +489,16 @@ public class PageMemoryImplTest extends GridCommonAbstractTest {
         igniteCfg.setDataStorageConfiguration(new DataStorageConfiguration());
         igniteCfg.setFailureHandler(new NoOpFailureHandler());
         igniteCfg.setEncryptionSpi(new NoopEncryptionSpi());
-        igniteCfg.setEventStorageSpi(new NoopEventStorageSpi());
+        igniteCfg.setMetricExporterSpi(new NoopMetricExporterSpi());
+        igniteCfg.setSystemViewExporterSpi(new JmxSystemViewExporterSpi());
 
         GridTestKernalContext kernalCtx = new GridTestKernalContext(new GridTestLog4jLogger(), igniteCfg);
 
         kernalCtx.add(new IgnitePluginProcessor(kernalCtx, igniteCfg, Collections.<PluginProvider>emptyList()));
         kernalCtx.add(new GridInternalSubscriptionProcessor(kernalCtx));
         kernalCtx.add(new GridEncryptionManager(kernalCtx));
-        kernalCtx.add(new GridEventStorageManager(kernalCtx));
+        kernalCtx.add(new GridMetricManager(kernalCtx));
+        kernalCtx.add(new GridSystemViewManager(kernalCtx));
 
         FailureProcessor failureProc = new FailureProcessor(kernalCtx);
 
@@ -502,6 +515,8 @@ public class PageMemoryImplTest extends GridCommonAbstractTest {
             new NoOpWALManager(),
             null,
             new IgniteCacheDatabaseSharedManager(),
+            null,
+            null,
             null,
             null,
             null,
@@ -531,14 +546,18 @@ public class PageMemoryImplTest extends GridCommonAbstractTest {
                 @Override public void applyx(Long page, FullPageId fullId, PageMemoryEx pageMem) {
                 }
             }, new CheckpointLockStateChecker() {
-            @Override public boolean checkpointLockIsHeldByThread() {
-                return true;
-            }
-        },
-            new DataRegionMetricsImpl(igniteCfg.getDataStorageConfiguration().getDefaultDataRegionConfiguration()),
+                @Override public boolean checkpointLockIsHeldByThread() {
+                    return true;
+                }
+            },
+            new DataRegionMetricsImpl(igniteCfg.getDataStorageConfiguration().getDefaultDataRegionConfiguration(),
+                kernalCtx.metric(),
+                NO_OP_METRICS),
             throttlingPlc,
             noThrottle
         );
+
+        mem.metrics().enableMetrics();
 
         mem.start();
 

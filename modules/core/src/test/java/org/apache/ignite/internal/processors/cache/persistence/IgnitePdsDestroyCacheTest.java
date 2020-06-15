@@ -30,6 +30,7 @@ public class IgnitePdsDestroyCacheTest extends IgnitePdsDestroyCacheAbstractTest
      *
      *  @throws Exception If failed.
      */
+    @Test
     public void testDestroyCaches() throws Exception {
         Ignite ignite = startGrids(NODES);
 
@@ -45,6 +46,7 @@ public class IgnitePdsDestroyCacheTest extends IgnitePdsDestroyCacheAbstractTest
      *
      *  @throws Exception If failed.
      */
+    @Test
     public void testDestroyGroupCaches() throws Exception {
         Ignite ignite = startGrids(NODES);
 

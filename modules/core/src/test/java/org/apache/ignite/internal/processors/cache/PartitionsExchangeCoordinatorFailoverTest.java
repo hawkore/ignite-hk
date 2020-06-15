@@ -17,45 +17,88 @@
 
 package org.apache.ignite.internal.processors.cache;
 
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
+import org.apache.ignite.IgniteException;
+import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.cache.affinity.rendezvous.RendezvousAffinityFunction;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.IgniteInternalFuture;
+import org.apache.ignite.internal.IgniteInterruptedCheckedException;
 import org.apache.ignite.internal.TestRecordingCommunicationSpi;
+import org.apache.ignite.internal.managers.communication.GridIoMessage;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
+import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionDemandMessage;
+import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsExchangeFuture;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsFullMessage;
+import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsSingleMessage;
 import org.apache.ignite.internal.util.typedef.G;
 import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.lang.IgniteInClosure;
 import org.apache.ignite.lang.IgnitePredicate;
+import org.apache.ignite.plugin.extensions.communication.Message;
+import org.apache.ignite.spi.IgniteSpiException;
+import org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi;
 import org.apache.ignite.testframework.GridTestUtils;
+import org.apache.ignite.testframework.junits.WithSystemProperty;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Advanced coordinator failure scenarios during PME.
  */
 public class PartitionsExchangeCoordinatorFailoverTest extends GridCommonAbstractTest {
+    /** */
+    private static final String CACHE_NAME = "cache";
+
+    /** Coordinator node name. */
+    private static final String CRD_NONE = "crd";
+
+    /** */
+    private volatile Supplier<TcpCommunicationSpi> spiFactory = TcpCommunicationSpi::new;
+
+    /** */
+    private boolean newCaches = true;
+
+    /** Node client mode. */
+    private boolean client;
+
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String igniteInstanceName) throws Exception {
         IgniteConfiguration cfg = super.getConfiguration(igniteInstanceName);
 
         cfg.setConsistentId(igniteInstanceName);
 
-        cfg.setCommunicationSpi(new TestRecordingCommunicationSpi());
-
-        IgnitePredicate<ClusterNode> nodeFilter = node -> node.consistentId().equals(igniteInstanceName);
+        cfg.setCommunicationSpi(spiFactory.get().setName("tcp"));
 
         cfg.setCacheConfiguration(
-            new CacheConfiguration("cache-" + igniteInstanceName)
-                .setBackups(1)
-                .setNodeFilter(nodeFilter)
-                .setAffinity(new RendezvousAffinityFunction(false, 32))
+                new CacheConfiguration(CACHE_NAME)
+                    .setBackups(2)
+                    .setAffinity(new RendezvousAffinityFunction(false, 32))
         );
+
+        // Add cache that exists only on coordinator node.
+        if (newCaches && igniteInstanceName.equals(CRD_NONE)) {
+            IgnitePredicate<ClusterNode> nodeFilter = node -> node.consistentId().equals(igniteInstanceName);
+
+            cfg.setCacheConfiguration(
+                    new CacheConfiguration(CACHE_NAME + 0)
+                            .setBackups(2)
+                            .setNodeFilter(nodeFilter)
+                            .setAffinity(new RendezvousAffinityFunction(false, 32))
+            );
+        }
+
+        cfg.setClientMode(client);
 
         return cfg;
     }
@@ -75,8 +118,11 @@ public class PartitionsExchangeCoordinatorFailoverTest extends GridCommonAbstrac
     /**
      * Tests that new coordinator is able to finish old exchanges in case of in-complete coordinator initialization.
      */
+    @Test
     public void testNewCoordinatorCompletedExchange() throws Exception {
-        IgniteEx crd = (IgniteEx) startGrid("crd");
+        spiFactory = TestRecordingCommunicationSpi::new;
+
+        IgniteEx crd = startGrid(CRD_NONE);
 
         IgniteEx newCrd = startGrid(1);
 
@@ -91,13 +137,13 @@ public class PartitionsExchangeCoordinatorFailoverTest extends GridCommonAbstrac
         // Block FullMessage for newly joined nodes.
         TestRecordingCommunicationSpi spi = TestRecordingCommunicationSpi.spi(crd);
 
-        final CountDownLatch sendFullMsgLatch = new CountDownLatch(1);
+        final CountDownLatch sndFullMsgLatch = new CountDownLatch(1);
 
         // Delay sending full message to newly joined nodes.
         spi.blockMessages((node, msg) -> {
             if (msg instanceof GridDhtPartitionsFullMessage && node.order() > 2) {
                 try {
-                    sendFullMsgLatch.await();
+                    sndFullMsgLatch.await();
                 }
                 catch (Throwable ignored) { }
 
@@ -125,13 +171,13 @@ public class PartitionsExchangeCoordinatorFailoverTest extends GridCommonAbstrac
             getTestTimeout()
         );
 
-        IgniteInternalFuture stopCrdFut = GridTestUtils.runAsync(() -> stopGrid("crd", true, false));
+        IgniteInternalFuture stopCrdFut = GridTestUtils.runAsync(() -> stopGrid(CRD_NONE, true, false));
 
         // Magic sleep to make sure that coordinator stop process has started.
         U.sleep(1000);
 
         // Resume full messages sending to unblock coordinator stopping process.
-        sendFullMsgLatch.countDown();
+        sndFullMsgLatch.countDown();
 
         // Coordinator stop should succeed.
         stopCrdFut.get();
@@ -145,7 +191,7 @@ public class PartitionsExchangeCoordinatorFailoverTest extends GridCommonAbstrac
 
         // Check that all caches are operable.
         for (Ignite grid : G.allGrids()) {
-            IgniteCache cache = grid.cache("cache-" + grid.cluster().localNode().consistentId());
+            IgniteCache cache = grid.cache(CACHE_NAME);
 
             Assert.assertNotNull(cache);
 
@@ -158,8 +204,11 @@ public class PartitionsExchangeCoordinatorFailoverTest extends GridCommonAbstrac
      *
      * @throws Exception If failed.
      */
+    @Test
     public void testDelayedFullMessageReplacedIfCoordinatorChanged() throws Exception {
-        IgniteEx crd = startGrid("crd");
+        spiFactory = TestRecordingCommunicationSpi::new;
+
+        IgniteEx crd = startGrid(CRD_NONE);
 
         IgniteEx newCrd = startGrid(1);
 
@@ -169,7 +218,7 @@ public class PartitionsExchangeCoordinatorFailoverTest extends GridCommonAbstrac
 
         awaitPartitionMapExchange();
 
-        blockSendingFullMessage(crd, problemNode);
+        blockSendingFullMessage(crd, node -> node.equals(problemNode.localNode()));
 
         IgniteInternalFuture joinNextNodeFut = GridTestUtils.runAsync(() -> startGrid(3));
 
@@ -177,11 +226,11 @@ public class PartitionsExchangeCoordinatorFailoverTest extends GridCommonAbstrac
 
         U.sleep(5000);
 
-        blockSendingFullMessage(newCrd, problemNode);
+        blockSendingFullMessage(newCrd, node -> node.equals(problemNode.localNode()));
 
-        IgniteInternalFuture stopCoordinatorFut = GridTestUtils.runAsync(() -> stopGrid("crd"));
+        IgniteInternalFuture stopCrdFut = GridTestUtils.runAsync(() -> stopGrid(CRD_NONE));
 
-        stopCoordinatorFut.get();
+        stopCrdFut.get();
 
         U.sleep(5000);
 
@@ -193,11 +242,231 @@ public class PartitionsExchangeCoordinatorFailoverTest extends GridCommonAbstrac
     }
 
     /**
-     * Blocks sending full message from coordinator to non-coordinator node.
-     * @param from Coordinator node.
-     * @param to Non-coordinator node.
+     * Test that exchange coordinator initialized correctly in case of exchanges merge and caches without affinity nodes.
+     *
+     * @throws Exception If failed.
      */
-    private void blockSendingFullMessage(IgniteEx from, IgniteEx to) {
+    @Test
+    public void testCoordinatorChangeAfterExchangesMerge() throws Exception {
+        // Delay demand messages sending to suspend late affinity assignment.
+        spiFactory = () -> new DynamicDelayingCommunicationSpi(msg -> {
+            final int delay = 5_000;
+
+            if (msg instanceof GridDhtPartitionDemandMessage) {
+                GridDhtPartitionDemandMessage demandMsg = (GridDhtPartitionDemandMessage) msg;
+
+                if (demandMsg.groupId() == GridCacheUtils.cacheId(GridCacheUtils.UTILITY_CACHE_NAME))
+                    return 0;
+
+                return delay;
+            }
+
+            return 0;
+        });
+
+        final IgniteEx crd = startGrid(CRD_NONE);
+
+        startGrid(1);
+
+        for (int k = 0; k < 1024; k++)
+            crd.cache(CACHE_NAME).put(k, k);
+
+        // Delay sending single messages to ensure exchanges are merged.
+        spiFactory = () -> new DynamicDelayingCommunicationSpi(msg -> {
+            final int delay = 1_000;
+
+            if (msg instanceof GridDhtPartitionsSingleMessage) {
+                GridDhtPartitionsSingleMessage singleMsg = (GridDhtPartitionsSingleMessage) msg;
+
+                if (singleMsg.exchangeId() != null)
+                    return delay;
+            }
+
+            return 0;
+        });
+
+        // This should trigger exchanges merge.
+        startGridsMultiThreaded(2, 2);
+
+        // Delay sending single message from new node to have time to shutdown coordinator.
+        spiFactory = () -> new DynamicDelayingCommunicationSpi(msg -> {
+            final int delay = 5_000;
+
+            if (msg instanceof GridDhtPartitionsSingleMessage) {
+                GridDhtPartitionsSingleMessage singleMsg = (GridDhtPartitionsSingleMessage) msg;
+
+                if (singleMsg.exchangeId() != null)
+                    return delay;
+            }
+
+            return 0;
+        });
+
+        // Trigger next exchange.
+        IgniteInternalFuture startNodeFut = GridTestUtils.runAsync(() -> startGrid(4));
+
+        // Wait till other nodes will send their messages to coordinator.
+        U.sleep(2_500);
+
+        // And then stop coordinator node.
+        stopGrid(CRD_NONE, true);
+
+        startNodeFut.get();
+
+        awaitPartitionMapExchange();
+
+        // Check that all caches are operable.
+        for (Ignite grid : G.allGrids()) {
+            IgniteCache cache = grid.cache(CACHE_NAME);
+
+            Assert.assertNotNull(cache);
+
+            for (int k = 0; k < 1024; k++)
+                Assert.assertEquals(k, cache.get(k));
+
+            for (int k = 0; k < 1024; k++)
+                cache.put(k, k);
+        }
+    }
+
+    /**
+     * Test checks that changing coordinator to a node that joining to cluster at the moment works correctly
+     * in case of exchanges merge and completed exchange on other joining nodes.
+     */
+    @Test
+    @WithSystemProperty(key = IgniteSystemProperties.IGNITE_SKIP_CONFIGURATION_CONSISTENCY_CHECK, value = "true")
+    public void testChangeCoordinatorToLocallyJoiningNode() throws Exception {
+        newCaches = false;
+
+        spiFactory = TestRecordingCommunicationSpi::new;
+
+        IgniteEx crd = startGrid(CRD_NONE);
+
+        final int newCrdNodeIdx = 1;
+
+        // A full message shouldn't be send to new coordinator.
+        blockSendingFullMessage(crd, node -> node.consistentId().equals(getTestIgniteInstanceName(newCrdNodeIdx)));
+
+        CountDownLatch joiningNodeSentSingleMsg = new CountDownLatch(1);
+
+        // For next joining node delay sending single message to emulate exchanges merge.
+        spiFactory = () -> new DynamicDelayingCommunicationSpi(msg -> {
+            final int delay = 5_000;
+
+            if (msg instanceof GridDhtPartitionsSingleMessage) {
+                GridDhtPartitionsSingleMessage singleMsg = (GridDhtPartitionsSingleMessage) msg;
+
+                if (singleMsg.exchangeId() != null) {
+                    joiningNodeSentSingleMsg.countDown();
+
+                    return delay;
+                }
+            }
+
+            return 0;
+        });
+
+        IgniteInternalFuture<?> newCrdJoinFut = GridTestUtils.runAsync(() -> startGrid(newCrdNodeIdx));
+
+        // Wait till new coordinator node sent single message.
+        joiningNodeSentSingleMsg.await();
+
+        spiFactory = TcpCommunicationSpi::new;
+
+        // Additionally start 2 new nodes. Their exchange should be merged with exchange on join new coordinator node.
+        startGridsMultiThreaded(2, 2);
+
+        Assert.assertFalse("New coordinator join shouldn't be happened before stopping old coordinator.",
+            newCrdJoinFut.isDone());
+
+        // Stop coordinator.
+        stopGrid(CRD_NONE);
+
+        // New coordinator join process should succeed after that.
+        newCrdJoinFut.get();
+
+        awaitPartitionMapExchange();
+
+        // Check that affinity are equal on all nodes.
+        AffinityTopologyVersion affVer = ((IgniteEx) ignite(1)).cachex(CACHE_NAME)
+            .context().shared().exchange().readyAffinityVersion();
+
+        List<List<ClusterNode>> expAssignment = null;
+        IgniteEx expAssignmentNode = null;
+
+        for (Ignite node : G.allGrids()) {
+            IgniteEx nodeEx = (IgniteEx) node;
+
+            List<List<ClusterNode>> assignment = nodeEx.cachex(CACHE_NAME).context().affinity().assignments(affVer);
+
+            if (expAssignment == null) {
+                expAssignment = assignment;
+                expAssignmentNode = nodeEx;
+            }
+            else
+                Assert.assertEquals("Affinity assignments are different " +
+                    "[expectedNode=" + expAssignmentNode + ", actualNode=" + nodeEx + "]", expAssignment, assignment);
+        }
+    }
+
+    /**
+     * Test checks that changing coordinator to a node that joining to cluster at the moment works correctly
+     * in case of completed exchange on client nodes.
+     */
+    @Test
+    @WithSystemProperty(key = IgniteSystemProperties.IGNITE_SKIP_CONFIGURATION_CONSISTENCY_CHECK, value = "true")
+    public void testChangeCoordinatorToLocallyJoiningNode2() throws Exception {
+        newCaches = false;
+
+        spiFactory = TestRecordingCommunicationSpi::new;
+
+        IgniteEx crd = startGrid(CRD_NONE);
+
+        client = true;
+
+        // Start several clients.
+        IgniteEx clientNode = (IgniteEx) startGridsMultiThreaded(2, 2);
+
+        client = false;
+
+        awaitPartitionMapExchange();
+
+        final int newCrdNodeIdx = 1;
+
+        // A full message shouldn't be send to new coordinator.
+        blockSendingFullMessage(crd, node -> node.consistentId().equals(getTestIgniteInstanceName(newCrdNodeIdx)));
+
+        IgniteInternalFuture<?> newCrdJoinFut = GridTestUtils.runAsync(() -> startGrid(newCrdNodeIdx));
+
+        // Wait till client node will receive full message and finish exchange on node join.
+        GridTestUtils.waitForCondition(() -> {
+                GridDhtPartitionsExchangeFuture fut = clientNode.cachex(CACHE_NAME)
+                    .context().shared().exchange().lastFinishedFuture();
+
+                return fut != null && fut.topologyVersion().equals(new AffinityTopologyVersion(4, 0));
+            }, 60_000
+        );
+
+        Assert.assertFalse("New coordinator join shouldn't be happened before stopping old coordinator.",
+            newCrdJoinFut.isDone());
+
+        // Stop coordinator.
+        stopGrid(CRD_NONE);
+
+        // New coordinator join process should succeed after that.
+        newCrdJoinFut.get();
+
+        awaitPartitionMapExchange();
+    }
+
+    /**
+     * Blocks sending full message from coordinator to non-coordinator node.
+     *
+     * @param from Coordinator node.
+     * @param pred Non-coordinator node predicate.
+     *                  If predicate returns {@code true} a full message will not be send to that node.
+     */
+    private void blockSendingFullMessage(IgniteEx from, Predicate<ClusterNode> pred) {
         // Block FullMessage for newly joined nodes.
         TestRecordingCommunicationSpi spi = TestRecordingCommunicationSpi.spi(from);
 
@@ -206,8 +475,8 @@ public class PartitionsExchangeCoordinatorFailoverTest extends GridCommonAbstrac
             if (msg instanceof GridDhtPartitionsFullMessage) {
                 GridDhtPartitionsFullMessage fullMsg = (GridDhtPartitionsFullMessage) msg;
 
-                if (fullMsg.exchangeId() != null && node.order() == to.localNode().order()) {
-                    log.warning("Blocked sending " + msg + " to " + to.localNode());
+                if (fullMsg.exchangeId() != null && pred.test(node)) {
+                    log.warning("Blocked sending " + msg + " to " + node);
 
                     return true;
                 }
@@ -215,5 +484,46 @@ public class PartitionsExchangeCoordinatorFailoverTest extends GridCommonAbstrac
 
             return false;
         });
+    }
+
+    /**
+     * Communication SPI that allows to delay sending message by predicate.
+     */
+    static class DynamicDelayingCommunicationSpi extends TcpCommunicationSpi {
+        /** Function that returns delay in milliseconds for given message. */
+        private final Function<Message, Integer> delayMsgFunc;
+
+        /** */
+        DynamicDelayingCommunicationSpi() {
+            this(msg -> 0);
+        }
+
+        /**
+         * @param delayMsgFunc Function to calculate delay for message.
+         */
+        DynamicDelayingCommunicationSpi(final Function<Message, Integer> delayMsgFunc) {
+            this.delayMsgFunc = delayMsgFunc;
+        }
+
+        /** {@inheritDoc} */
+        @Override public void sendMessage(ClusterNode node, Message msg, IgniteInClosure<IgniteException> ackC)
+                throws IgniteSpiException {
+            try {
+                GridIoMessage ioMsg = (GridIoMessage)msg;
+
+                int delay = delayMsgFunc.apply(ioMsg.message());
+
+                if (delay > 0) {
+                    log.warning(String.format("Delay sending %s to %s", msg, node));
+
+                    U.sleep(delay);
+                }
+            }
+            catch (IgniteInterruptedCheckedException e) {
+                throw new IgniteSpiException(e);
+            }
+
+            super.sendMessage(node, msg, ackC);
+        }
     }
 }

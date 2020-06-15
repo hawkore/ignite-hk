@@ -30,21 +30,26 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicStampedReference;
 import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.IgniteException;
 import org.apache.ignite.compute.ComputeTask;
 import org.apache.ignite.configuration.DeploymentMode;
 import org.apache.ignite.internal.processors.task.GridInternal;
+import org.apache.ignite.internal.processors.task.GridVisorManagementTask;
 import org.apache.ignite.internal.util.GridLeanSet;
 import org.apache.ignite.internal.util.lang.GridMetadataAwareAdapter;
 import org.apache.ignite.internal.util.lang.GridPeerDeployAware;
 import org.apache.ignite.internal.util.lang.GridTuple;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.F;
+import org.apache.ignite.internal.util.typedef.X;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteBiTuple;
 import org.apache.ignite.lang.IgniteUuid;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -336,7 +341,6 @@ public class GridDeployment extends GridMetadataAwareAdapter implements GridDepl
      * @return Annotation value.
      * @param <T> Annotation class.
      */
-    @SuppressWarnings("unchecked")
     public <T extends Annotation> T annotation(Class<?> cls, Class<T> annCls) {
         ConcurrentMap<Class<? extends Annotation>, GridTuple<Annotation>> clsAnns = anns.get(cls);
 
@@ -366,7 +370,6 @@ public class GridDeployment extends GridMetadataAwareAdapter implements GridDepl
      * @param taskCls Task class.
      * @return {@code True} if task is internal.
      */
-    @SuppressWarnings("unchecked")
     public boolean internalTask(@Nullable ComputeTask task, Class<?> taskCls) {
         assert taskCls != null;
 
@@ -381,6 +384,19 @@ public class GridDeployment extends GridMetadataAwareAdapter implements GridDepl
         }
 
         return res;
+    }
+
+    /**
+     * Checks whether task class is annotated with {@link GridVisorManagementTask}.
+     *
+     * @param task Task.
+     * @param taskCls Task class.
+     * @return {@code True} if task is internal.
+     */
+    public boolean visorManagementTask(@Nullable ComputeTask task, @NotNull Class<?> taskCls) {
+        return annotation(task instanceof GridPeerDeployAware ?
+                ((GridPeerDeployAware)task).deployClass() : taskCls,
+            GridVisorManagementTask.class) != null;
     }
 
     /**
@@ -435,13 +451,13 @@ public class GridDeployment extends GridMetadataAwareAdapter implements GridDepl
      * @param alias Optional array of aliases.
      * @return Class for given name.
      */
-    @SuppressWarnings({"StringEquality", "UnusedCatchParameter"})
+    @SuppressWarnings({"StringEquality"})
     @Nullable public Class<?> deployedClass(String clsName, String... alias) {
         Class<?> cls = clss.get(clsName);
 
         if (cls == null) {
             try {
-                cls = Class.forName(clsName, true, clsLdr);
+                cls = U.forName(clsName, clsLdr);
 
                 Class<?> cur = clss.putIfAbsent(clsName, cls);
 
@@ -462,7 +478,7 @@ public class GridDeployment extends GridMetadataAwareAdapter implements GridDepl
                         return cls;
                     else if (!a.equals(clsName)) {
                         try {
-                            cls = Class.forName(a, true, clsLdr);
+                            cls = U.forName(a, clsLdr);
                         }
                         catch (ClassNotFoundException ignored0) {
                             continue;
@@ -484,6 +500,10 @@ public class GridDeployment extends GridMetadataAwareAdapter implements GridDepl
                         return cls;
                     }
                 }
+            }
+            catch (IgniteException e) {
+                if (!X.hasCause(e, TimeoutException.class))
+                    throw e;
             }
         }
 

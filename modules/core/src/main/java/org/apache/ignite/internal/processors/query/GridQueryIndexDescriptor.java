@@ -17,9 +17,9 @@
 
 package org.apache.ignite.internal.processors.query;
 
-import java.util.Collection;
-
 import org.apache.ignite.cache.QueryIndexType;
+
+import java.util.Collection;
 
 /**
  * Describes an index to be created for a certain type. It contains all necessary
@@ -61,14 +61,14 @@ public interface GridQueryIndexDescriptor {
      * @return Inline size.
      */
     public int inlineSize();
-    
-    
+
+
     /**
      * Set lucene Index Options
      * @param luceneIndexOptions
      */
     public void setLuceneIndexOptions(String luceneIndexOptions);
-    
+
     /**
      * Gets lucene index options
      * @return lucene index options

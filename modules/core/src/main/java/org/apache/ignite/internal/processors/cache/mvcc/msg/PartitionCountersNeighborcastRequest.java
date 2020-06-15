@@ -20,12 +20,14 @@ package org.apache.ignite.internal.processors.cache.mvcc.msg;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import org.apache.ignite.internal.GridDirectCollection;
+import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.GridCacheIdMessage;
 import org.apache.ignite.internal.processors.cache.distributed.dht.PartitionUpdateCountersMessage;
 import org.apache.ignite.lang.IgniteUuid;
 import org.apache.ignite.plugin.extensions.communication.MessageCollectionItemType;
 import org.apache.ignite.plugin.extensions.communication.MessageReader;
 import org.apache.ignite.plugin.extensions.communication.MessageWriter;
+import org.jetbrains.annotations.NotNull;
 
 /** */
 public class PartitionCountersNeighborcastRequest extends GridCacheIdMessage {
@@ -39,15 +41,27 @@ public class PartitionCountersNeighborcastRequest extends GridCacheIdMessage {
     /** */
     private IgniteUuid futId;
 
+    /** Topology version. */
+    private AffinityTopologyVersion topVer;
+
     /** */
     public PartitionCountersNeighborcastRequest() {
     }
 
     /** */
     public PartitionCountersNeighborcastRequest(
-        Collection<PartitionUpdateCountersMessage> updCntrs, IgniteUuid futId) {
+        Collection<PartitionUpdateCountersMessage> updCntrs,
+        IgniteUuid futId,
+        @NotNull AffinityTopologyVersion topVer
+    ) {
         this.updCntrs = updCntrs;
         this.futId = futId;
+        this.topVer = topVer;
+    }
+
+    /** {@inheritDoc} */
+    @Override public AffinityTopologyVersion topologyVersion() {
+        return topVer;
     }
 
     /**
@@ -79,13 +93,19 @@ public class PartitionCountersNeighborcastRequest extends GridCacheIdMessage {
         }
 
         switch (writer.state()) {
-            case 3:
+            case 4:
                 if (!writer.writeIgniteUuid("futId", futId))
                     return false;
 
                 writer.incrementState();
 
-            case 4:
+            case 5:
+                if (!writer.writeAffinityTopologyVersion("topVer", topVer))
+                    return false;
+
+                writer.incrementState();
+
+            case 6:
                 if (!writer.writeCollection("updCntrs", updCntrs, MessageCollectionItemType.MSG))
                     return false;
 
@@ -107,7 +127,7 @@ public class PartitionCountersNeighborcastRequest extends GridCacheIdMessage {
             return false;
 
         switch (reader.state()) {
-            case 3:
+            case 4:
                 futId = reader.readIgniteUuid("futId");
 
                 if (!reader.isLastRead())
@@ -115,7 +135,15 @@ public class PartitionCountersNeighborcastRequest extends GridCacheIdMessage {
 
                 reader.incrementState();
 
-            case 4:
+            case 5:
+                topVer = reader.readAffinityTopologyVersion("topVer");
+
+                if (!reader.isLastRead())
+                    return false;
+
+                reader.incrementState();
+
+            case 6:
                 updCntrs = reader.readCollection("updCntrs", MessageCollectionItemType.MSG);
 
                 if (!reader.isLastRead())
@@ -135,7 +163,7 @@ public class PartitionCountersNeighborcastRequest extends GridCacheIdMessage {
 
     /** {@inheritDoc} */
     @Override public byte fieldsCount() {
-        return 5;
+        return 7;
     }
 
     /** {@inheritDoc} */

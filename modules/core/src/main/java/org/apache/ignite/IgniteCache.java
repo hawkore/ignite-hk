@@ -51,7 +51,6 @@ import org.apache.ignite.cache.query.QueryMetrics;
 import org.apache.ignite.cache.query.ScanQuery;
 import org.apache.ignite.cache.query.SpiQuery;
 import org.apache.ignite.cache.query.SqlFieldsQuery;
-import org.apache.ignite.cache.query.SqlQuery;
 import org.apache.ignite.cache.query.TextQuery;
 import org.apache.ignite.cache.store.CacheStore;
 import org.apache.ignite.cluster.ClusterGroup;
@@ -62,10 +61,13 @@ import org.apache.ignite.lang.IgniteAsyncSupported;
 import org.apache.ignite.lang.IgniteBiInClosure;
 import org.apache.ignite.lang.IgniteBiPredicate;
 import org.apache.ignite.lang.IgniteClosure;
+import org.apache.ignite.lang.IgniteExperimental;
 import org.apache.ignite.lang.IgniteFuture;
 import org.apache.ignite.mxbean.CacheMetricsMXBean;
+import org.apache.ignite.transactions.TransactionConcurrency;
 import org.apache.ignite.transactions.TransactionException;
 import org.apache.ignite.transactions.TransactionHeuristicException;
+import org.apache.ignite.transactions.TransactionIsolation;
 import org.apache.ignite.transactions.TransactionRollbackException;
 import org.apache.ignite.transactions.TransactionTimeoutException;
 import org.jetbrains.annotations.Nullable;
@@ -136,6 +138,58 @@ public interface IgniteCache<K, V> extends javax.cache.Cache<K, V>, IgniteAsyncS
      * @return Cache without partition loss protection.
      */
     public IgniteCache<K, V> withPartitionRecover();
+
+    /**
+     * <b>This is an experimental API.</b>
+     * <p>
+     * Gets an instance of {@code IgniteCache} that will perform backup nodes check on each get attempt.
+     * <p>
+     * Read Repair means that each backup node will be checked to have the same entry as primary node has,
+     * and in case consistency violation found:
+     * <ul>
+     *  <li>for transactional caches:
+     *  <p>values across the topology will be replaced by latest versioned value:
+     *  <ul>
+     *      <li>automatically for transactions that have {@link TransactionConcurrency#OPTIMISTIC} concurrency mode
+     *          or {@link TransactionIsolation#READ_COMMITTED} isolation level</li>
+     *      <li>at commit() phase for transactions that have {@link TransactionConcurrency#PESSIMISTIC} concurrency mode
+     *          and isolation level other than {@link TransactionIsolation#READ_COMMITTED}</li>
+     *  </ul>
+     *  <p>consistency violation event will be recorded in case it's configured as recordable</li>
+     *  <li>for atomic caches: consistency violation exception will be thrown.
+     *  Be aware that consistency violation event will not be recorded in this case.</li>
+     * </ul>
+     * <p>
+     * One more important thing is that this proxy usage does not guarantee "all copies check" in case value
+     * already cached inside the transaction. In case you use !READ_COMMITTED isolation mode and already have
+     * cached value, for example already read the value or performed a write, you'll gain the cached value.
+     * <p>
+     * Due to the nature of the atomic cache, false-positive results can be observed. For example, an attempt to check
+     * consistency under cache loading may lead to consistency violation exception. By default, the implementation tries
+     * to check the given key three times. The number of attempts can be changed using
+     * {@link IgniteSystemProperties#IGNITE_NEAR_GET_MAX_REMAPS} property.
+     * <p>
+     * Consistency check is incompatible with the following cache configurations:
+     * <ul>
+     *     <li>Caches without backups.</li>
+     *     <li>Local caches.</li>
+     *     <li>Near caches.</li>
+     *     <li>Caches that use "read-through" mode.</li>
+     * </ul>
+     * <p>
+     * Full list of repairable methods:
+     * <ul>
+     * <li>{@link IgniteCache#containsKey} && {@link IgniteCache#containsKeyAsync}</li>
+     * <li>{@link IgniteCache#containsKeys} && {@link IgniteCache#containsKeysAsync}</li>
+     * <li>{@link IgniteCache#getEntry} && {@link IgniteCache#getEntryAsync}</li>
+     * <li>{@link IgniteCache#getEntries} && {@link IgniteCache#getEntriesAsync}</li>
+     * <li>{@link IgniteCache#get} && {@link IgniteCache#getAsync}</li>
+     * <li>{@link IgniteCache#getAll} && {@link IgniteCache#getAllAsync}</li>
+     * </ul>
+     * @return Cache with explicit consistency check on each read and repair if necessary.
+     */
+    @IgniteExperimental
+    public IgniteCache<K, V> withReadRepair();
 
     /**
      * Returns cache that will operate with binary objects.
@@ -366,7 +420,6 @@ public interface IgniteCache<K, V> extends javax.cache.Cache<K, V>, IgniteAsyncS
      * @param qry Query.
      * @return Cursor.
      * @see ScanQuery
-     * @see SqlQuery
      * @see SqlFieldsQuery
      * @see TextQuery
      * @see SpiQuery
@@ -441,9 +494,9 @@ public interface IgniteCache<K, V> extends javax.cache.Cache<K, V>, IgniteAsyncS
     public void localEvict(Collection<? extends K> keys);
 
     /**
-     * Peeks at in-memory cached value using default optional peek mode.
+     * Peeks at a value in the local storage using an optional peek mode.
      * <p>
-     * This method will not load value from any persistent store or from a remote node.
+     * This method will not load a value from the configured {@link CacheStore} or from a remote node.
      * <h2 class="header">Transactions</h2>
      * This method does not participate in any transactions.
      *
@@ -1236,7 +1289,7 @@ public interface IgniteCache<K, V> extends javax.cache.Cache<K, V>, IgniteAsyncS
      * @throws TransactionException If operation within transaction is failed.
      */
     public <T> IgniteFuture<T> invokeAsync(K key, EntryProcessor<K, V, T> entryProcessor, Object... arguments)
-		    throws TransactionException;
+        throws TransactionException;
 
     /**
      * Invokes an {@link CacheEntryProcessor} against the {@link javax.cache.Cache.Entry} specified by
@@ -1270,7 +1323,7 @@ public interface IgniteCache<K, V> extends javax.cache.Cache<K, V>, IgniteAsyncS
      */
     @IgniteAsyncSupported
     public <T> T invoke(K key, CacheEntryProcessor<K, V, T> entryProcessor, Object... arguments)
-		    throws TransactionException;
+        throws TransactionException;
 
     /**
      * Asynchronously invokes an {@link CacheEntryProcessor} against the {@link javax.cache.Cache.Entry} specified by
@@ -1300,7 +1353,7 @@ public interface IgniteCache<K, V> extends javax.cache.Cache<K, V>, IgniteAsyncS
      * @see CacheEntryProcessor
      */
     public <T> IgniteFuture<T> invokeAsync(K key, CacheEntryProcessor<K, V, T> entryProcessor, Object... arguments)
-		    throws TransactionException;
+        throws TransactionException;
 
     /**
      * {@inheritDoc}
@@ -1516,7 +1569,7 @@ public interface IgniteCache<K, V> extends javax.cache.Cache<K, V>, IgniteAsyncS
     /**
      * Gets a collection of lost partition IDs.
      *
-     * @return Lost paritions.
+     * @return Lost partitions.
      */
     public Collection<Integer> lostPartitions();
 
@@ -1531,4 +1584,51 @@ public interface IgniteCache<K, V> extends javax.cache.Cache<K, V>, IgniteAsyncS
      * Clear cluster statistics for this cache.
      */
     public void clearStatistics();
+
+    /**
+     * Efficiently preloads cache primary partition into page memory.
+     * <p>
+     * This is useful for fast iteration over cache partition data if persistence is enabled and the data is "cold".
+     * <p>
+     * Preload will reduce available amount of page memory for subsequent operations and may lead to earlier page
+     * replacement.
+     * <p>
+     * This method is irrelevant for in-memory caches. Calling this method on an in-memory cache will result in
+     * exception.
+     *
+     * @param partition Partition.
+     */
+    public void preloadPartition(int partition);
+
+    /**
+     * Efficiently preloads cache partition into page memory.
+     * <p>
+     * This is useful for fast iteration over cache partition data if persistence is enabled and the data is "cold".
+     * <p>
+     * Preload will reduce available amount of page memory for subsequent operations and may lead to earlier page
+     * replacement.
+     * <p>
+     * This method is irrelevant for in-memory caches. Calling this method on an in-memory cache will result in
+     * exception.
+     *
+     * @param partition Partition.
+     * @return A future representing pending completion of the partition preloading.
+     */
+    public IgniteFuture<Void> preloadPartitionAsync(int partition);
+
+    /**
+     * Efficiently preloads cache partition into page memory if it exists on the local node.
+     * <p>
+     * This is useful for fast iteration over cache partition data if persistence is enabled and the data is "cold".
+     * <p>
+     * Preload will reduce available amount of page memory for subsequent operations and may lead to earlier page
+     * replacement.
+     * <p>
+     * This method is irrelevant for in-memory caches. Calling this method on an in-memory cache will result in
+     * exception.
+     *
+     * @param partition Partition.
+     * @return {@code True} if partition was preloaded, {@code false} if it doesn't belong to local node.
+     */
+    public boolean localPreloadPartition(int partition);
 }

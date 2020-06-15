@@ -18,6 +18,7 @@
 namespace Apache.Ignite.Core.Cache.Configuration
 {
     using Apache.Ignite.Core.Cache;
+    using Apache.Ignite.Core.Common;
 
     /// <summary>
     /// Cache atomicity mode.
@@ -42,10 +43,10 @@ namespace Apache.Ignite.Core.Cache.Configuration
         /// performance and throughput ratios.
         /// <para/>
         /// In addition to transactions and locking, one of the main differences to <see cref="Atomic"/> mode
-        /// is that bulk writes, such as <see cref="ICache{TK,TV}.PutAll"/> 
-        /// and <see cref="ICache{TK,TV}.RemoveAll(System.Collections.Generic.IEnumerable{TK})"/> methods, 
+        /// is that bulk writes, such as <see cref="ICache{TK,TV}.PutAll"/>
+        /// and <see cref="ICache{TK,TV}.RemoveAll(System.Collections.Generic.IEnumerable{TK})"/> methods,
         /// become simple batch operations which can partially fail. In case of partial
-        /// failure, <see cref="CachePartialUpdateException"/>will be thrown which will contain a list of keys 
+        /// failure, <see cref="CachePartialUpdateException"/>will be thrown which will contain a list of keys
         /// for which the update failed. It is recommended that bulk writes are used
         /// whenever multiple keys need to be inserted or updated in cache, as they reduce number of network trips and
         /// provide better performance.
@@ -54,11 +55,13 @@ namespace Apache.Ignite.Core.Cache.Configuration
         /// full consistency guarantees across all cache nodes.
         /// <para/>
         /// Also note that all data modifications in <see cref="Atomic"/> mode are guaranteed to be atomic
-        /// and consistent with writes to the underlying persistent store, if one is configured.        
+        /// and consistent with writes to the underlying persistent store, if one is configured.
         /// </summary>
         Atomic,
 
         /// <summary>
+        /// This is an experimental feature. Transactional SQL is currently in a beta status.
+        /// <para/>
         /// Specifies fully ACID-compliant transactional cache behavior for both key-value API and SQL transactions.
         /// <para/>
         /// This atomicity mode enables multiversion concurrency control (MVCC) for the cache. In MVCC-enabled caches,
@@ -77,6 +80,7 @@ namespace Apache.Ignite.Core.Cache.Configuration
         /// If a transaction is executed over multiple caches, all caches must have the same atomicity mode,
         /// either TRANSACTIONAL_SNAPSHOT or TRANSACTIONAL.
         /// </summary>
+        [IgniteExperimentalAttribute]
         TransactionalSnapshot,
     }
 }

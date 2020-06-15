@@ -25,8 +25,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.ml.math.ExternalizeTest;
-import org.apache.ignite.ml.math.exceptions.CardinalityException;
 import org.apache.ignite.ml.math.exceptions.UnsupportedOperationException;
+import org.apache.ignite.ml.math.exceptions.math.CardinalityException;
 import org.apache.ignite.ml.math.primitives.vector.impl.DelegatingVector;
 import org.apache.ignite.ml.math.primitives.vector.impl.DenseVector;
 import org.apache.ignite.ml.math.primitives.vector.impl.SparseVector;
@@ -42,7 +42,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /** See also: {@link AbstractVectorTest} and {@link VectorToMatrixTest}. */
-public class VectorImplementationsTest { // TODO: IGNTIE-5723, split this to smaller cohesive test classes
+public class VectorImplementationsTest { // TODO: IGNITE-5723, split this to smaller cohesive test classes
     /** */
     @Test
     public void setGetTest() {
@@ -92,7 +92,7 @@ public class VectorImplementationsTest { // TODO: IGNTIE-5723, split this to sma
     public void operateXOutOfBoundsTest() {
         consumeSampleVectors((v, desc) -> {
             if (v instanceof SparseVector)
-                return; // TODO: IGNTIE-5723, find out if it's OK to skip by instances here
+                return; // TODO: IGNITE-5723, find out if it's OK to skip by instances here
 
             boolean expECaught = false;
 
@@ -493,7 +493,7 @@ public class VectorImplementationsTest { // TODO: IGNTIE-5723, split this to sma
 
     /** */
     private boolean getXOutOfBoundsOK(Vector v) {
-        // TODO: IGNTIE-5723, find out if this is indeed OK
+        // TODO: IGNITE-5723, find out if this is indeed OK
         return false;
     }
 
@@ -557,7 +557,7 @@ public class VectorImplementationsTest { // TODO: IGNTIE-5723, split this to sma
     private void operationVectorTest(BiFunction<Double, Double, Double> operation,
         BiFunction<Vector, Vector, Vector> vecOperation) {
         consumeSampleVectors((v, desc) -> {
-            // TODO : IGNTIE-5723, find out if more elaborate testing scenario is needed or it's okay as is.
+            // TODO : IGNITE-5723, find out if more elaborate testing scenario is needed or it's okay as is.
             final int size = v.size();
             final double[] ref = new double[size];
 
@@ -671,7 +671,8 @@ public class VectorImplementationsTest { // TODO: IGNTIE-5723, split this to sma
                 for (int idx = 0; idx < size; idx++)
                     ref[idx] = operation.apply(ref[idx], val);
 
-                checker.assertCloseEnough(vecOperation.apply(v, val), ref);
+                Vector apply = vecOperation.apply(v, val);
+                checker.assertCloseEnough(apply, ref);
             });
     }
 

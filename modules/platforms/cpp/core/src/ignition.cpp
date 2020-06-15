@@ -104,6 +104,10 @@ namespace ignite
 
             opts.reserve(cfg.jvmOpts.size() + REQ_OPTS_CNT + JAVA9_OPTS_CNT);
 
+            std::string fileEncParam = "-Dfile.encoding=";
+
+            bool hadFileEnc = false;
+
             // 1. Set classpath.
             std::string cpFull = "-Djava.class.path=" + cp;
 
@@ -124,8 +128,19 @@ namespace ignite
             opts.push_back(CopyChars(xmxStr.c_str()));
 
             // 4. Set the rest options.
-            for (std::list<std::string>::const_iterator i = cfg.jvmOpts.begin(); i != cfg.jvmOpts.end(); ++i)
+            for (std::list<std::string>::const_iterator i = cfg.jvmOpts.begin(); i != cfg.jvmOpts.end(); ++i) {
+                if (i->find(fileEncParam) != std::string::npos)
+                    hadFileEnc = true;
+
                 opts.push_back(CopyChars(i->c_str()));
+            }
+
+            // 5. Set file.encoding.
+            if (!hadFileEnc) {
+                std::string fileEncFull = fileEncParam + "UTF-8";
+
+                opts.push_back(CopyChars(fileEncFull.c_str()));
+            }
 
             // Adding options for Java 9 or later
             if (IsJava9OrLater()) {

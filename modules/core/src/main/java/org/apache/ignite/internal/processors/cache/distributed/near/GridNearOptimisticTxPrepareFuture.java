@@ -43,7 +43,6 @@ import org.apache.ignite.internal.processors.cache.GridCacheMvccCandidate;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.distributed.GridDistributedTxMapping;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtTxMapping;
-import org.apache.ignite.internal.processors.cache.mvcc.MvccCoordinator;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteInternalTx;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxKey;
@@ -63,13 +62,11 @@ import org.apache.ignite.internal.util.typedef.internal.CU;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteBiClosure;
-import org.apache.ignite.lang.IgniteInClosure;
 import org.apache.ignite.transactions.TransactionDeadlockException;
 import org.apache.ignite.transactions.TransactionTimeoutException;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.internal.processors.cache.GridCacheOperation.TRANSFORM;
-import static org.apache.ignite.internal.processors.cache.mvcc.MvccUtils.noCoordinatorError;
 import static org.apache.ignite.transactions.TransactionState.PREPARED;
 import static org.apache.ignite.transactions.TransactionState.PREPARING;
 
@@ -158,30 +155,8 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearOptimisticTxPrepa
             }
         }
 
-        if (ERR_UPD.compareAndSet(this, null, e)) {
-            boolean marked = tx.setRollbackOnly();
-
-            if (e instanceof IgniteTxRollbackCheckedException) {
-                if (marked) {
-                    tx.rollbackAsync().listen(new IgniteInClosure<IgniteInternalFuture<IgniteInternalTx>>() {
-                        @Override public void apply(IgniteInternalFuture<IgniteInternalTx> fut) {
-                            try {
-                                fut.get();
-                            }
-                            catch (IgniteCheckedException e) {
-                                U.error(log, "Failed to automatically rollback transaction: " + tx, e);
-                            }
-
-                            onComplete();
-                        }
-                    });
-
-                    return;
-                }
-            }
-
+        if (ERR_UPD.compareAndSet(this, null, e))
             onComplete();
-        }
     }
 
     /** {@inheritDoc} */
@@ -216,7 +191,6 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearOptimisticTxPrepa
     /**
      * @return Keys for which {@code MiniFuture} isn't completed.
      */
-    @SuppressWarnings("ForLoopReplaceableByForEach")
     public Set<IgniteTxKey> requestedKeys() {
         synchronized (this) {
             int size = futuresCountNoLock();
@@ -248,7 +222,6 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearOptimisticTxPrepa
      * @param miniId Mini ID to find.
      * @return Mini future.
      */
-    @SuppressWarnings("ForLoopReplaceableByForEach")
     private MiniFuture miniFuture(int miniId) {
         // We iterate directly over the futs collection here to avoid copy.
         synchronized (this) {
@@ -301,7 +274,8 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearOptimisticTxPrepa
     private boolean onComplete() {
         Throwable err0 = err;
 
-        if (err0 == null || tx.needCheckBackup())
+        if ((!tx.onePhaseCommit() || tx.mappings().get(cctx.localNodeId()) == null) &&
+                (err0 == null || tx.needCheckBackup()))
             tx.state(PREPARED);
 
         if (super.onDone(tx, err0)) {
@@ -382,18 +356,6 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearOptimisticTxPrepa
                 tx.colocatedLocallyMapped(true);
         }
 
-        if (write.context().mvccEnabled()) {
-            MvccCoordinator mvccCrd = write.context().affinity().mvccCoordinator(topVer);
-
-            if (mvccCrd == null) {
-                onDone(noCoordinatorError(topVer));
-
-                return;
-            }
-
-            initMvccVersionFuture(keyLockFut != null ? 2 : 1, remap);
-        }
-
         if (keyLockFut != null)
             keyLockFut.onAllKeysAdded();
 
@@ -438,8 +400,6 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearOptimisticTxPrepa
 
         boolean hasNearCache = false;
 
-        MvccCoordinator mvccCrd = null;
-
         for (IgniteTxEntry write : writes) {
             write.clearEntryReadVersion();
 
@@ -448,16 +408,6 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearOptimisticTxPrepa
             if (updated == null)
                 // an exception occurred while transaction mapping, stop further processing
                 break;
-
-            if (write.context().mvccEnabled() && mvccCrd == null) {
-                mvccCrd = write.context().affinity().mvccCoordinator(topVer);
-
-                if (mvccCrd == null) {
-                    onDone(noCoordinatorError(topVer));
-
-                    break;
-                }
-            }
 
             if (write.context().isNear())
                 hasNearCache = true;
@@ -498,11 +448,6 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearOptimisticTxPrepa
             return;
         }
 
-        assert !tx.txState().mvccEnabled() || mvccCrd != null;
-
-        if (mvccCrd != null)
-            initMvccVersionFuture(keyLockFut != null ? 2 : 1, remap);
-
         if (keyLockFut != null)
             keyLockFut.onAllKeysAdded();
 
@@ -526,12 +471,8 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearOptimisticTxPrepa
     private void proceedPrepare(final Queue<GridDistributedTxMapping> mappings) {
         final GridDistributedTxMapping m = mappings.poll();
 
-        if (m == null) {
-            if (mvccVerFut != null)
-                mvccVerFut.onLockReceived();
-
+        if (m == null)
             return;
-        }
 
         proceedPrepare(m, mappings);
     }
@@ -573,8 +514,9 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearOptimisticTxPrepa
                     tx.subjectId(),
                     tx.taskNameHash(),
                     m.clientFirst(),
-                    true,
-                    tx.activeCachesDeploymentEnabled());
+                    txMapping.transactionNodes().size() == 1,
+                    tx.activeCachesDeploymentEnabled(),
+                    tx.txState().recovery());
 
                 for (IgniteTxEntry txEntry : m.entries()) {
                     if (txEntry.op() == TRANSFORM)
@@ -603,7 +545,7 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearOptimisticTxPrepa
                     assert !(m.hasColocatedCacheEntries() && m.hasNearCacheEntries()) : m;
 
                     IgniteInternalFuture<GridNearTxPrepareResponse> prepFut =
-                        m.hasNearCacheEntries() ? cctx.tm().txHandler().prepareNearTxLocal(req)
+                        m.hasNearCacheEntries() ? cctx.tm().txHandler().prepareNearTxLocal(tx, req)
                         : cctx.tm().txHandler().prepareColocatedTx(tx, req);
 
                     prepFut.listen(new CI1<IgniteInternalFuture<GridNearTxPrepareResponse>>() {
@@ -761,7 +703,6 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearOptimisticTxPrepa
     /**
      *
      */
-    @SuppressWarnings("ForLoopReplaceableByForEach")
     private void onTimeout() {
         if (cctx.tm().deadlockDetectionEnabled()) {
             Set<IgniteTxKey> keys = null;
@@ -917,7 +858,6 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearOptimisticTxPrepa
         private GridDistributedTxMapping m;
 
         /** Flag to signal some result being processed. */
-        @SuppressWarnings("UnusedDeclaration")
         private volatile int rcvRes;
 
         /** Mappings to proceed prepare. */
@@ -1002,7 +942,6 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearOptimisticTxPrepa
         /**
          * @param res Result callback.
          */
-        @SuppressWarnings("ThrowableResultOfMethodCallIgnored")
         void onResult(final GridNearTxPrepareResponse res) {
             if (isDone())
                 return;
@@ -1039,8 +978,6 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearOptimisticTxPrepa
                         // Proceed prepare before finishing mini future.
                         if (mappings != null)
                             parent.proceedPrepare(mappings);
-                        else if (parent.mvccVerFut != null)
-                            parent.mvccVerFut.onLockReceived();
 
                         // Finish this mini future.
                         onDone((GridNearTxPrepareResponse)null);
@@ -1053,6 +990,14 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearOptimisticTxPrepa
          *
          */
         private void remap() {
+            if (parent.tx.isRollbackOnly()) {
+                onDone(new IgniteTxRollbackCheckedException(
+                    "Failed to prepare the transaction, due to the transaction is marked as rolled back " +
+                        "[tx=" + CU.txString(parent.tx) + ']'));
+
+                return;
+            }
+
             parent.prepareOnTopology(true, new Runnable() {
                 @Override public void run() {
                     onDone((GridNearTxPrepareResponse) null);

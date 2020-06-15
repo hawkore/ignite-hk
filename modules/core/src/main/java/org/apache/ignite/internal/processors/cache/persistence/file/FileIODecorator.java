@@ -20,13 +20,15 @@ package org.apache.ignite.internal.processors.cache.persistence.file;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 
 /**
  * Decorator class for File I/O
  */
 public class FileIODecorator extends AbstractFileIO {
     /** File I/O delegate */
-    private final FileIO delegate;
+    protected final FileIO delegate;
 
     /**
      *
@@ -34,6 +36,21 @@ public class FileIODecorator extends AbstractFileIO {
      */
     public FileIODecorator(FileIO delegate) {
         this.delegate = delegate;
+    }
+
+    /** {@inheritDoc} */
+    @Override public int getFileSystemBlockSize() {
+        return delegate.getFileSystemBlockSize();
+    }
+
+    /** {@inheritDoc} */
+    @Override public long getSparseSize() {
+        return delegate.getSparseSize();
+    }
+
+    /** {@inheritDoc} */
+    @Override public int punchHole(long pos, int len) {
+        return delegate.punchHole(pos, len);
     }
 
     /** {@inheritDoc} */
@@ -104,5 +121,15 @@ public class FileIODecorator extends AbstractFileIO {
     /** {@inheritDoc} */
     @Override public void close() throws IOException {
         delegate.close();
+    }
+
+    /** {@inheritDoc} */
+    @Override public long transferTo(long position, long count, WritableByteChannel target) throws IOException {
+        return delegate.transferTo(position, count, target);
+    }
+
+    /** {@inheritDoc} */
+    @Override public long transferFrom(ReadableByteChannel src, long position, long count) throws IOException {
+        return delegate.transferFrom(src, position, count);
     }
 }

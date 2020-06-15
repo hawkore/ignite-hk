@@ -23,6 +23,8 @@ import org.apache.ignite.ml.dataset.Dataset;
 import org.apache.ignite.ml.dataset.DatasetBuilder;
 import org.apache.ignite.ml.dataset.PartitionDataBuilder;
 import org.apache.ignite.ml.dataset.primitive.data.SimpleLabeledDatasetData;
+import org.apache.ignite.ml.environment.LearningEnvironment;
+import org.apache.ignite.ml.environment.LearningEnvironmentBuilder;
 
 /**
  * Distributed implementation of LSQR algorithm based on {@link AbstractLSQR} and {@link Dataset}.
@@ -35,13 +37,18 @@ public class LSQROnHeap<K, V> extends AbstractLSQR implements AutoCloseable {
      * Constructs a new instance of OnHeap LSQR algorithm implementation.
      *
      * @param datasetBuilder Dataset builder.
+     * @param envBuilder Learning environment builder.
      * @param partDataBuilder Partition data builder.
      */
     public LSQROnHeap(DatasetBuilder<K, V> datasetBuilder,
-        PartitionDataBuilder<K, V, LSQRPartitionContext, SimpleLabeledDatasetData> partDataBuilder) {
+        LearningEnvironmentBuilder envBuilder,
+        PartitionDataBuilder<K, V, LSQRPartitionContext, SimpleLabeledDatasetData> partDataBuilder,
+        LearningEnvironment localLearningEnv) {
         this.dataset = datasetBuilder.build(
-            (upstream, upstreamSize) -> new LSQRPartitionContext(),
-            partDataBuilder
+            envBuilder,
+            (env, upstream, upstreamSize) -> new LSQRPartitionContext(),
+            partDataBuilder,
+            localLearningEnv
         );
     }
 

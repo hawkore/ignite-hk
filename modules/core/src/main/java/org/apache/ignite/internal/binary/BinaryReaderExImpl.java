@@ -1308,7 +1308,6 @@ public class BinaryReaderExImpl implements BinaryReader, BinaryRawReaderEx, Bina
     }
 
     /** {@inheritDoc} */
-    @SuppressWarnings("unchecked")
     @Nullable @Override public <T> T readObject(String fieldName) throws BinaryObjectException {
         try {
             return findFieldByName(fieldName) ? (T)BinaryUtils.doReadObject(in, ctx, ldr, this) : null;
@@ -2031,7 +2030,6 @@ public class BinaryReaderExImpl implements BinaryReader, BinaryRawReaderEx, Bina
                     for (BinarySchema existingSchema : existingSchemas)
                         existingSchemaIds.add(existingSchema.schemaId());
 
-
                     throw new BinaryObjectException("Cannot find schema for object with compact footer" +
                         " [typeName=" + type.typeName() +
                         ", typeId=" + typeId +
@@ -2315,13 +2313,11 @@ public class BinaryReaderExImpl implements BinaryReader, BinaryRawReaderEx, Bina
     }
 
     /** {@inheritDoc} */
-    @SuppressWarnings("NullableProblems")
     @Override public void readFully(byte[] b) throws IOException {
         readFully(b, 0, b.length);
     }
 
     /** {@inheritDoc} */
-    @SuppressWarnings("NullableProblems")
     @Override public void readFully(byte[] b, int off, int len) throws IOException {
         int cnt = in.read(b, off, len);
 

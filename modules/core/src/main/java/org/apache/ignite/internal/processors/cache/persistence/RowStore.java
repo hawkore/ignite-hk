@@ -17,7 +17,10 @@
 
 package org.apache.ignite.internal.processors.cache.persistence;
 
+import java.util.Collection;
 import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.internal.metric.IoStatisticsHolder;
+import org.apache.ignite.internal.pagemem.PageIdUtils;
 import org.apache.ignite.internal.pagemem.PageMemory;
 import org.apache.ignite.internal.processors.cache.CacheGroupContext;
 import org.apache.ignite.internal.processors.cache.CacheObjectContext;
@@ -25,6 +28,7 @@ import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.persistence.freelist.FreeList;
 import org.apache.ignite.internal.processors.cache.persistence.tree.util.PageHandler;
 import org.apache.ignite.internal.processors.query.GridQueryRowCacheCleaner;
+import org.apache.ignite.internal.util.typedef.internal.U;
 
 /**
  * Data store for H2 rows.
@@ -48,6 +52,9 @@ public class RowStore {
     /** Row cache cleaner. */
     private GridQueryRowCacheCleaner rowCacheCleaner;
 
+    /** */
+    protected final CacheGroupContext grp;
+
     /**
      * @param grp Cache group.
      * @param freeList Free list.
@@ -56,6 +63,7 @@ public class RowStore {
         assert grp != null;
         assert freeList != null;
 
+        this.grp = grp;
         this.freeList = freeList;
 
         ctx = grp.shared();
@@ -69,19 +77,19 @@ public class RowStore {
      * @param link Row link.
      * @throws IgniteCheckedException If failed.
      */
-    public void removeRow(long link) throws IgniteCheckedException {
+    public void removeRow(long link, IoStatisticsHolder statHolder) throws IgniteCheckedException {
         assert link != 0;
 
         if (rowCacheCleaner != null)
             rowCacheCleaner.remove(link);
 
         if (!persistenceEnabled)
-            freeList.removeDataRowByLink(link);
+            freeList.removeDataRowByLink(link, statHolder);
         else {
             ctx.database().checkpointReadLock();
 
             try {
-                freeList.removeDataRowByLink(link);
+                freeList.removeDataRowByLink(link, statHolder);
             }
             finally {
                 ctx.database().checkpointReadUnlock();
@@ -93,14 +101,17 @@ public class RowStore {
      * @param row Row.
      * @throws IgniteCheckedException If failed.
      */
-    public void addRow(CacheDataRow row) throws IgniteCheckedException {
-        if (!persistenceEnabled)
-            freeList.insertDataRow(row);
+    public void addRow(CacheDataRow row, IoStatisticsHolder statHolder) throws IgniteCheckedException {
+        if (!persistenceEnabled) {
+            ctx.database().ensureFreeSpaceForInsert(grp.dataRegion(), row.size());
+
+            freeList.insertDataRow(row, statHolder);
+        }
         else {
             ctx.database().checkpointReadLock();
 
             try {
-                freeList.insertDataRow(row);
+                freeList.insertDataRow(row, statHolder);
 
                 assert row.link() != 0L;
             }
@@ -108,6 +119,22 @@ public class RowStore {
                 ctx.database().checkpointReadUnlock();
             }
         }
+
+        assert row.key().partition() == PageIdUtils.partId(row.link()) :
+            "Constructed a link with invalid partition ID [partId=" + row.key().partition() +
+                ", link=" + U.hexLong(row.link()) + ']';
+    }
+
+    /**
+     * @param rows Rows.
+     * @param statHolder Statistics holder to track IO operations.
+     * @throws IgniteCheckedException If failed.
+     */
+    public void addRows(Collection<? extends CacheDataRow> rows,
+        IoStatisticsHolder statHolder) throws IgniteCheckedException {
+        assert ctx.database().checkpointLockIsHeldByThread();
+
+        freeList.insertDataRows(rows, statHolder);
     }
 
     /**
@@ -116,13 +143,13 @@ public class RowStore {
      * @return {@code True} if was able to update row.
      * @throws IgniteCheckedException If failed.
      */
-    public boolean updateRow(long link, CacheDataRow row) throws IgniteCheckedException {
+    public boolean updateRow(long link, CacheDataRow row, IoStatisticsHolder statHolder) throws IgniteCheckedException {
         assert !persistenceEnabled || ctx.database().checkpointLockIsHeldByThread();
 
         if (rowCacheCleaner != null)
             rowCacheCleaner.remove(link);
 
-        return freeList.updateDataRow(link, row);
+        return freeList.updateDataRow(link, row, statHolder);
     }
 
     /**
@@ -133,14 +160,15 @@ public class RowStore {
      * @param arg Page handler argument.
      * @throws IgniteCheckedException If failed.
      */
-    public <S, R> void updateDataRow(long link, PageHandler<S, R> pageHnd, S arg) throws IgniteCheckedException {
+    public <S, R> void updateDataRow(long link, PageHandler<S, R> pageHnd, S arg,
+        IoStatisticsHolder statHolder) throws IgniteCheckedException {
         if (!persistenceEnabled)
-            freeList.updateDataRow(link, pageHnd, arg);
+            freeList.updateDataRow(link, pageHnd, arg, statHolder);
         else {
             ctx.database().checkpointReadLock();
 
             try {
-                freeList.updateDataRow(link, pageHnd, arg);
+                freeList.updateDataRow(link, pageHnd, arg, statHolder);
             }
             finally {
                 ctx.database().checkpointReadUnlock();

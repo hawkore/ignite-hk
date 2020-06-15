@@ -94,6 +94,7 @@ public class GridDhtTxRemote extends GridDistributedTxRemoteAdapter {
      * @param nearXidVer Near transaction ID.
      * @param txNodes Transaction nodes mapping.
      * @param storeWriteThrough Cache store write through flag.
+     * @param txLbl Transaction label.
      */
     public GridDhtTxRemote(
         GridCacheSharedContext ctx,
@@ -115,7 +116,8 @@ public class GridDhtTxRemote extends GridDistributedTxRemoteAdapter {
         @Nullable UUID subjId,
         int taskNameHash,
         boolean single,
-        boolean storeWriteThrough) {
+        boolean storeWriteThrough,
+        @Nullable String txLbl) {
         super(
             ctx,
             nodeId,
@@ -129,7 +131,8 @@ public class GridDhtTxRemote extends GridDistributedTxRemoteAdapter {
             timeout,
             txSize,
             subjId,
-            taskNameHash
+            taskNameHash,
+            txLbl
         );
 
         assert nearNodeId != null;
@@ -169,6 +172,7 @@ public class GridDhtTxRemote extends GridDistributedTxRemoteAdapter {
      * @param timeout Timeout.
      * @param txSize Expected transaction size.
      * @param storeWriteThrough Cache store write through flag.
+     * @param txLbl Transaction label.
      */
     public GridDhtTxRemote(
         GridCacheSharedContext ctx,
@@ -188,7 +192,8 @@ public class GridDhtTxRemote extends GridDistributedTxRemoteAdapter {
         int txSize,
         @Nullable UUID subjId,
         int taskNameHash,
-        boolean storeWriteThrough) {
+        boolean storeWriteThrough,
+        @Nullable String txLbl) {
         super(
             ctx,
             nodeId,
@@ -202,7 +207,8 @@ public class GridDhtTxRemote extends GridDistributedTxRemoteAdapter {
             timeout,
             txSize,
             subjId,
-            taskNameHash
+            taskNameHash,
+            txLbl
         );
 
         assert nearNodeId != null;
@@ -296,10 +302,10 @@ public class GridDhtTxRemote extends GridDistributedTxRemoteAdapter {
     }
 
     /** {@inheritDoc} */
-    @Override public void addInvalidPartition(GridCacheContext cacheCtx, int part) {
-        super.addInvalidPartition(cacheCtx, part);
+    @Override public void addInvalidPartition(int cacheId, int part) {
+        super.addInvalidPartition(cacheId, part);
 
-        txState.invalidPartition(part);
+        txState.invalidPartition(cacheId, part, xidVersion());
     }
 
     /**
@@ -325,7 +331,7 @@ public class GridDhtTxRemote extends GridDistributedTxRemoteAdapter {
             addExplicit(entry);
         }
         catch (GridDhtInvalidPartitionException e) {
-            addInvalidPartition(cacheCtx, e.partition());
+            addInvalidPartition(cacheCtx.cacheId(), e.partition());
         }
     }
 

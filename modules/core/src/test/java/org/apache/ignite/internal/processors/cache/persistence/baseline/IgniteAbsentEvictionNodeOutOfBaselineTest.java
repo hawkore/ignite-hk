@@ -27,6 +27,7 @@ import org.apache.ignite.configuration.WALMode;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtLocalPartition;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
+import org.junit.Test;
 
 /**
  * Test absenting eviction for joined node if it is out of baseline.
@@ -72,13 +73,20 @@ public class IgniteAbsentEvictionNodeOutOfBaselineTest extends GridCommonAbstrac
         cleanPersistenceDir();
     }
 
+    /** {@inheritDoc} */
+    @Override protected void beforeTestsStarted() throws Exception {
+        super.beforeTestsStarted();
+    }
+
     /**
      * Removed partitions if node is out of baseline.
      */
+    @Test
     public void testPartitionsRemovedIfJoiningNodeNotInBaseline() throws Exception {
         //given: start 3 nodes with data
         Ignite ignite0 = startGrids(3);
 
+        ignite0.cluster().baselineAutoAdjustEnabled(false);
         ignite0.cluster().active(true);
 
         IgniteCache<Object, Object> cache = ignite0.getOrCreateCache(TEST_CACHE_NAME);

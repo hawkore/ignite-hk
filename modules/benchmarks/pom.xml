@@ -46,9 +46,15 @@
         </dependency>
 
         <dependency>
-			<groupId>org.apache.ignite</groupId>
+            <groupId>org.apache.ignite</groupId>
             <artifactId>ignite-indexing</artifactId>
             <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.openjdk.jol</groupId>
+            <artifactId>jol-core</artifactId>
+            <version>0.9</version>
         </dependency>
 
         <dependency>
@@ -62,14 +68,16 @@
             <version>${jmh.version}</version>
             <scope>provided</scope>
         </dependency>
-        
-       <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
-            <version>3.6</version>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-all</artifactId>
+            <version>${mockito.version}</version>
         </dependency>
-  
- 
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>${guava.version}</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -97,30 +105,6 @@
                     <skip>true</skip>
                 </configuration>
             </plugin>
-			<plugin>
-			    <groupId>org.codehaus.mojo</groupId>
-			    <artifactId>exec-maven-plugin</artifactId>
-			    <executions>
-			        <execution>
-			            <id>run-benchmarks</id>
-			            <phase>integration-test</phase>
-			            <goals>
-			                <goal>exec</goal>
-			            </goals>
-			            <configuration>
-			             	<skip>true</skip>
-			                <classpathScope>test</classpathScope>
-			                <executable>java</executable>
-			                <arguments>
-			                    <argument>-classpath</argument>
-			                    <classpath />
-			                    <argument>org.openjdk.jmh.Main</argument>
-			                    <argument>.*</argument>
-			                </arguments>
-			            </configuration>
-			        </execution>
-			    </executions>
-			</plugin>            
         </plugins>
         <pluginManagement>
             <plugins>
@@ -142,7 +126,7 @@
                 </plugin>
                 <plugin>
                     <artifactId>maven-javadoc-plugin</artifactId>
-                    <version>2.9.1</version>
+                    <version>${maven.javadoc.plugin.version}</version>
                 </plugin>
                 <plugin>
                     <artifactId>maven-resources-plugin</artifactId>

@@ -222,7 +222,7 @@ public class GridLuceneDirectory extends BaseDirectory implements Accountable {
         ensureOpen();
 		return fileMap.containsKey(name);
 	}
-	
+
     /** {@inheritDoc} */
     @Override public synchronized Collection<Accountable> getChildResources() {
         return Accountables.namedAccountables("file", new HashMap<>(fileMap));
@@ -234,7 +234,7 @@ public class GridLuceneDirectory extends BaseDirectory implements Accountable {
     GridUnsafeMemory memory() {
         return mem;
     }
-	
+
 	public boolean isOpen(){
 		return this.isOpen;
 	}

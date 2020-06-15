@@ -23,15 +23,21 @@ import javax.cache.CacheException;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.IgniteException;
+import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.events.Event;
+import org.apache.ignite.events.EventType;
 import org.apache.ignite.events.TransactionStateChangedEvent;
 import org.apache.ignite.lang.IgniteBiPredicate;
 import org.apache.ignite.lang.IgnitePredicate;
 import org.apache.ignite.testframework.GridTestUtils;
+import org.apache.ignite.testframework.MvccFeatureChecker;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.apache.ignite.transactions.Transaction;
+import org.apache.ignite.transactions.TransactionAlreadyCompletedException;
 import org.apache.ignite.transactions.TransactionConcurrency;
 import org.apache.ignite.transactions.TransactionIsolation;
+import org.apache.ignite.transactions.TransactionRollbackException;
+import org.junit.Test;
 
 import static org.apache.ignite.events.EventType.EVT_TX_STARTED;
 
@@ -39,9 +45,13 @@ import static org.apache.ignite.events.EventType.EVT_TX_STARTED;
  * Tests transaction rollback on incorrect tx params.
  */
 public class TxRollbackOnIncorrectParamsTest extends GridCommonAbstractTest {
-    /**
-     *
-     */
+    /** {@inheritDoc} */
+    @Override protected IgniteConfiguration getConfiguration(String igniteInstanceName) throws Exception {
+        return super.getConfiguration(igniteInstanceName).setIncludeEventTypes(EventType.EVTS_ALL);
+    }
+
+    /** */
+    @Test
     public void testTimeoutSetLocalGuarantee() throws Exception {
         Ignite ignite = startGrid(0);
 
@@ -61,22 +71,25 @@ public class TxRollbackOnIncorrectParamsTest extends GridCommonAbstractTest {
         IgniteCache cache = ignite.getOrCreateCache(defaultCacheConfiguration());
 
         try (Transaction tx = ignite.transactions().txStart(
-            TransactionConcurrency.OPTIMISTIC, TransactionIsolation.REPEATABLE_READ, 200, 2)) {
+            TransactionConcurrency.PESSIMISTIC, TransactionIsolation.REPEATABLE_READ, 200, 2)) {
             cache.put(1, 1);
 
             tx.commit();
         }
 
         try (Transaction tx = ignite.transactions().txStart(
-            TransactionConcurrency.OPTIMISTIC, TransactionIsolation.REPEATABLE_READ, 100, 2)) {
+            TransactionConcurrency.PESSIMISTIC, TransactionIsolation.REPEATABLE_READ, 100, 2)) {
             cache.put(1, 2);
 
             tx.commit();
 
             fail("Should fail prior this line.");
         }
-        catch (CacheException ignored) {
-            // No-op.
+        catch (CacheException ex) {
+            if (MvccFeatureChecker.forcedMvcc())
+                assertTrue(ex.toString(), ex.getCause() instanceof TransactionAlreadyCompletedException);
+            else
+                assertTrue(ex.toString(), ex.getCause() instanceof TransactionRollbackException);
         }
 
         try (Transaction tx = ignite.transactions().txStart()) {
@@ -86,14 +99,18 @@ public class TxRollbackOnIncorrectParamsTest extends GridCommonAbstractTest {
 
             fail("Should fail prior this line.");
         }
-        catch (CacheException ignored) {
-            // No-op.
+        catch (CacheException ex) {
+            if (MvccFeatureChecker.forcedMvcc())
+                assertTrue(ex.toString(), ex.getCause() instanceof TransactionAlreadyCompletedException);
+            else
+                assertTrue(ex.toString(), ex.getCause() instanceof TransactionRollbackException);
         }
     }
 
     /**
      *
      */
+    @Test
     public void testLabelFilledLocalGuarantee() throws Exception {
         Ignite ignite = startGrid(0);
 
@@ -125,14 +142,18 @@ public class TxRollbackOnIncorrectParamsTest extends GridCommonAbstractTest {
 
             fail("Should fail prior this line.");
         }
-        catch (CacheException ignored) {
-            // No-op.
+        catch (CacheException ex) {
+            if (MvccFeatureChecker.forcedMvcc())
+                assertTrue(ex.toString(), ex.getCause() instanceof TransactionAlreadyCompletedException);
+            else
+                assertTrue(ex.toString(), ex.getCause() instanceof TransactionRollbackException);
         }
     }
 
     /**
      *
      */
+    @Test
     public void testLabelFilledRemoteGuarantee() throws Exception {
         Ignite ignite = startGrid(0);
         Ignite remote = startGrid(1);
@@ -174,8 +195,11 @@ public class TxRollbackOnIncorrectParamsTest extends GridCommonAbstractTest {
 
             fail("Should fail prior this line.");
         }
-        catch (CacheException ignored) {
-            // No-op.
+        catch (CacheException ex) {
+            if (MvccFeatureChecker.forcedMvcc())
+                assertTrue(ex.toString(), ex.getCause() instanceof TransactionAlreadyCompletedException);
+            else
+                assertTrue(ex.toString(), ex.getCause() instanceof TransactionRollbackException);
         }
 
         try (Transaction tx = remote.transactions().txStart()) {
@@ -185,14 +209,18 @@ public class TxRollbackOnIncorrectParamsTest extends GridCommonAbstractTest {
 
             fail("Should fail prior this line.");
         }
-        catch (CacheException ignored) {
-            // No-op.
+        catch (CacheException ex) {
+            if (MvccFeatureChecker.forcedMvcc())
+                assertTrue(ex.toString(), ex.getCause() instanceof TransactionAlreadyCompletedException);
+            else
+                assertTrue(ex.toString(), ex.getCause() instanceof TransactionRollbackException);
         }
     }
 
     /**
      *
      */
+    @Test
     public void testTimeoutSetRemoteGuarantee() throws Exception {
         Ignite ignite = startGrid(0);
         Ignite remote = startGrid(1);
@@ -216,14 +244,14 @@ public class TxRollbackOnIncorrectParamsTest extends GridCommonAbstractTest {
             EVT_TX_STARTED);
 
         try (Transaction tx = ignite.transactions().txStart(
-            TransactionConcurrency.OPTIMISTIC, TransactionIsolation.REPEATABLE_READ, 100, 2)) {
+            TransactionConcurrency.PESSIMISTIC, TransactionIsolation.REPEATABLE_READ, 100, 2)) {
             cacheLocal.put(1, 1);
 
             tx.commit();
         }
 
         try (Transaction tx = remote.transactions().txStart(
-            TransactionConcurrency.OPTIMISTIC, TransactionIsolation.REPEATABLE_READ, 100, 2)) {
+            TransactionConcurrency.PESSIMISTIC, TransactionIsolation.REPEATABLE_READ, 100, 2)) {
             cacheRemote.put(1, 2);
 
             tx.commit();
@@ -236,8 +264,11 @@ public class TxRollbackOnIncorrectParamsTest extends GridCommonAbstractTest {
 
             fail("Should fail prior this line.");
         }
-        catch (CacheException ignored) {
-            // No-op.
+        catch (CacheException ex) {
+            if (MvccFeatureChecker.forcedMvcc())
+                assertTrue(ex.toString(), ex.getCause() instanceof TransactionAlreadyCompletedException);
+            else
+                assertTrue(ex.toString(), ex.getCause() instanceof TransactionRollbackException);
         }
 
         try (Transaction tx = remote.transactions().txStart()) {
@@ -247,14 +278,18 @@ public class TxRollbackOnIncorrectParamsTest extends GridCommonAbstractTest {
 
             fail("Should fail prior this line.");
         }
-        catch (CacheException ignored) {
-            // No-op.
+        catch (CacheException ex) {
+            if (MvccFeatureChecker.forcedMvcc())
+                assertTrue(ex.toString(), ex.getCause() instanceof TransactionAlreadyCompletedException);
+            else
+                assertTrue(ex.toString(), ex.getCause() instanceof TransactionRollbackException);
         }
     }
 
     /**
      *
      */
+    @Test
     public void testRollbackInsideLocalListenerAfterRemoteFilter() throws Exception {
         Ignite ignite = startGrid(0);
         Ignite remote = startGrid(1);
@@ -299,8 +334,11 @@ public class TxRollbackOnIncorrectParamsTest extends GridCommonAbstractTest {
 
             fail("Should fail prior this line.");
         }
-        catch (CacheException ignored) {
-            // No-op.
+        catch (CacheException ex) {
+            if (MvccFeatureChecker.forcedMvcc())
+                assertTrue(ex.toString(), ex.getCause() instanceof TransactionAlreadyCompletedException);
+            else
+                assertTrue(ex.toString(), ex.getCause() instanceof TransactionRollbackException);
         }
 
         assertFalse(rollbackFailed.get());

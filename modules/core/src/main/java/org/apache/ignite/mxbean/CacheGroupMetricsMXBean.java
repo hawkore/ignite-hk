@@ -179,4 +179,24 @@ public interface CacheGroupMetricsMXBean {
      */
     @MXBeanDescription("Total size of memory allocated for group, in bytes.")
     public long getTotalAllocatedSize();
+
+    /**
+     * Storage space allocated for group, in bytes.
+     */
+    @MXBeanDescription("Storage space allocated for group, in bytes.")
+    public long getStorageSize();
+
+    /**
+     * Storage space allocated for group adjusted for possible sparsity, in bytes.
+     */
+    @MXBeanDescription("Storage space allocated for group adjusted for possible sparsity, in bytes.")
+    public long getSparseStorageSize();
+
+    /**
+     * @return Number of partitions need processed for finished indexes create or rebuilding.
+     * It is calculated as the number of local partition minus the processed.
+     * A value of 0 indicates that the index is built.
+     */
+    @MXBeanDescription("Count of partitions need processed for finished indexes create or rebuilding.")
+    public long getIndexBuildCountPartitionsLeft();
 }
