@@ -30,11 +30,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-
 import javax.cache.CacheException;
-
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
+import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.cache.query.GridCacheSqlQuery;
 import org.apache.ignite.internal.processors.cache.query.GridCacheTwoStepQuery;
@@ -216,7 +215,8 @@ public class GridSqlQuerySplitter {
         boolean enforceJoinOrder,
         boolean locSplit,
         IgniteH2Indexing idx,
-        int paramsCnt
+        int paramsCnt,
+        IgniteLogger log
     ) throws SQLException, IgniteCheckedException {
         SplitterContext.set(distributedJoins);
 
@@ -230,7 +230,8 @@ public class GridSqlQuerySplitter {
                 enforceJoinOrder,
                 locSplit,
                 idx,
-                paramsCnt
+                paramsCnt,
+                log
             );
         }
         finally {
@@ -261,7 +262,8 @@ public class GridSqlQuerySplitter {
         boolean enforceJoinOrder,
         boolean locSplit,
         IgniteH2Indexing idx,
-        int paramsCnt
+        int paramsCnt,
+        IgniteLogger log
     ) throws SQLException, IgniteCheckedException {
         final boolean explain = qry.explain();
 
@@ -282,7 +284,9 @@ public class GridSqlQuerySplitter {
         // Here we will have correct normalized AST with optimized join order.
         // The distributedJoins parameter is ignored because it is not relevant for
         // the REDUCE query optimization.
-        qry = GridSqlQueryParser.parseQuery(prepare(conn, qry.getSQL(), false, enforceJoinOrder), true);
+        qry = GridSqlQueryParser.parseQuery(
+            prepare(conn, qry.getSQL(), false, enforceJoinOrder),
+            true, log);
 
         // Do the actual query split. We will update the original query AST, need to be careful.
         splitter.splitQuery(qry);
@@ -301,7 +305,7 @@ public class GridSqlQuerySplitter {
 
                 allCollocated &= isCollocated((Query)prepared0);
 
-                mapSqlQry.query(GridSqlQueryParser.parseQuery(prepared0, true).getSQL());
+                mapSqlQry.query(GridSqlQueryParser.parseQuery(prepared0, true, log).getSQL());
             }
 
             // We do not need distributed joins if all MAP queries are collocated.
