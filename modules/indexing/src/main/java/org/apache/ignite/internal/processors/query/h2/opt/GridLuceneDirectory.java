@@ -40,6 +40,8 @@ import org.apache.lucene.util.Accountables;
 
 /**
  * A memory-resident {@link Directory} implementation.
+ *
+ * HK-PATCHED: add support to advanced lucene index
  */
 public class GridLuceneDirectory extends BaseDirectory implements Accountable {
     /** */

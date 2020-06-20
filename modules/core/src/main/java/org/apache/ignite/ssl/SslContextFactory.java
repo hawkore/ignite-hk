@@ -49,6 +49,8 @@ import org.apache.ignite.internal.util.typedef.internal.A;
  *     factory.setTrustManagers(SslContextFactory.getDisabledTrustManager());
  *     // Rest of initialization.
  * </pre>
+ *
+ * HK-PATCHED: TLSv1.2
  */
 public class SslContextFactory implements Factory<SSLContext> {
     /** */

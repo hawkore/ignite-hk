@@ -16,6 +16,7 @@
  */
 
 // ReSharper disable UnusedMember.Global
+// HK-PATCHED: adapt to modified code
 namespace Apache.Ignite.Core.Cache.Configuration
 {
     using System;
@@ -60,7 +61,7 @@ namespace Apache.Ignite.Core.Cache.Configuration
         /// </summary>
         /// <param name="isDescending">Sort direction.</param>
         /// <param name="fieldNames">Names of the fields to index.</param>
-        public QueryIndex(bool isDescending, params string[] fieldNames) 
+        public QueryIndex(bool isDescending, params string[] fieldNames)
             : this(isDescending, QueryIndexType.Sorted, fieldNames)
         {
             // No-op.
@@ -72,7 +73,7 @@ namespace Apache.Ignite.Core.Cache.Configuration
         /// <param name="isDescending">Sort direction.</param>
         /// <param name="indexType">Type of the index.</param>
         /// <param name="fieldNames">Names of the fields to index.</param>
-        public QueryIndex(bool isDescending, QueryIndexType indexType, params string[] fieldNames) 
+        public QueryIndex(bool isDescending, QueryIndexType indexType, params string[] fieldNames)
         {
             if (fieldNames != null)
             {

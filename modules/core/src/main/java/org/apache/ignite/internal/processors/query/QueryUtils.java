@@ -38,7 +38,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.binary.BinaryField;
@@ -85,16 +84,24 @@ import static org.apache.ignite.internal.processors.cache.query.IgniteQueryError
 
 /**
  * Utility methods for queries.
+ *
+ * HK-PATCHED: add support to advanced lucene index
  */
 public class QueryUtils {
     /** */
-    public static final int DEFAULT_COLUMNS_COUNT = 2;
+    public static final int DEFAULT_COLUMNS_COUNT = 4;
 
     /** Key column. */
     public static final int KEY_COL = 0;
 
     /** Value column. */
     public static final int VAL_COL = 1;
+
+    /** DUMMY 'LUCENE' column to create a lucene index on it. Will not store anything, used for searching */
+    public static final int LUCENE_COL = 2;
+
+    /** DUMMY '_SCORE_DOC' column used to sort SQL query results collected from cluster nodes when filter by lucene expression. Will not store anything, used for sorting resultset on reduce phase */
+    public static final int LUCENE_SCORE_COL = 3;
 
     /** Default schema. */
     public static final String DFLT_SCHEMA = "PUBLIC";
@@ -123,9 +130,9 @@ public class QueryUtils {
     /** _SCORE_DOC field name. */
     public static final String LUCENE_SCORE_DOC = "_SCORE_DOC";
 
-
     /** QueryTextField Annotation on type suffix for nested properties on cache configuration processAnnotation for indexes . */
     public static final String TYPE_ANNOTATION_SUFFIX = "#typeTextAnnotation";
+
     /** Discovery history size. */
     private static final int DISCO_HIST_SIZE = getInteger(IGNITE_INDEXING_DISCOVERY_HISTORY_SIZE, 1000);
 

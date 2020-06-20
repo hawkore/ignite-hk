@@ -29,6 +29,8 @@ import org.junit.runner.RunWith;
 
 /**
  * Same as {@link IgnitePdsTestSuite2} but is started with direct-oi jar in classpath.
+ *
+ * HK-PATCHED: adapt tests to modified code
  */
 @RunWith(DynamicSuite.class)
 public class IgnitePdsNativeIoTestSuite2 {
@@ -50,7 +52,7 @@ public class IgnitePdsNativeIoTestSuite2 {
 
         suite.add(IgniteNativeIoWalFlushFsyncSelfTest.class);
 
-        suite.addTestSuite(FsyncWalRolloverDoesNotBlockTest.class);
+        suite.add(FsyncWalRolloverDoesNotBlockTest.class);
 
         return suite;
     }

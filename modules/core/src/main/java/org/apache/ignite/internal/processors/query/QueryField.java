@@ -23,6 +23,8 @@ import java.io.Serializable;
 
 /**
  * Query field metadata.
+ *
+ * HK-PATCHED: hidden fields support
  */
 public class QueryField implements Serializable {
     /** */
@@ -48,7 +50,7 @@ public class QueryField implements Serializable {
 
     /** hidden flag. */
     private final boolean hidden;
-    
+
     /**
      * @param name Field name.
      * @param typeName Class name for this field's values.
@@ -127,9 +129,9 @@ public class QueryField implements Serializable {
     public int scale() {
         return scale;
     }
-    
+
     /**
-     * 
+     *
      * @return if hidden
      */
     public boolean isHidden(){

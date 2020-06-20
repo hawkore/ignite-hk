@@ -43,6 +43,8 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
  * Dynamic cache schema.
+ *
+ * HK-PATCHED: add support to dynamic query entities and advanced lucene index configuration
  */
 public class QuerySchema implements Serializable {
     /** */
@@ -50,7 +52,7 @@ public class QuerySchema implements Serializable {
 
     /** Whether schema was created through SQL. */
     private boolean sql;
-    
+
     /** Query entities. */
     private final Collection<QueryEntity> entities = new LinkedList<>();
 
@@ -63,7 +65,7 @@ public class QuerySchema implements Serializable {
     public QuerySchema() {
         // No-op.
     }
-    
+
     /**
      * @return the sql
      */
@@ -73,7 +75,7 @@ public class QuerySchema implements Serializable {
 
     /**
      * @param sql the sql to set
-     * 
+     *
      * @return this for chaining
      */
     public QuerySchema setSql(boolean sql) {
@@ -108,7 +110,7 @@ public class QuerySchema implements Serializable {
                 res.entities.add(QueryUtils.copy(qryEntity));
 
             res.setSql(sql);
-            
+
             return res;
         }
     }
@@ -224,9 +226,9 @@ public class QuerySchema implements Serializable {
                             if (op0.index().getIndexType() == QueryIndexType.FULLTEXT){
                                 entity.setLuceneIndexOptions(op0.index().getLuceneIndexOptions());
                             }
-                            
+
                             idxs.add(op0.index());
-                                                        
+
                             entity.setIndexes(idxs);
                         }
 
@@ -261,10 +263,10 @@ public class QuerySchema implements Serializable {
                     }
                 }
            } else if (op instanceof SchemaRegisterQueryEntityOperation) {
-               
+
             	SchemaRegisterQueryEntityOperation op0 = (SchemaRegisterQueryEntityOperation)op;
             	String tableName =  op0.queryEntity().getTableName();
-            	
+
             	//replace modified QueryEntity
                 for (QueryEntity entity : entities) {
                 	 String tblName = entity.getTableName();
@@ -274,7 +276,7 @@ public class QuerySchema implements Serializable {
                      }
                 }
                 entities.add(op0.queryEntity());
-                
+
            } else if (op instanceof SchemaIndexesRebuildOperation) {
                //nop
            } else if (op instanceof SchemaAlterTableAddColumnOperation) {

@@ -31,6 +31,8 @@ import java.util.Set;
 
 /**
  * Cache metadata with not null field.
+ *
+ * HK-PATCHED: hidden fields
  */
 public class GridCacheQuerySqlMetadataV2 extends GridCacheQueryManager.CacheSqlMetadata {
     /** */
@@ -41,7 +43,7 @@ public class GridCacheQuerySqlMetadataV2 extends GridCacheQueryManager.CacheSqlM
 
     /** hidden fields. */
     private Map<String, Set<String>> hiddenFields;
-    
+
     /**
      * Required by {@link Externalizable}.
      */
@@ -75,7 +77,7 @@ public class GridCacheQuerySqlMetadataV2 extends GridCacheQueryManager.CacheSqlM
 
         notNullFields = new HashMap<>();
         hiddenFields = new HashMap<>();
-        
+
         for (GridCacheQueryManager.CacheSqlMetadata meta : metas) {
             if (meta instanceof GridCacheQuerySqlMetadataV2) {
                 GridCacheQuerySqlMetadataV2 metaV2 = (GridCacheQuerySqlMetadataV2)meta;
@@ -90,7 +92,7 @@ public class GridCacheQuerySqlMetadataV2 extends GridCacheQueryManager.CacheSqlM
     @Override public Collection<String> notNullFields(String type) {
         return notNullFields.get(type);
     }
-    
+
     /** {@inheritDoc} */
     @Override public Collection<String> hiddenFields(String type) {
         return hiddenFields.get(type);

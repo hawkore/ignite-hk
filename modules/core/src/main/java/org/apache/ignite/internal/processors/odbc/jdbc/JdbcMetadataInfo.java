@@ -44,6 +44,8 @@ import static org.apache.ignite.internal.processors.query.QueryUtils.matches;
 
 /**
  * Facade over {@link GridKernalContext} to get information about database entities in terms of JDBC.
+ *
+ * HK-PATCHED: hidden columns
  */
 public class JdbcMetadataInfo {
     /** Root context. Used to get all the database metadata. */
@@ -170,7 +172,7 @@ public class JdbcMetadataInfo {
      * @return List of metadatas about columns that match specified schema/tablename/columnname criterias.
      */
     public Collection<JdbcColumnMeta> getColumnsMeta(@Nullable ClientListenerProtocolVersion protoVer,
-        String schemaNamePtrn, String tblNamePtrn, String colNamePtrn) {
+        String schemaNamePtrn, String tblNamePtrn, String colNamePtrn, boolean hidden) {
 
         boolean useNewest = protoVer == null;
 
@@ -179,7 +181,7 @@ public class JdbcMetadataInfo {
         Collection<ColumnInformation> colsInfo = ctx.query().getIndexing()
             .columnsInformation(schemaNamePtrn, tblNamePtrn, colNamePtrn);
 
-        colsInfo.stream().sorted(bySchemaThenTabNameThenColOrder)
+        colsInfo.stream().sorted(bySchemaThenTabNameThenColOrder).filter(info-> info.hidden() == hidden)
             .forEachOrdered(info -> {
                 JdbcColumnMeta colMeta;
 

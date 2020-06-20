@@ -48,8 +48,6 @@ import org.apache.ignite.internal.processors.cache.CacheObject;
 import org.apache.ignite.internal.processors.cache.CacheObjectValueContext;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
-import org.apache.ignite.IgniteLogger;
-import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.QueryCursorImpl;
 import org.apache.ignite.internal.processors.cache.mvcc.MvccUtils;
 import org.apache.ignite.internal.processors.cache.query.IgniteQueryErrorCode;
@@ -60,7 +58,6 @@ import org.apache.ignite.internal.processors.query.GridQueryProperty;
 import org.apache.ignite.internal.processors.query.GridQueryTypeDescriptor;
 import org.apache.ignite.internal.processors.query.IgniteSQLException;
 import org.apache.ignite.internal.processors.query.QueryUtils;
-import org.apache.ignite.internal.processors.query.QueryUtils;
 import org.apache.ignite.internal.processors.query.h2.opt.GridH2IndexBase;
 import org.apache.ignite.internal.processors.query.h2.opt.GridH2RetryException;
 import org.apache.ignite.internal.processors.query.h2.opt.GridH2RowDescriptor;
@@ -70,15 +67,11 @@ import org.apache.ignite.internal.processors.query.h2.opt.H2Row;
 import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2RowMessage;
 import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2ValueMessage;
 import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2ValueMessageFactory;
-import org.apache.ignite.internal.processors.query.h2.opt.GridLuceneIndex;
-import org.apache.ignite.internal.processors.query.h2.opt.lucene.LuceneQueryUtils;
 import org.apache.ignite.internal.util.GridStringBuilder;
 import org.apache.ignite.internal.util.lang.GridCursor;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.SB;
 import org.apache.ignite.internal.util.typedef.internal.U;
-import org.apache.ignite.internal.util.typedef.internal.U;
-import org.apache.ignite.resources.LoggerResource;
 import org.apache.ignite.resources.LoggerResource;
 import org.h2.engine.Session;
 import org.h2.jdbc.JdbcConnection;
@@ -117,6 +110,8 @@ import static org.apache.ignite.internal.processors.query.QueryUtils.VAL_FIELD_N
 
 /**
  * H2 utility methods.
+ *
+ * HK-PATCHED: add support to advanced lucene index and advanced spatial index
  */
 public class H2Utils {
     /**
@@ -149,6 +144,10 @@ public class H2Utils {
     /** Advanced Lucene Index class name. */
     public static final String ADVANCED_LUCENE_IDX_CLS =
         "com.hawkore.ignite.internal.processors.query.h2.opt.AdvancedGridLuceneIndex";
+
+    public static final boolean  ADVANCED_LUCENE_IDX_PRESENT = H2Utils.inClassPath(H2Utils.ADVANCED_LUCENE_IDX_CLS);
+
+    public static final boolean  ADVANCED_SPATIAL_IDX_PRESENT = H2Utils.inClassPath(H2Utils.ADVANCED_SPATIAL_IDX_CLS);
 
     /** Quotation character. */
     private static final char ESC_CH = '\"';
@@ -233,17 +232,20 @@ public class H2Utils {
         String keyValVisibility = tbl.type().fields().isEmpty() ? " VISIBLE" : " INVISIBLE";
 
         sql.a("CREATE TABLE ").a(tbl.fullTableName()).a(" (")
-            .a(KEY_FIELD_NAME).a(' ').a(keyType).a(keyValVisibility).a(" NOT NULL");
+            .a(QueryUtils.KEY_FIELD_NAME).a(' ').a(keyType).a(keyValVisibility).a(" NOT NULL");
 
-        sql.a(',').a(VAL_FIELD_NAME).a(' ').a(valTypeStr).a(keyValVisibility);
+        sql.a(',').a(QueryUtils.VAL_FIELD_NAME).a(' ').a(valTypeStr).a(keyValVisibility);
+        sql.a(',').a(QueryUtils.LUCENE_FIELD_NAME).a(" VARCHAR INVISIBLE");
+        sql.a(',').a(QueryUtils.LUCENE_SCORE_DOC).a(" OTHER INVISIBLE");
 
         for (Map.Entry<String, Class<?>> e : tbl.type().fields().entrySet()) {
             GridQueryProperty prop = tbl.type().property(e.getKey());
 
             sql.a(',')
-                .a(withQuotes(e.getKey()))
+                .a(H2Utils.withQuotes(e.getKey()))
                 .a(' ')
                 .a(dbTypeFromClass(e.getValue(), prop.precision(), prop.scale()))
+                .a(prop.hidden()? " INVISIBLE" : "")
                 .a(prop.notNull() ? " NOT NULL" : "");
         }
 
@@ -260,7 +262,6 @@ public class H2Utils {
      * @return Statement string.
      */
     public static String indexCreateSql(String fullTblName, GridH2IndexBase h2Idx, boolean ifNotExists) {
-
         boolean spatial = F.eq(SPATIAL_IDX_CLS, h2Idx.getClass().getName()) || F.eq(ADVANCED_SPATIAL_IDX_CLS, h2Idx.getClass().getName());
 
         GridStringBuilder sb = new SB("CREATE ")
@@ -362,7 +363,7 @@ public class H2Utils {
             Class<?> cls = null;
 
             //preferable Advanced Spatial Index if available
-            if (inClassPath(ADVANCED_SPATIAL_IDX_CLS)){
+            if (H2Utils.ADVANCED_SPATIAL_IDX_PRESENT){
                 cls = Class.forName(ADVANCED_SPATIAL_IDX_CLS);
             }else{
                 cls = Class.forName(SPATIAL_IDX_CLS);
@@ -399,14 +400,11 @@ public class H2Utils {
 
             Class<?> cls = Class.forName(ADVANCED_LUCENE_IDX_CLS);
 
-            GridCacheContext cctx = tbl.cacheContext();
-
             String name = (tbl.getName() + Index.LUCENE_INDEX_NAME_SUFIX).toUpperCase();
 
 	        final int segments = tbl.rowDescriptor().cacheInfo().config().getQueryParallelism();
 	        try {
 	            Constructor<?> ctor = cls.getDeclaredConstructor(
-	                GridCacheContext.class,
 	                GridH2Table.class,
 	                String.class,
 	                int.class,
@@ -415,7 +413,7 @@ public class H2Utils {
 	            if (!ctor.isAccessible())
 	                ctor.setAccessible(true);
 
-	            return (GridH2IndexBase) ctor.newInstance(cctx, tbl, name, segments, luceneIndexOptions);
+	            return (GridH2IndexBase) ctor.newInstance(tbl, name, segments, luceneIndexOptions);
 
 			}catch (Exception e){
 			    //this avoid stop cluster, simply notify user

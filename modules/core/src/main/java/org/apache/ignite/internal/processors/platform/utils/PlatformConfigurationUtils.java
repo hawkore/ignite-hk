@@ -120,6 +120,8 @@ import static org.apache.ignite.internal.processors.platform.client.ClientConnec
  *
  * WARNING: DO NOT MODIFY THIS FILE without updating corresponding platform code!
  * Each read/write method has a counterpart in .NET platform (see IgniteConfiguration.cs, CacheConfiguration.cs, etc).
+ *
+ * HK-PATCHED: hidden fields and advanced lucene index configuration
  */
 @SuppressWarnings({"unchecked", "TypeMayBeWeakened"})
 public class PlatformConfigurationUtils {
@@ -2147,7 +2149,6 @@ public class PlatformConfigurationUtils {
             }
             else
                 w.writeInt(0);
-            }
 
             if (cfg.getDefaultDataRegionConfiguration() != null) {
                 w.writeBoolean(true);
@@ -2155,10 +2156,9 @@ public class PlatformConfigurationUtils {
             }
             else
                 w.writeBoolean(false);
-            }
-        } else {
-            w.writeBoolean(false);
         }
+        else
+            w.writeBoolean(false);
     }
 
     /**

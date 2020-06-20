@@ -30,6 +30,8 @@ import org.apache.ignite.internal.util.typedef.F;
 
 /**
  * Binary property.
+ *
+ * HK-PATCHED: hidden attribute
  */
 public class QueryBinaryProperty implements GridQueryProperty {
     /** Kernal context. */

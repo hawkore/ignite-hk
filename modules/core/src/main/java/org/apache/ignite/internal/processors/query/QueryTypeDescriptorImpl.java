@@ -25,7 +25,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.binary.BinaryObject;
 import org.apache.ignite.cache.QueryIndexType;
@@ -51,6 +50,8 @@ import static org.apache.ignite.internal.processors.query.QueryUtils.VAL_FIELD_N
 
 /**
  * Descriptor of type.
+ *
+ * HK-PATCHED: add support to advanced lucene index
  */
 public class QueryTypeDescriptorImpl implements GridQueryTypeDescriptor {
     /** Cache name. */

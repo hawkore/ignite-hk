@@ -123,6 +123,8 @@ import static org.apache.ignite.internal.binary.BinaryUtils.mergeMetadata;
 
 /**
  * Binary processor implementation.
+ *
+ * HK-PATCHED: improve performance, use cached simple class name
  */
 public class CacheObjectBinaryProcessorImpl extends GridProcessorAdapter implements IgniteCacheObjectProcessor {
     /** Immutable classes. */

@@ -30,10 +30,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-
 import javax.cache.processor.EntryProcessor;
 import javax.cache.processor.MutableEntry;
-
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteCompute;
 import org.apache.ignite.IgniteException;
@@ -61,6 +59,8 @@ import static org.apache.ignite.internal.processors.cache.CacheOperationContext.
 
 /**
  * Common code for {@link IgniteQueue} implementation.
+ *
+ * HK-PATCHED: improve performance and allow tune underline collections cache
  */
 public abstract class GridCacheQueueAdapter<T> extends AbstractCollection<T> implements IgniteQueue<T> {
     /** Value returned by closure updating queue header indicating that queue was removed. */
@@ -76,7 +76,7 @@ public abstract class GridCacheQueueAdapter<T> extends AbstractCollection<T> imp
     protected final GridCacheContext<?, ?> cctx;
 
     /** Cache. */
-    protected final GridCacheAdapter queueCache;
+    protected final GridCacheAdapter cache;
 
     /** Queue name. */
     protected final String queueName;
@@ -138,10 +138,10 @@ public abstract class GridCacheQueueAdapter<T> extends AbstractCollection<T> imp
 
         this.log = cctx.logger(getClass());
 
-        this.queueCache = cctx.kernalContext().cache().internalCache(cctx.name());
+        this.cache = cctx.kernalContext().cache().internalCache(cctx.name());
 
         this.currentHdr=hdr;
-        this.compute = queueCache.cache().context().kernalContext().grid().compute();
+        this.compute = cache.cache().context().kernalContext().grid().compute();
 
         this.readSem = new Semaphore(hdr.size(), true);
         this.writeSem = (this.bounded) ? new Semaphore(hdr.capacity() - hdr.size(), true) : null;
@@ -150,11 +150,11 @@ public abstract class GridCacheQueueAdapter<T> extends AbstractCollection<T> imp
             U.debug(log, "******** CONFIGURATION FOR QUEUE " + queueName + "********************");
             U.debug(log, colConfig.toString());
         }
-        if (queueCache!=null) {
-            U.debug(log, "******** UNDERLINE HDR CACHE " + queueCache.name() + " FOR QUEUE " + queueName
+        if (cache !=null) {
+            U.debug(log, "******** UNDERLINE HDR CACHE " + cache.name() + " FOR QUEUE " + queueName
                 + "********************");
-            if (queueCache.configuration()!=null) {
-                U.debug(log, queueCache.configuration().toString());
+            if (cache.configuration()!=null) {
+                U.debug(log, cache.configuration().toString());
             }
         }
 
@@ -190,7 +190,7 @@ public abstract class GridCacheQueueAdapter<T> extends AbstractCollection<T> imp
     protected GridCacheQueueHeader getCurrentHdr(boolean update) throws IgniteException{
         if (currentHdr == null || update){
             try {
-                currentHdr = (GridCacheQueueHeader)queueCache.get(queueKey);
+                currentHdr = (GridCacheQueueHeader)cache.get(queueKey);
             }    catch (IgniteCheckedException e) {
                 throw U.convertException(e);
             }
@@ -227,7 +227,7 @@ public abstract class GridCacheQueueAdapter<T> extends AbstractCollection<T> imp
                 if (hdr.empty())
                     return null;
 
-                T val = (T)queueCache.get(itemKey(hdr.head()));
+                T val = (T)cache.get(itemKey(hdr.head()));
 
                 if (val == null)
                     // Header might have been polled. Retry.
@@ -297,6 +297,7 @@ public abstract class GridCacheQueueAdapter<T> extends AbstractCollection<T> imp
 
                 throw new IgniteInterruptedException("Queue put interrupted.", e);
             }
+
             checkStopping();
 
             if (offer(item))
@@ -415,7 +416,7 @@ public abstract class GridCacheQueueAdapter<T> extends AbstractCollection<T> imp
         A.ensure(batchSize >= 0, "Batch size cannot be negative: " + batchSize);
 
         try {
-            Object obj = queueCache.invoke(queueKey, new ClearProcessor(id)).get();
+            Object obj = cache.invoke(queueKey, new ClearProcessor(id)).get();
 
             if (obj == null)
                 return;
@@ -425,7 +426,7 @@ public abstract class GridCacheQueueAdapter<T> extends AbstractCollection<T> imp
 
             checkRemoved(t.get1());
 
-            removeKeys(queueCache, id, queueName, collocated, t.get1(), t.get2(), batchSize);
+            removeKeys(cache, id, queueName, collocated, t.get1(), t.get2(), batchSize);
         }
         catch (IgniteCheckedException e) {
             throw U.convertException(e);
@@ -464,7 +465,7 @@ public abstract class GridCacheQueueAdapter<T> extends AbstractCollection<T> imp
             throw new IgniteException("Failed to execute affinityRun() for non-collocated queue: " + name() +
                 ". This operation is supported only for collocated queues.");
 
-        compute.affinityRun(queueCache.name(), queueKey, job);
+        compute.affinityRun(cache.name(), queueKey, job);
     }
 
     /** {@inheritDoc} */
@@ -473,7 +474,7 @@ public abstract class GridCacheQueueAdapter<T> extends AbstractCollection<T> imp
             throw new IgniteException("Failed to execute affinityCall() for non-collocated queue: " + name() +
                 ". This operation is supported only for collocated queues.");
 
-        return compute.affinityCall(queueCache.name(), queueKey, job);
+        return compute.affinityCall(cache.name(), queueKey, job);
     }
 
     /** {@inheritDoc} */
@@ -512,7 +513,7 @@ public abstract class GridCacheQueueAdapter<T> extends AbstractCollection<T> imp
      */
     @SuppressWarnings("unchecked")
     static void removeKeys(
-    	GridCacheAdapter cache,
+        GridCacheAdapter cache,
         IgniteUuid id,
         String name,
         boolean collocated,
@@ -521,9 +522,9 @@ public abstract class GridCacheQueueAdapter<T> extends AbstractCollection<T> imp
         int batchSize)
         throws IgniteCheckedException {
         Set<QueueItemKey> keys = new HashSet<>(batchSize > 0 ? batchSize : 10);
-
+        int queueHashCode = name.hashCode();
         for (long idx = startIdx; idx < endIdx; idx++) {
-            keys.add(itemKey(id, name.hashCode(), collocated, idx));
+            keys.add(itemKey(id, queueHashCode, collocated, idx));
 
             if (batchSize > 0 && keys.size() == batchSize) {
                 cache.removeAll(keys);
@@ -728,7 +729,7 @@ public abstract class GridCacheQueueAdapter<T> extends AbstractCollection<T> imp
             assert !F.contains(rmvIdxs, idx) : idx;
 
             if (idx < endIdx)
-                next = (T)queueCache.get(itemKey(idx));
+                next = (T)cache.get(itemKey(idx));
         }
 
         /** {@inheritDoc} */
@@ -753,7 +754,7 @@ public abstract class GridCacheQueueAdapter<T> extends AbstractCollection<T> imp
                         idx++;
                 }
 
-                next = idx < endIdx ? (T)queueCache.get(itemKey(idx)) : null;
+                next = idx < endIdx ? (T)cache.get(itemKey(idx)) : null;
 
                 return cur;
             }

@@ -27,6 +27,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Provides possibility to integrate cache transactions with JTA.
+ *
+ * HK-PATCHED: exposes XA Resource
  */
 public abstract class CacheJtaManagerAdapter extends GridCacheSharedManagerAdapter {
     /**

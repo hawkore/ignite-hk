@@ -98,6 +98,8 @@ import static org.apache.ignite.internal.processors.cache.query.IgniteQueryError
 
 /**
  * JDBC connection implementation.
+ *
+ * HK-PATCHED: public access to some methods
  */
 public class JdbcConnection implements Connection {
     /** Null stub. */

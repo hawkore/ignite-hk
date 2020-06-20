@@ -18,11 +18,15 @@
 package org.apache.ignite.internal.processors.query.h2.affinity;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+
 import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cache.affinity.rendezvous.RendezvousAffinityFunction;
@@ -30,12 +34,16 @@ import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.query.GridCacheSqlQuery;
+import org.apache.ignite.internal.processors.query.QueryUtils;
+import org.apache.ignite.internal.processors.query.h2.dml.DmlAstUtils;
 import org.apache.ignite.internal.processors.query.h2.opt.GridH2Table;
 import org.apache.ignite.internal.processors.query.h2.sql.GridSqlAlias;
 import org.apache.ignite.internal.processors.query.h2.sql.GridSqlAst;
 import org.apache.ignite.internal.processors.query.h2.sql.GridSqlColumn;
 import org.apache.ignite.internal.processors.query.h2.sql.GridSqlConst;
 import org.apache.ignite.internal.processors.query.h2.sql.GridSqlElement;
+import org.apache.ignite.internal.processors.query.h2.sql.GridSqlFunction;
+import org.apache.ignite.internal.processors.query.h2.sql.GridSqlFunctionType;
 import org.apache.ignite.internal.processors.query.h2.sql.GridSqlJoin;
 import org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperation;
 import org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType;
@@ -60,12 +68,18 @@ import org.apache.ignite.internal.sql.optimizer.affinity.PartitionTable;
 import org.apache.ignite.internal.sql.optimizer.affinity.PartitionTableAffinityDescriptor;
 import org.apache.ignite.internal.sql.optimizer.affinity.PartitionTableModel;
 import org.apache.ignite.internal.util.typedef.F;
+import org.apache.ignite.lang.IgniteBiTuple;
 import org.h2.table.Column;
 import org.h2.value.Value;
+import org.hawkore.ignite.lucene.search.Search;
+import org.hawkore.ignite.lucene.search.SearchBuilder;
 import org.jetbrains.annotations.Nullable;
 
 /**
  * Partition tree extractor.
+ *
+ * HK-PATCHED: add support to advanced indexing and allow IN select expression with GridSqlParameter (?):
+ * column IN (select * from table(t bigint = ?))
  */
 public class PartitionExtractor {
     /**
@@ -195,7 +209,7 @@ public class PartitionExtractor {
         // TODO: 09.04.19 IGNITE-11507: SQL: Ensure that affinity topology version doesn't change
         // TODO: during PartitionResult construction/application.
         assert affinityTopVer != null;
-        
+
         return new PartitionResult(tree, aff, affinityTopVer);
     }
 
@@ -490,8 +504,11 @@ public class PartitionExtractor {
         return new PartitionCompositeNode(part1, part2, PartitionCompositeNodeOperator.OR);
     }
 
+
     /**
      * Extract partition information from IN.
+     *
+     * Allow IN select expression with GridSqlParameter (?): column IN (select * from table(t bigint = ?3))
      *
      * @param op Operation.
      * @param tblModel Table model.
@@ -532,19 +549,41 @@ public class PartitionExtractor {
                 rightParam = (GridSqlParameter)right;
             }
             else
+                // Allow IN select expression with GridSqlParameter (?): column IN (select * from table(t bigint = ?3))
+                // this allows register param as array to calculate partitions
+                if (right.child() != null && right.child() instanceof GridSqlSelect) {
+                    GridSqlSelect sel = right.child();
+                    if (sel.from() != null && sel.from().size() == 1 && sel.from().child() instanceof GridSqlFunction) { // table function
+                        GridSqlFunction function = sel.from().child();
+                        if (function.type() == GridSqlFunctionType.TABLE  && function.child() instanceof GridSqlAlias) { // ?3 T
+                            GridSqlAlias paramAlias = function.child();
+                            if (paramAlias.child() instanceof GridSqlParameter) { // ?3
+                                rightConst = null;
+                                rightParam = paramAlias.child();
+                            } else {
+                                return PartitionAllNode.INSTANCE;
+                            }
+                        } else {
+                            return PartitionAllNode.INSTANCE;
+                        }
+                    } else {
+                        return PartitionAllNode.INSTANCE;
+                    }
+
+            } else
                 // One of members of "IN" list is neither const, nor param, so we do no know it's partition.
                 // As this is disjunction, not knowing partition of a single element leads to unknown partition
                 // set globally. Hence, returning null.
                 return PartitionAllNode.INSTANCE;
 
             // Extract.
-            PartitionSingleNode part = extractSingle(leftCol, rightConst, rightParam, tblModel);
+            Set<PartitionSingleNode> partitionSingleNodes = extractSingle(leftCol, rightConst, rightParam, tblModel);
 
             // Same thing as above: single unknown partition in disjunction defeats optimization.
-            if (part == null)
+            if (partitionSingleNodes.isEmpty())
                 return PartitionAllNode.INSTANCE;
 
-            parts.add(part);
+            parts.addAll(partitionSingleNodes);
         }
 
         return parts.size() == 1 ? parts.iterator().next() : new PartitionGroupNode(parts);
@@ -597,13 +636,13 @@ public class PartitionExtractor {
             return PartitionAllNode.INSTANCE;
         }
 
-        PartitionSingleNode part = extractSingle(leftCol, rightConst, rightParam, tblModel);
+        Set<PartitionSingleNode> parts = extractSingle(leftCol, rightConst, rightParam, tblModel);
 
-        return part != null ? part : PartitionAllNode.INSTANCE;
+        return parts.size() == 1 ? parts.iterator().next() : PartitionAllNode.INSTANCE;
     }
 
     /**
-     * Extract single partition.
+     * Extract partitions.
      *
      * @param leftCol Left column.
      * @param rightConst Right constant.
@@ -611,7 +650,7 @@ public class PartitionExtractor {
      * @param tblModel Table model.
      * @return Partition or {@code null} if failed to extract.
      */
-    @Nullable private PartitionSingleNode extractSingle(
+    @Nullable private Set<PartitionSingleNode> extractSingle(
         GridSqlColumn leftCol,
         GridSqlConst rightConst,
         GridSqlParameter rightParam,
@@ -627,36 +666,42 @@ public class PartitionExtractor {
         GridH2Table tbl = (GridH2Table)leftCol0.getTable();
 
         if (!tbl.isColumnForPartitionPruning(leftCol0))
-            return null;
+            return Collections.emptySet();
 
         PartitionTable tbl0 = tblModel.table(leftCol.tableAlias());
 
         // If table is in ignored set, then we cannot use it for partition extraction.
         if (tbl0 == null)
-            return null;
+            return Collections.emptySet();
 
         if (rightConst != null) {
-            int part = partResolver.partition(
+
+            int[] partitions = partResolver.partitions(
                 rightConst.value().getObject(),
                 leftCol0.getType(),
                 tbl.cacheName()
             );
 
-            return new PartitionConstantNode(tbl0, part);
+            if (F.isEmpty(partitions)){
+                return Collections.emptySet();
+            }
+
+            return Arrays.stream(partitions).mapToObj(p-> new PartitionConstantNode(tbl0,p)).collect(
+                Collectors.toSet());
         }
         else if (rightParam != null) {
             int colType = leftCol0.getType();
 
-            return new PartitionParameterNode(
+            return Collections.singleton(new PartitionParameterNode(
                 tbl0,
                 partResolver,
                 rightParam.index(),
                 leftCol0.getType(),
                 mappedType(colType)
-            );
+            ));
         }
         else
-            return null;
+            return Collections.emptySet();
     }
 
     /**
@@ -835,9 +880,11 @@ public class PartitionExtractor {
             return null;
 
         for (long i = leftLongVal; i <= rightLongVal; i++) {
-            int part = partResolver.partition(i , leftCol.column().getType(), tbl0.cacheName());
+            int[] partitions = partResolver.partitions(i , leftCol.column().getType(), tbl0.cacheName());
 
-            parts.add(new PartitionConstantNode(tbl0, part));
+            for (int part : partitions) {
+                parts.add(new PartitionConstantNode(tbl0, part));
+            }
 
             if (parts.size() > maxPartsCntBetween)
                 return null;
@@ -858,5 +905,149 @@ public class PartitionExtractor {
             return null;
 
         return ((GridSqlOperation)ast).operationType();
+    }
+
+    /**
+     * Extract lucene query.
+     *
+     * @param qry
+     *     the qry
+     * @param params
+     *     the params
+     * @return the ignite bi tuple
+     */
+    public static IgniteBiTuple<GridSqlColumn, Search> extractLuceneQuery(GridSqlQuery qry, Object[] params){
+
+        if (!(qry instanceof GridSqlSelect))
+            return new IgniteBiTuple<>(null, null);
+
+        GridSqlSelect select = (GridSqlSelect)qry;
+
+        if (select.from() == null)
+            return new IgniteBiTuple<>(null, null);
+
+        return extractLuceneQueryFromConditions(select, select.where(), params);
+    }
+
+    private static IgniteBiTuple<GridSqlColumn, Search> extractLuceneQueryFromConditions(GridSqlSelect select, GridSqlAst el, Object[] params) {
+
+        if (!(el instanceof GridSqlOperation))
+            return new IgniteBiTuple<>(null, null);
+
+        GridSqlOperation op = (GridSqlOperation)el;
+
+        switch (op.operationType()) {
+
+            case EQUAL: {
+
+                IgniteBiTuple<GridSqlColumn, Search> condition = extractLuceneConditionFromEquality(select, op, params);
+
+                if (condition == null){
+                    return new IgniteBiTuple<>(null, null);
+                }
+
+                return condition;
+            }
+
+            case AND: {
+                assert op.size() == 2;
+
+                IgniteBiTuple<GridSqlColumn, Search> conditionLeft = extractLuceneQueryFromConditions(select, op.child(0), params);
+                IgniteBiTuple<GridSqlColumn, Search> conditionRight = extractLuceneQueryFromConditions(select, op.child(1), params);
+
+                if (conditionLeft != null && conditionRight != null && conditionLeft.getKey() != null && conditionRight.getKey() != null){
+                    // kind of conflict on advanced JSON condition (lucene = '{...}') and (lucene = '{...}')
+                    throw new IgniteException("Only one lucene filter condition is allowed on query filter");
+                }
+
+                if (conditionLeft != null && conditionLeft.getKey() != null)
+                    return conditionLeft;
+
+                if (conditionRight != null && conditionRight.getKey() != null)
+                    return conditionRight;
+
+                return new IgniteBiTuple<>(null, null);
+            }
+
+            default:
+                return new IgniteBiTuple<>(null, null);
+        }
+    }
+
+
+    /** return IgniteBiTuple<GridSqlColumn, Search> === lucene query column, advanced lucene JSON search*/
+    public static IgniteBiTuple<GridSqlColumn, Search> extractLuceneConditionFromEquality(GridSqlSelect select, GridSqlAst el, Object[] params) {
+
+        GridSqlOperation op = (GridSqlOperation)el;
+
+        if(op.operationType() != GridSqlOperationType.EQUAL){
+            return null;
+        }
+
+        GridSqlElement left = op.child(0);
+        GridSqlElement right = op.child(1);
+
+        if (!(left instanceof GridSqlColumn))
+            return null;
+
+        GridSqlColumn column = (GridSqlColumn)left;
+
+        // find main query table on select statement
+        Set<GridSqlTable> tbls = new HashSet<>();
+
+        DmlAstUtils.collectAllGridTablesInTarget((GridSqlElement) select.from(), tbls);
+
+        if (tbls.isEmpty()){
+            return null;
+        }
+
+        // first table
+        GridSqlTable tab = tbls.iterator().next();
+        GridH2Table table = tab.dataTable();
+
+        // internal H2 tables
+        if (table == null){
+            return null;
+        }
+
+        Column luceneColumn = null;
+        try{
+            luceneColumn = table.getColumn(QueryUtils.LUCENE_FIELD_NAME);
+        }catch (Exception e){
+            //table has not a lucene column
+            return null;
+        }
+
+        // check if it is a lucene column
+        if (!column.column().equals(luceneColumn)){
+            return null;
+        }
+
+        // lucene sort on reduce query will be required only if table is partitioned
+        if( !table.isPartitioned() ){
+            return new IgniteBiTuple<>(column, null);
+        }
+
+        // check assign
+        if (!(right instanceof GridSqlConst) && !(right instanceof GridSqlParameter))
+            return null;
+
+        // extract and parse lucene query
+        String luceneQuery = null;
+        if (right instanceof GridSqlConst) {
+            GridSqlConst constant = (GridSqlConst)right;
+            luceneQuery = constant.value().getString();
+        }else{
+            GridSqlParameter param = (GridSqlParameter) right;
+            luceneQuery = params[param.index()].toString();
+        }
+
+        Search search = null;
+        try{
+            search = SearchBuilder.fromJson(luceneQuery).build();
+        }catch (Exception e){
+            //just not an Advanced lucene JSON search
+        }
+        return  new IgniteBiTuple<>(column, search);
     }
 }

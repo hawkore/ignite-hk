@@ -21,6 +21,8 @@ import org.apache.ignite.IgniteCheckedException;
 
 /**
  * Description and access method for query entity field.
+ *
+ * HK-PATCHED: hidden attribute
  */
 public interface GridQueryProperty {
     /**
@@ -91,10 +93,10 @@ public interface GridQueryProperty {
      * @return Scale for a decimal property or -1.
      */
     public int scale();
-    
+
     /**
-     * If property is hidden 
-     * 
+     * If property is hidden
+     *
      * @return if property is hidden on table definition
      */
     public boolean hidden();

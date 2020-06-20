@@ -24,11 +24,8 @@ import java.util.Set;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteDataStreamer;
 import org.apache.ignite.cache.query.FieldsQueryCursor;
-import org.apache.ignite.cache.QueryEntity;
-import org.apache.ignite.cache.query.QueryCursor;
 import org.apache.ignite.cache.query.SqlFieldsQuery;
 import org.apache.ignite.cache.query.SqlQuery;
-import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.managers.IgniteMBeansManager;
@@ -52,6 +49,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Abstraction for internal indexing implementation.
+ *
+ * HK-PATCHED: add support to dynamic Register Query Entity and dynamic Indexes Rebuild
  */
 public interface GridQueryIndexing {
     /**

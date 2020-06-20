@@ -197,6 +197,8 @@ import static org.apache.ignite.internal.util.IgniteUtils.doInParallel;
 
 /**
  * Cache processor.
+ *
+ * HK-PATCHED: add support to mutate query entities at runtime
  */
 @SuppressWarnings({"unchecked", "TypeMayBeWeakened", "deprecation"})
 public class GridCacheProcessor extends GridProcessorAdapter {
@@ -1969,7 +1971,7 @@ public class GridCacheProcessor extends GridProcessorAdapter {
 
             QuerySchema localSchema = recovery.querySchemas.get(desc.cacheId());
 
-            QuerySchemaPatch localSchemaPatch = localSchema.makePatch(desc.schema().entities());
+            QuerySchemaPatch localSchemaPatch = localSchema.makePatch(desc.schema().entities(), false);
 
             // Cache schema is changed after restart, workaround is stop existing cache and start new.
             if (!localSchemaPatch.isEmpty() || localSchemaPatch.hasConflicts())
@@ -3459,6 +3461,20 @@ public class GridCacheProcessor extends GridProcessorAdapter {
         if (checkThreadTx) {
             checkEmptyTransactionsEx(() -> String.format(CACHE_NAME_AND_OPERATION_FORMAT, cacheName,
                 "dynamicStartCache"));
+        }
+
+        //THIS IS IMPORTANT CACHE CREATION WITHOUT THIS CHECK AND PERSISTENCE ENABLED BLOCK CLUSTER ACTIVATION
+
+        //SEE onGridDataReceived(GridDiscoveryData)
+        //ClusterCachesInfo.processCacheChangeRequests(ExchangeActions, Collection<DynamicCacheChangeRequest>, AffinityTopologyVersion, boolean)
+        //ClusterCachesInfo.processJoiningNode(CacheJoinNodeDiscoveryData, UUID, boolean)
+        //ClusterCachesInfo.onStateChangeRequest
+        if (ccfg != null){
+            String conflictErr = cachesInfo.checkStartCacheConflict(ccfg);
+            if (conflictErr != null) {
+                U.warn(log, "Ignore cache creation request. " + conflictErr);
+                return new GridFinishedFuture<>(new IgniteCheckedException("Failed to create cache. " + conflictErr));
+            }
         }
 
         GridPlainClosure<Collection<byte[]>, IgniteInternalFuture<Boolean>> startCacheClsr = (grpKeys) -> {

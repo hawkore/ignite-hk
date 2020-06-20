@@ -43,6 +43,8 @@ import java.util.Set;
 
 /**
  * Metadata job.
+ *
+ * HK-PATCHED: hidden fields
  */
 @GridInternal
 class GridCacheQuerySqlMetadataJobV2 implements IgniteCallable<Collection<GridCacheQueryManager.CacheSqlMetadata>> {
@@ -84,7 +86,7 @@ class GridCacheQuerySqlMetadataJobV2 implements IgniteCallable<Collection<GridCa
                 Map<String, Collection<GridCacheSqlIndexMetadata>> indexes = U.newHashMap(types.size());
                 Map<String, Set<String>> notNullFields = U.newHashMap(types.size());
                 Map<String, Set<String>> hiddenFields = U.newHashMap(types.size());
-                
+
                 for (GridQueryTypeDescriptor type : types) {
                     // Filter internal types (e.g., data structures).
                     if (type.name().startsWith("GridCache"))
@@ -100,7 +102,7 @@ class GridCacheQuerySqlMetadataJobV2 implements IgniteCallable<Collection<GridCa
                     Map<String, String> fieldsMap = U.newLinkedHashMap(size);
                     HashSet<String> notNullFieldsSet = U.newHashSet(1);
                     HashSet<String> hiddenFieldsSet = U.newHashSet(1);
-                    
+
                     // _KEY and _VAL are not included in GridIndexingTypeDescriptor.valueFields
                     if (type.fields().isEmpty()) {
                         fieldsMap.put("_KEY", type.keyClass().getName());
@@ -114,7 +116,7 @@ class GridCacheQuerySqlMetadataJobV2 implements IgniteCallable<Collection<GridCa
 
                         if (type.property(fieldName).notNull())
                             notNullFieldsSet.add(fieldName.toUpperCase());
-                        
+
                         if (type.property(fieldName).hidden())
                             hiddenFieldsSet.add(fieldName.toUpperCase());
                     }
@@ -122,7 +124,7 @@ class GridCacheQuerySqlMetadataJobV2 implements IgniteCallable<Collection<GridCa
                     fields.put(type.name(), fieldsMap);
                     notNullFields.put(type.name(), notNullFieldsSet);
                     hiddenFields.put(type.name(), hiddenFieldsSet);
-                    
+
                     Map<String, GridQueryIndexDescriptor> idxs = type.indexes();
 
                     Collection<GridCacheSqlIndexMetadata> indexesCol = new ArrayList<>(idxs.size());

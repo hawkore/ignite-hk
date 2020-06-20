@@ -17,24 +17,6 @@
 
 package org.apache.ignite.internal.processors.datastructures;
 
-import static org.apache.ignite.cache.CacheAtomicityMode.TRANSACTIONAL;
-import static org.apache.ignite.cache.CacheMode.PARTITIONED;
-import static org.apache.ignite.cache.CacheRebalanceMode.SYNC;
-import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
-import static org.apache.ignite.events.EventType.EVT_NODE_FAILED;
-import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
-import static org.apache.ignite.internal.processors.datastructures.DataStructureType.ATOMIC_LONG;
-import static org.apache.ignite.internal.processors.datastructures.DataStructureType.ATOMIC_REF;
-import static org.apache.ignite.internal.processors.datastructures.DataStructureType.ATOMIC_SEQ;
-import static org.apache.ignite.internal.processors.datastructures.DataStructureType.ATOMIC_STAMPED;
-import static org.apache.ignite.internal.processors.datastructures.DataStructureType.COUNT_DOWN_LATCH;
-import static org.apache.ignite.internal.processors.datastructures.DataStructureType.QUEUE;
-import static org.apache.ignite.internal.processors.datastructures.DataStructureType.REENTRANT_LOCK;
-import static org.apache.ignite.internal.processors.datastructures.DataStructureType.SEMAPHORE;
-import static org.apache.ignite.internal.processors.datastructures.DataStructureType.SET;
-import static org.apache.ignite.transactions.TransactionConcurrency.PESSIMISTIC;
-import static org.apache.ignite.transactions.TransactionIsolation.REPEATABLE_READ;
-
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -44,12 +26,10 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
-
 import javax.cache.event.CacheEntryEvent;
 import javax.cache.event.CacheEntryListenerException;
 import javax.cache.event.CacheEntryUpdatedListener;
 import javax.cache.event.EventType;
-
 import org.apache.ignite.IgniteAtomicLong;
 import org.apache.ignite.IgniteAtomicReference;
 import org.apache.ignite.IgniteAtomicSequence;
@@ -63,9 +43,7 @@ import org.apache.ignite.IgniteQueue;
 import org.apache.ignite.IgniteSemaphore;
 import org.apache.ignite.IgniteSet;
 import org.apache.ignite.cache.CacheEntryEventSerializableFilter;
-import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cache.CacheWriteSynchronizationMode;
-import org.apache.ignite.cache.eviction.fifo.FifoEvictionPolicyFactory;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.configuration.AtomicConfiguration;
 import org.apache.ignite.configuration.CacheConfiguration;
@@ -105,8 +83,28 @@ import org.apache.ignite.lang.IgnitePredicate;
 import org.apache.ignite.lang.IgniteProductVersion;
 import org.jetbrains.annotations.Nullable;
 
+import static org.apache.ignite.cache.CacheAtomicityMode.TRANSACTIONAL;
+import static org.apache.ignite.cache.CacheMode.PARTITIONED;
+import static org.apache.ignite.cache.CacheRebalanceMode.SYNC;
+import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
+import static org.apache.ignite.events.EventType.EVT_NODE_FAILED;
+import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
+import static org.apache.ignite.internal.processors.datastructures.DataStructureType.ATOMIC_LONG;
+import static org.apache.ignite.internal.processors.datastructures.DataStructureType.ATOMIC_REF;
+import static org.apache.ignite.internal.processors.datastructures.DataStructureType.ATOMIC_SEQ;
+import static org.apache.ignite.internal.processors.datastructures.DataStructureType.ATOMIC_STAMPED;
+import static org.apache.ignite.internal.processors.datastructures.DataStructureType.COUNT_DOWN_LATCH;
+import static org.apache.ignite.internal.processors.datastructures.DataStructureType.QUEUE;
+import static org.apache.ignite.internal.processors.datastructures.DataStructureType.REENTRANT_LOCK;
+import static org.apache.ignite.internal.processors.datastructures.DataStructureType.SEMAPHORE;
+import static org.apache.ignite.internal.processors.datastructures.DataStructureType.SET;
+import static org.apache.ignite.transactions.TransactionConcurrency.PESSIMISTIC;
+import static org.apache.ignite.transactions.TransactionIsolation.REPEATABLE_READ;
+
 /**
  * Manager of data structures.
+ *
+ * HK-PATCHED: allow tune underline cache for collections
  */
 public final class DataStructuresProcessor extends GridProcessorAdapter implements IgniteChangeGlobalStateSupport {
     /** */
@@ -919,9 +917,9 @@ public final class DataStructuresProcessor extends GridProcessorAdapter implemen
      * @return Cache configuration.
      */
     private CacheConfiguration cacheConfiguration(CollectionConfiguration cfg, String name, String grpName) {
-       
+
     	boolean useUnderlineCacheConfig = cfg.getCacheConfiguration()!=null;
-    	
+
     	CacheConfiguration ccfg = !useUnderlineCacheConfig ? new CacheConfiguration():cfg.getCacheConfiguration();
 
     	//old queue configuration behavior
@@ -950,7 +948,7 @@ public final class DataStructuresProcessor extends GridProcessorAdapter implemen
         CacheConfiguration ccfg = cacheConfiguration(cfg, name, grpName);
 
         ccfg.setAtomicityMode(TRANSACTIONAL);
-        
+
         return ccfg;
     }
 

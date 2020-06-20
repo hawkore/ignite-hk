@@ -40,6 +40,8 @@ import static org.apache.ignite.testframework.config.GridTestProperties.BINARY_M
 
 /**
  * Test to check dynamic columns related features.
+ *
+ * HK-PATCHED: adapt tests to modified code
  */
 public abstract class H2DynamicColumnsAbstractBasicSelfTest extends DynamicColumnsAbstractTest {
     /**

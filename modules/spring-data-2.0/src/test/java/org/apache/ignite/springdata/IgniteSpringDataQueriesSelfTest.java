@@ -22,6 +22,7 @@ import java.util.Iterator;
 import java.util.List;
 import javax.cache.Cache;
 import org.apache.ignite.springdata.misc.ApplicationConfiguration;
+import org.apache.ignite.springdata.misc.PersonProjection;
 import org.apache.ignite.springdata.misc.PersonRepository;
 import org.apache.ignite.springdata.misc.Person;
 import org.apache.ignite.springdata.misc.PersonSecondRepository;
@@ -261,11 +262,11 @@ public class IgniteSpringDataQueriesSelfTest extends GridCommonAbstractTest {
     /** */
     @Test
     public void testFindOneValue() {
-        Person person = repo.findTopBySecondNameStartingWith("lastName18");
+        PersonProjection person = repo.findTopBySecondNameStartingWith("lastName18");
 
         assertNotNull(person);
 
-        assertTrue(person.getSecondName().startsWith("lastName18"));
+        assertTrue(person.getFullName().split("\\s")[1].startsWith("lastName18"));
     }
 
     /** */

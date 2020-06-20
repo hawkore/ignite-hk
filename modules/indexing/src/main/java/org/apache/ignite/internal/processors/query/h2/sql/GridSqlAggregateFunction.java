@@ -34,6 +34,8 @@ import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlFunction
 
 /**
  * Aggregate function.
+ *
+ * HK-PATCHED: support more aggregate functions
  */
 public class GridSqlAggregateFunction extends GridSqlFunction {
     /** */

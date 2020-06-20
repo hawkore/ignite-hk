@@ -28,6 +28,8 @@ import org.apache.ignite.lang.IgniteUuid;
 
 /**
  * Queue item key.
+ *
+ * HK-PATCHED: improve performance, queue name is not used at all
  */
 class GridCacheQueueItemKey implements Externalizable, QueueItemKey {
     /** */

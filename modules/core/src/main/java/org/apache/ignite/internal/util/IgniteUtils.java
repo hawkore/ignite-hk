@@ -294,6 +294,8 @@ import static org.apache.ignite.internal.util.GridUnsafe.staticFieldOffset;
 
 /**
  * Collection of utility methods used throughout the system.
+ *
+ * HK-PATCHED: additional methods
  */
 @SuppressWarnings({"UnusedReturnValue", "RedundantStringConstructorCall"})
 public abstract class IgniteUtils {

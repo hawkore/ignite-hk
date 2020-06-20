@@ -29,6 +29,8 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 
 /**
  * Queue header key.
+ *
+ * HK-PATCHED: improve performance, faster UUID comparation instead of by name on CacheDataStructuresManager
  */
 public class GridCacheQueueHeaderKey implements Externalizable, GridCacheInternal {
     /** */
@@ -48,16 +50,16 @@ public class GridCacheQueueHeaderKey implements Externalizable, GridCacheInterna
      * @param name Queue name.
      */
     public GridCacheQueueHeaderKey(String name) {
-    	queueNameUuid = UUID.nameUUIDFromBytes(name.getBytes());
+    	this.queueNameUuid = UUID.nameUUIDFromBytes(name.getBytes());
     }
-    
+
     /**
      * @param name Queue name.
      */
     public GridCacheQueueHeaderKey(UUID queueNameUuid) {
     	this.queueNameUuid = queueNameUuid;
     }
-    
+
 	/**
 	 * @return the queueNameUuid
 	 */

@@ -17,6 +17,7 @@
 
 // ReSharper disable UnusedAutoPropertyAccessor.Global
 // ReSharper disable MemberCanBePrivate.Global
+// HK-PATCHED: adapt to modified code
 namespace Apache.Ignite.Core.Cache.Configuration
 {
     using System;

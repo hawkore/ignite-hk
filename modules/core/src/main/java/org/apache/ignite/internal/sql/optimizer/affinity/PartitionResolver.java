@@ -22,6 +22,8 @@ import org.apache.ignite.IgniteCheckedException;
 /**
  * Partition resolver interface. Takes argument, data type and cache name, returns partition.
  * The only purpose of this methods is to allow partition pruning classes to be located in core module.
+ *
+ * HK-PATCHED: add support to ARRAY arguments (compute multiple partitions per argument)
  */
 public interface PartitionResolver {
     /**
@@ -33,5 +35,5 @@ public interface PartitionResolver {
      * @return Partition.
      * @throws IgniteCheckedException If failed.
      */
-    int partition(Object arg, int dataType, String cacheName) throws IgniteCheckedException;
+    int[] partitions(Object arg, int dataType, String cacheName) throws IgniteCheckedException;
 }

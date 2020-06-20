@@ -89,6 +89,8 @@ import static org.apache.ignite.internal.processors.security.SecurityUtils.nodeS
 
 /**
  * Util class for joining node validation.
+ *
+ * HK-PATCHED: add support to mutate query entities at runtime
  */
 public class ValidationOnNodeJoinUtils {
     /** Template of message of conflicts during configuration merge */
@@ -172,7 +174,7 @@ public class ValidationOnNodeJoinUtils {
                 if (locDesc == null)
                     continue;
 
-                QuerySchemaPatch schemaPatch = locDesc.makeSchemaPatch(cacheInfo.cacheData().queryEntities());
+                QuerySchemaPatch schemaPatch = locDesc.makeSchemaPatch(cacheInfo.cacheData().queryEntities(), false);
 
                 if (schemaPatch.hasConflicts() || (isGridActive && !schemaPatch.isEmpty())) {
                     if (errorMsg.length() > 0)

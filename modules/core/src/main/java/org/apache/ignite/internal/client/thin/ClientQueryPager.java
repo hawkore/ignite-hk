@@ -54,7 +54,7 @@ class ClientQueryPager<K, V> extends GenericQueryPager<Cache.Entry<K, V>> {
 
         return ClientUtils.collection(
             in,
-            ignored -> new ClientCacheEntry<K,V>(serDes.readObject(in, keepBinary), serDes.readObject(in, keepBinary))
+            ignored -> new ClientCacheEntry<>(serDes.readObject(in, keepBinary), serDes.readObject(in, keepBinary))
         );
     }
 }

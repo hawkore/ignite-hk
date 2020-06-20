@@ -27,6 +27,8 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
  * Flat group of partitions.
+ *
+ * HK-PATCHED: add support to ARRAY arguments (compute multiple partitions per argument)
  */
 public class PartitionGroupNode implements PartitionNode {
     /** Partitions. */
@@ -51,12 +53,12 @@ public class PartitionGroupNode implements PartitionNode {
         HashSet<Integer> res = new HashSet<>(siblings.size());
 
         for (PartitionSingleNode sibling : siblings) {
-            Integer part = sibling.applySingle(ctx, args);
-
-            if (part == null)
+            Set<Integer> parts = sibling.applySingle(ctx, args);
+            // error resolving all partitions
+            if (parts == null)
                 return null;
 
-            res.add(part);
+            res.addAll(parts);
         }
 
         return res;

@@ -15,24 +15,18 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.testsuites;
+package org.apache.ignite.internal.processors.cache.persistence.db.wal;
 
-import junit.framework.TestSuite;
-import org.apache.ignite.internal.processors.query.h2.CacheQueryEntityWithJsr310Java8DateTimeApiFieldsTest;
+import org.apache.ignite.configuration.WALMode;
+import org.jetbrains.annotations.NotNull;
 
 /**
- * Test suite for JSR-310 Java 8 Date and Time API queries.
+ *
  */
-public class CacheQueryJsr310Java8DateTimeApiSupportTestSuite extends TestSuite {
-    /**
-     * @return Test suite.
-     * @throws Exception If failed.
-     */
-    public static TestSuite suite() throws Exception {
-        TestSuite suite = new TestSuite("JSR-310 Java 8 Date and Time API Cache Queries Test Suite");
+public class WalRolloverRecordLoggingLogOnlyTest extends WalRolloverRecordLoggingTest {
 
-        suite.addTestSuite(CacheQueryEntityWithJsr310Java8DateTimeApiFieldsTest.class);
-
-        return suite;
+    /** {@inheritDoc} */
+    @NotNull @Override public WALMode walMode() {
+        return WALMode.LOG_ONLY;
     }
 }

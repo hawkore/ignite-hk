@@ -17,10 +17,15 @@
 
 package org.apache.ignite.internal.sql.optimizer.affinity;
 
+import java.util.Collections;
+import java.util.Set;
+
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
  * Node with constant partition.
+ *
+ * HK-PATCHED: add support to ARRAY type arguments (compute multiple partitions per argument)
  */
 public class PartitionConstantNode extends PartitionSingleNode {
     /** Partition. */
@@ -39,8 +44,8 @@ public class PartitionConstantNode extends PartitionSingleNode {
     }
 
     /** {@inheritDoc} */
-    @Override public Integer applySingle(PartitionClientContext cliCtx, Object... args) {
-        return part;
+    @Override public Set<Integer> applySingle(PartitionClientContext cliCtx, Object... args) {
+        return Collections.singleton(part);
     }
 
     /** {@inheritDoc} */

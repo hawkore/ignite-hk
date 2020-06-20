@@ -26,6 +26,8 @@ import java.util.Collection;
  * information about fields, order, uniqueness, and specified
  * whether this is SQL or Text index.
  * See also {@link GridQueryTypeDescriptor#indexes()}.
+ *
+ * HK-PATCHED: advanced lucene index options
  */
 public interface GridQueryIndexDescriptor {
     /**

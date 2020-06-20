@@ -42,9 +42,7 @@ import java.util.LinkedList;
 import java.util.Set;
 
 import org.apache.ignite.cache.QueryIndex;
-import org.apache.ignite.internal.processors.query.QueryUtils;
 import org.apache.ignite.internal.processors.query.h2.opt.lucene.IndexOptions;
-import org.apache.ignite.internal.processors.query.h2.opt.lucene.LuceneQueryUtils;
 import org.apache.ignite.internal.sql.SqlLexer;
 import org.apache.ignite.internal.sql.SqlLexerToken;
 import org.apache.ignite.internal.sql.SqlLexerTokenType;
@@ -56,6 +54,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * CREATE INDEX command.
+ *
+ * HK-PATCHED: add support to advanced lucene index
  */
 public class SqlCreateIndexCommand implements SqlCommand {
     /** Schema name. */
@@ -75,10 +75,10 @@ public class SqlCreateIndexCommand implements SqlCommand {
 
     /** full text index flag. */
     private boolean fulltext;
-    
+
     /** Lucene index command */
     private String luceneIndexOptions;
-    
+
     /**
      * Parallelism level. <code>parallel=0</code> means that a default number
      * of cores will be used during index creation (e.g. 25% of available cores).
@@ -154,15 +154,15 @@ public class SqlCreateIndexCommand implements SqlCommand {
     public boolean fulltext() {
         return fulltext;
     }
-    
+
     /**
-     * 
+     *
      * @return lucene index options
      */
     public String luceneIndexOptions(){
         return luceneIndexOptions;
     }
-    
+
     /**
      * @param spatial Spatial index flag.
      * @return This instance.
@@ -296,26 +296,26 @@ public class SqlCreateIndexCommand implements SqlCommand {
                     break;
 
                 case FULLTEXT:
-                    
+
                     fulltext = true;
-                    
+
                     luceneIndexOptions = getStringProperty(lex, FULLTEXT, foundProps);
 
                     //disabled
                     inlineSize = 0;
-                    
+
                     // validate format
                     try{
                         new IndexOptions(luceneIndexOptions);
                     }catch (Exception e){
                         throw error(lex, "Illegal lucene index options: "+ e.getMessage());
                     }
-                    
+
                     //now make some validations here
                     if (spatial){
                         throw error(lex, "Spatial flag is not allowed for FULLTEXT index");
                     }
- 
+
                     //lucene index name must be TABLENAME_LUCENE_IDX
                     if (!(tblName + Index.LUCENE_INDEX_NAME_SUFIX).equalsIgnoreCase(idxName)){
                         throw error(lex, "Illegal index name " + idxName +
@@ -326,9 +326,9 @@ public class SqlCreateIndexCommand implements SqlCommand {
                     if (colNames.size() != 1 || !colNames.iterator().next().equalsIgnoreCase(Index.LUCENE_FIELD_NAME)){
                         throw error(lex, "Only ONE indexed column is allowed and its name must be '" + Index.LUCENE_FIELD_NAME+"'");
                     }
-                    
-                    break;     
-                    
+
+                    break;
+
                 default:
                     return;
             }
@@ -352,7 +352,7 @@ public class SqlCreateIndexCommand implements SqlCommand {
 
         return parseInt(lex);
     }
-    
+
     private String getStringProperty(SqlLexer lex, String keyword, Set<String> foundProps) {
         if (foundProps.contains(keyword))
             throw error(lex, "Only one " + keyword + " clause may be specified.");

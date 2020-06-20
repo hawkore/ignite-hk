@@ -72,6 +72,8 @@ import static org.apache.ignite.internal.processors.metric.impl.MetricUtils.metr
 
 /**
  * Schema manager. Responsible for all manipulations on schema objects.
+ *
+ * HK-PATCHED: extended SQL function creation
  */
 public class SchemaManager {
     /** */
@@ -473,10 +475,18 @@ public class SchemaManager {
 
                     String alias = ann.alias().isEmpty() ? m.getName() : ann.alias();
 
+                    boolean onPublicSchema = ann.onPublicSchema();
+
                     String clause = "CREATE ALIAS IF NOT EXISTS " + alias + (ann.deterministic() ?
-                        " DETERMINISTIC FOR \"" :
-                        " FOR \"") +
-                        cls.getName() + '.' + m.getName() + '"';
+                                                                                 " DETERMINISTIC FOR \"" :
+                                                                                                             " FOR \"") +
+                                        cls.getName() + '.' + m.getName() + '"';
+
+                    if (onPublicSchema){
+                        //register function on default schema
+                        connMgr.executeStatement(QueryUtils.DFLT_SCHEMA, clause);
+                        connMgr.executeStatement(null, clause);
+                    }
 
                     connMgr.executeStatement(schema, clause);
                 }
@@ -514,7 +524,7 @@ public class SchemaManager {
      * @param schemaName Schema name.
      * @return Schema.
      */
-    private H2Schema schema(String schemaName) {
+    public H2Schema schema(String schemaName) {
         return schemas.get(schemaName);
     }
 
@@ -604,7 +614,7 @@ public class SchemaManager {
      * @param h2Idx User index.
      * @throws IgniteCheckedException If failed.
      */
-    private void createInitialUserIndex(String schemaName, H2TableDescriptor desc, GridH2IndexBase h2Idx)
+    public void createInitialUserIndex(String schemaName, H2TableDescriptor desc, GridH2IndexBase h2Idx)
         throws IgniteCheckedException {
         GridH2Table h2Tbl = desc.table();
 

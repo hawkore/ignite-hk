@@ -95,6 +95,7 @@ import static org.apache.ignite.internal.util.nio.GridNioSessionMetaKey.NIO_OPER
  *
  * @param <T> Message type.
  *
+ * HK-PATCHED: improve performance
  */
 public class GridNioServer<T> {
     /** */

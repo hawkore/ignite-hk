@@ -32,7 +32,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import javax.cache.Cache;
 import javax.cache.CacheException;
 
@@ -71,6 +70,7 @@ import org.apache.ignite.internal.processors.cache.CacheObjectContext;
 import org.apache.ignite.internal.processors.cache.DynamicCacheChangeBatch;
 import org.apache.ignite.internal.processors.cache.DynamicCacheChangeRequest;
 import org.apache.ignite.internal.processors.cache.DynamicCacheDescriptor;
+import org.apache.ignite.internal.processors.cache.GridCacheAdapter;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.GridCacheContextInfo;
 import org.apache.ignite.internal.processors.cache.IgniteCacheOffheapManager;
@@ -141,6 +141,8 @@ import static org.apache.ignite.internal.processors.query.schema.SchemaOperation
 
 /**
  * Indexing processor.
+ *
+ * HK-PATCHED: add support to advanced indexing, dynamic Register Query Entity, dynamic Indexes Rebuild
  */
 public class GridQueryProcessor extends GridProcessorAdapter {
     /** Queries detail metrics eviction frequency. */
@@ -854,7 +856,7 @@ public class GridQueryProcessor extends GridProcessorAdapter {
 
 	                                    SchemaRegisterQueryEntityOperation opR = (SchemaRegisterQueryEntityOperation) op0;
 
-                                    	QueryTypeCandidate newCand = QueryUtils.typeForQueryEntity(cacheName, schemaName, cctx, opR.queryEntity(), mustDeserializeClss, escape);
+                                    	QueryTypeCandidate newCand = QueryUtils.typeForQueryEntity(ctx.cache().context().kernalContext(), cacheName, schemaName, cacheInfo, opR.queryEntity(), mustDeserializeClss, escape);
                                     	QueryTypeCandidate victim=null;
 
                                     	for (QueryTypeCandidate cand : cands) {
@@ -1122,6 +1124,8 @@ public class GridQueryProcessor extends GridProcessorAdapter {
         String cacheName = op.cacheName();
         String schemaName = op.schemaName();
 
+        GridCacheContextInfo cacheInfo = idx.registeredCacheInfo(cacheName);
+
         if (op instanceof SchemaIndexCreateOperation) {
             SchemaIndexCreateOperation op0 = (SchemaIndexCreateOperation) op;
 
@@ -1131,14 +1135,6 @@ public class GridQueryProcessor extends GridProcessorAdapter {
             String tblName = op0.tableName();
 
             type = type(cacheName, tblName);
-
-            if (type == null){
-                try {
-                    ctx.cache().createMissingQueryCaches();
-                    type = type(cacheName, tblName);
-                } catch (IgniteCheckedException e) {
-                }
-            }
 
             if (type == null)
                 err = new SchemaOperationException(SchemaOperationException.CODE_TABLE_NOT_FOUND, tblName);
@@ -1266,7 +1262,7 @@ public class GridQueryProcessor extends GridProcessorAdapter {
 		        if (cache == null){
 		        	err =  new SchemaOperationException(SchemaOperationException.CODE_CACHE_NOT_FOUND, cacheName);
 		        }else{
-		        	type = QueryUtils.typeForQueryEntity(cacheName, schemaName, cache.context(), op0.queryEntity(), mustDeserializeClss, cache.context().config().isSqlEscapeAll()).descriptor();
+		        	type = QueryUtils.typeForQueryEntity(cache.context().kernalContext(), cacheName, schemaName, cacheInfo, op0.queryEntity(), mustDeserializeClss, cache.context().config().isSqlEscapeAll()).descriptor();
 		        }
 
                 if (type != null && !StringUtils.isBlank(op0.queryEntity().getLuceneIndexOptions())){
@@ -1593,6 +1589,9 @@ public class GridQueryProcessor extends GridProcessorAdapter {
 
             String schemaName = op.schemaName();
             String cacheName = op.cacheName();
+
+            GridCacheContextInfo cacheInfo = idx.registeredCacheInfo(cacheName);
+
             try {
                 if (op instanceof SchemaIndexCreateOperation) {
                     SchemaIndexCreateOperation op0 = (SchemaIndexCreateOperation)op;
@@ -1628,7 +1627,7 @@ public class GridQueryProcessor extends GridProcessorAdapter {
 
                     List<Class<?>> mustDeserializeClss = new ArrayList<>();
 
-            		QueryTypeCandidate cand = QueryUtils.typeForQueryEntity(cacheName, schemaName, cache.context(), op0.queryEntity(), mustDeserializeClss, escape);
+            		QueryTypeCandidate cand = QueryUtils.typeForQueryEntity(cache.context().kernalContext(), cacheName, schemaName, cacheInfo, op0.queryEntity(), mustDeserializeClss, escape);
 
             		if (!StringUtils.isBlank(op0.queryEntity().getLuceneIndexOptions())){
 
@@ -1762,17 +1761,17 @@ public class GridQueryProcessor extends GridProcessorAdapter {
 
         		SchemaRegisterQueryEntityOperation op0 = (SchemaRegisterQueryEntityOperation) op;
 
-                GridCacheContext cctx = cache.context();
+                GridCacheContext cctx = cacheInfo.cacheContext();
 
                 SchemaIndexCacheFilter filter = new TableCacheFilter(cctx, type.tableName());
 
                 SchemaIndexCacheVisitor visitor = new SchemaIndexCacheVisitorImpl(cctx, filter, cancelTok, op0.parallel());
 
-                boolean escape = cache.context().config().isSqlEscapeAll();
+                boolean escape = cctx.config().isSqlEscapeAll();
 
                 List<Class<?>> mustDeserializeClss = new ArrayList<>();
 
-                QueryTypeDescriptorImpl cand = QueryUtils.typeForQueryEntity(cacheName, idx.schema(cacheName), cache.context(), op0.queryEntity(), mustDeserializeClss, escape).descriptor();
+                QueryTypeDescriptorImpl cand = QueryUtils.typeForQueryEntity(cctx.kernalContext(), cacheName, idx.schema(cacheName), cacheInfo, op0.queryEntity(), mustDeserializeClss, escape).descriptor();
 
                 //alter/create table + index creation/update
             	idx.dynamicRegisterQueryEntity(cacheName, cand.tableName(), cand, visitor, op0.isForceRebuildIndexes(), op0.isForceMutateQueryEntity(), op0.isAsync());
@@ -1781,7 +1780,7 @@ public class GridQueryProcessor extends GridProcessorAdapter {
 
                 SchemaIndexesRebuildOperation op0 = (SchemaIndexesRebuildOperation) op;
 
-                GridCacheContext cctx = cache.context();
+                GridCacheContext cctx = cacheInfo.cacheContext();
 
                 SchemaIndexCacheFilter filter = new TableCacheFilter(cctx, op0.tableName());
 

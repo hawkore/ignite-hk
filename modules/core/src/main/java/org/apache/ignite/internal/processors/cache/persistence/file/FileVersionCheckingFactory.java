@@ -154,21 +154,4 @@ public class FileVersionCheckingFactory implements FilePageStoreFactory {
                 throw new IllegalArgumentException("Unknown version of file page store.");
         }
     }
-
-    /**
-     * @param ver Version.
-     * @return Header size.
-     */
-    public int headerSize(int ver) {
-        switch (ver) {
-            case FilePageStore.VERSION:
-                return FilePageStore.HEADER_SIZE;
-
-            case FilePageStoreV2.VERSION:
-                return memCfg.getPageSize();
-
-            default:
-                throw new IllegalArgumentException("Unknown version of file page store.");
-        }
-    }
 }

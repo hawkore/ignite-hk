@@ -29,6 +29,7 @@ import org.apache.ignite.internal.processors.cache.GridCacheContextInfo;
 import org.apache.ignite.internal.processors.query.GridQueryIndexDescriptor;
 import org.apache.ignite.internal.processors.query.GridQueryProperty;
 import org.apache.ignite.internal.processors.query.GridQueryTypeDescriptor;
+import org.apache.ignite.internal.processors.query.QueryTypeDescriptorImpl;
 import org.apache.ignite.internal.processors.query.QueryUtils;
 import org.apache.ignite.internal.processors.query.h2.database.H2PkHashIndex;
 import org.apache.ignite.internal.processors.query.h2.database.H2TreeIndexBase;
@@ -47,6 +48,8 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * Information about table in database.
+ *
+ * HK-PATCHED: add support to advanced lucene index as GridH2Index
  */
 public class H2TableDescriptor {
     /** PK index name. */
@@ -247,8 +250,8 @@ public class H2TableDescriptor {
 
         if (luceneIdx == null){
             createOrUpdateLuceneIndex(null, false, false);
-            //add Grid H2 Lucene index to H2 table
-            if (luceneIdx != null && H2Utils.inClassPath(H2Utils.ADVANCED_LUCENE_IDX_CLS)){
+            //add Grid H2 Advanced Lucene index to H2 table
+            if (luceneIdx != null && H2Utils.ADVANCED_LUCENE_IDX_PRESENT){
                 idxs.add(luceneIdx);
             }
         }
@@ -366,12 +369,11 @@ public class H2TableDescriptor {
                 res.add(idx);
             }
          }
-        //try globally
-
+        // try globally
         if (luceneIdx == null){
             createOrUpdateLuceneIndex(null, false, false);
-            //add Grid H2 Lucene index to H2 table
-            if (luceneIdx != null && H2Utils.inClassPath(H2Utils.ADVANCED_LUCENE_IDX_CLS)){
+            //add Grid H2 Advanced Lucene index to H2 table
+            if (luceneIdx != null && H2Utils.ADVANCED_LUCENE_IDX_PRESENT){
                 res.add(luceneIdx);
             }
         }
@@ -419,13 +421,14 @@ public class H2TableDescriptor {
                 cols,
                 idxDesc.inlineSize()
             );
-        }
-        else if (idxDesc.type() == QueryIndexType.GEOSPATIAL){
+        } else if (idxDesc.type() == QueryIndexType.GEOSPATIAL){
             return H2Utils.createSpatialIndex(tbl, idxDesc.name(), cols.toArray(new IndexColumn[cols.size()]));
 
-        } else if (idxDesc.type() == QueryIndexType.FULLTEXT && H2Utils.inClassPath(H2Utils.ADVANCED_LUCENE_IDX_CLS)){
+        } else if (idxDesc.type() == QueryIndexType.FULLTEXT){
             if (luceneIdx == null){
-                luceneIdx = (GridLuceneIndex) H2Utils.createAdvancedLuceneIndex(tbl, idxDesc.luceneIndexOptions());
+                if (H2Utils.ADVANCED_LUCENE_IDX_PRESENT) {
+                    luceneIdx = (GridLuceneIndex)H2Utils.createAdvancedLuceneIndex(tbl, idxDesc.luceneIndexOptions());
+                }
                 return luceneIdx;
             }
             return null;
@@ -461,7 +464,7 @@ public class H2TableDescriptor {
         tbl.destroy();
 
         try {
-            dropLuceneIndex();
+            closeQuietLuceneIndex();
         } catch (IgniteCheckedException e) {
             //NOP
         }
@@ -487,8 +490,19 @@ public class H2TableDescriptor {
     public void dropLuceneIndex() throws IgniteCheckedException{
         if (luceneIdx != null){
            String sql = H2Utils.indexDropSql(this.schemaName(), luceneIdx.getName(), true);
-           idx.executeSql(this.schemaName(), sql);
+           idx.connections().executeStatement(this.schemaName(), sql);
            luceneIdx.destroy(true);
+           // enforce drop index
+            ((QueryTypeDescriptorImpl)type).dropIndex(luceneIdx.getName());
+        }
+        luceneIdx = null;
+    }
+
+    private void closeQuietLuceneIndex() throws IgniteCheckedException{
+        if (luceneIdx != null){
+            U.closeQuiet(luceneIdx);
+            // enforce drop index
+            ((QueryTypeDescriptorImpl)type).dropIndex(luceneIdx.getName());
         }
         luceneIdx = null;
     }
@@ -513,17 +527,17 @@ public class H2TableDescriptor {
      			if (luceneIdx == null){
     				try {
     				    //preferable Advanced Lucene Index if present
-    	                if (H2Utils.inClassPath(H2Utils.ADVANCED_LUCENE_IDX_CLS)){
+    	                if (H2Utils.ADVANCED_LUCENE_IDX_PRESENT){
     	                    luceneIdx = (GridLuceneIndex) H2Utils.createAdvancedLuceneIndex(tbl, luceneIndexOptions == null ? this.type.luceneIndexOptions(): luceneIndexOptions);
     	                    return luceneIdx;
     	                }else{
-    	                    luceneIdx = new GridLuceneIndexLegacyImpl(idx.kernalContext(), tbl.cacheName(), type);
+    	                    luceneIdx = new GridLuceneIndexLegacyImpl(tbl, idx.kernalContext(), tbl.cacheName(), type);
     	                }
     				}catch (Exception e1) {
     					throw new IgniteException(e1);
     				}
     			}else{
-    			    if (H2Utils.inClassPath(H2Utils.ADVANCED_LUCENE_IDX_CLS) && updateConfig){
+    			    if (H2Utils.ADVANCED_LUCENE_IDX_PRESENT && updateConfig){
     			        luceneIdx.updateIndexConfig(this.tbl,  luceneIndexOptions == null ? this.type.luceneIndexOptions(): luceneIndexOptions, forceMutateQueryEntity);
     			        return luceneIdx;
     			    }

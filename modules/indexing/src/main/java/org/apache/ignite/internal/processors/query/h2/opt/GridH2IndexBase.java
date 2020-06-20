@@ -33,6 +33,8 @@ import org.h2.value.Value;
 
 /**
  * Index base.
+ *
+ * HK-PATCHED: add support to custom index implementation
  */
 public abstract class GridH2IndexBase extends BaseIndex {
     /** Underlying table. */
@@ -45,6 +47,17 @@ public abstract class GridH2IndexBase extends BaseIndex {
      */
     protected GridH2IndexBase(GridH2Table tbl) {
         this.tbl = tbl;
+    }
+
+    /**
+     * Whether remove old row is allowed on add to index see GridH2Table.addToIndex.
+     * <p>
+     * Defaults to true
+     *
+     * @return
+     */
+    public boolean isAllowRemoveOnAddToIndex() {
+        return true;
     }
 
     /** {@inheritDoc} */
@@ -198,42 +211,45 @@ public abstract class GridH2IndexBase extends BaseIndex {
 
         final Object o = keyColValue.getObject();
 
-        if (o instanceof CacheObject)
+        if (o instanceof CacheObject) {
             key = (CacheObject)o;
-        else
+        } else {
             key = ctx.toCacheKeyObject(o);
+        }
 
         return segmentForPartition(ctx.affinity().partition(key));
     }
 
     /**
-     * @param row Table row.
+     * @param row
+     *     Table row.
      * @return Segment ID for given row.
      */
     protected int segmentForKey(GridCacheContext ctx, Object keyValue) {
         assert keyValue != null;
 
-        if (segmentsCount() == 1 || ctx == null)
+        if (segmentsCount() == 1 || ctx == null) {
             return 0;
+        }
 
         CacheObject key;
 
         Object o;
-        if (keyValue instanceof Value){
+        if (keyValue instanceof Value) {
             o = ((Value)keyValue).getObject();
-        }else{
+        } else {
             o = keyValue;
         }
 
         assert o != null;
 
-        if (o instanceof CacheObject)
+        if (o instanceof CacheObject) {
             key = (CacheObject)o;
-        else
+        } else {
             key = ctx.toCacheKeyObject(o);
+        }
 
         return segmentForPartition(ctx.affinity().partition(key));
-
     }
 
     /**

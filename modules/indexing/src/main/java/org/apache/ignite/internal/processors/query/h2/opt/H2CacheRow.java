@@ -29,9 +29,12 @@ import org.apache.ignite.internal.processors.query.h2.H2Utils;
 import org.apache.ignite.internal.util.typedef.internal.SB;
 import org.h2.value.Value;
 import org.h2.value.ValueNull;
+import org.h2.value.ValueString;
 
 /**
  * Table row implementation based on {@link GridQueryTypeDescriptor}.
+ *
+ * HK-PATCHED: add support to advanced lucene index
  */
 public class H2CacheRow extends H2Row implements CacheDataRow {
     /** H2 row descriptor. */
@@ -41,7 +44,17 @@ public class H2CacheRow extends H2Row implements CacheDataRow {
     private final CacheDataRow row;
 
     /** */
+    private Value lucene = ValueNull.INSTANCE;
+
+    /** */
+    private Value luceneScoreDoc = ValueNull.INSTANCE;
+
+    /** */
     private Value[] valCache;
+
+    public H2CacheRow(GridH2RowDescriptor desc, CacheDataRow row) {
+            this(desc, row,null,null);
+    }
 
     /**
      * Constructor.
@@ -49,9 +62,17 @@ public class H2CacheRow extends H2Row implements CacheDataRow {
      * @param desc Row descriptor.
      * @param row Row.
      */
-    public H2CacheRow(GridH2RowDescriptor desc, CacheDataRow row) {
+    public H2CacheRow(GridH2RowDescriptor desc, CacheDataRow row, String luceneExpression, Object luceneScoreDoc) {
         this.desc = desc;
         this.row = row;
+        // luceneExpression is mandatory when filter by lucene expression to ensures H2 internal comparison select * from xxx where lucene=luceneExpression matches
+        if (luceneExpression != null){
+            this.lucene  = ValueString.get(luceneExpression);
+        }
+        // will be used to sort SQL query results collected from cluster nodes when filter by lucene expression
+        if (luceneScoreDoc != null){
+            this.luceneScoreDoc = wrap(luceneScoreDoc, Value.JAVA_OBJECT);
+        }
     }
 
     /** {@inheritDoc} */
@@ -76,6 +97,12 @@ public class H2CacheRow extends H2Row implements CacheDataRow {
 
             case QueryUtils.VAL_COL:
                 return valueWrapped();
+
+            case QueryUtils.LUCENE_COL:
+                return lucene;
+
+            case QueryUtils.LUCENE_SCORE_COL:
+                return luceneScoreDoc;
 
             default:
                 if (desc.isKeyAliasColumn(col))
@@ -129,6 +156,10 @@ public class H2CacheRow extends H2Row implements CacheDataRow {
      * @return Value.
      */
     private Value getCached(int colIdx) {
+    	if (valCache != null && desc.fieldsCount() != valCache.length){
+    		// desc has been updated (new columns?) -> reset val cached size
+    		this.prepareValuesCache();
+    	}
         return valCache != null ? valCache[colIdx] : null;
     }
 
@@ -321,7 +352,7 @@ public class H2CacheRow extends H2Row implements CacheDataRow {
                 if (i != QueryUtils.DEFAULT_COLUMNS_COUNT)
                     sb.a(", ");
 
-                if (!desc.isKeyValueOrVersionColumn(i))
+                if (!desc.isInternalColumn(i))
                     sb.a(v == null ? "nil" : v.getString());
             }
         }

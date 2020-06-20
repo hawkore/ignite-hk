@@ -51,6 +51,8 @@ import static org.apache.ignite.internal.processors.query.h2.dml.UpdateMode.BULK
 
 /**
  * Update plan - where to take data to update cache from and how to construct new keys and values, if needed.
+ *
+ * HK-PATCHED: add support to new columns for advanced lucene indexing
  */
 public final class UpdatePlan {
     /** Initial statement to drive the rest of the logic. */
@@ -258,7 +260,7 @@ public final class UpdatePlan {
         // column order preserves their precedence for correct update of nested properties.
         Column[] tblCols = tbl.getColumns();
 
-        // First 5 columns are _key, _val, _ver, lucene and _score. Skip 'em.
+        // First 4 columns are _key, _val, lucene and _score. Skip 'em.
         for (int i = QueryUtils.DEFAULT_COLUMNS_COUNT; i < tblCols.length; i++) {
             if (tbl.rowDescriptor().isInternalColumn(i))
                 continue;
@@ -330,7 +332,7 @@ public final class UpdatePlan {
         if (newVal == null)
             throw new IgniteSQLException("New value for UPDATE must not be null", IgniteQueryErrorCode.NULL_VALUE);
 
-        // First 5 columns are _key, _val, _ver, lucene and _score. Skip 'em.
+        // First 4 columns are _key, _val, lucene and _score. Skip 'em.
         for (int i = 0; i < tbl.getColumns().length - QueryUtils.DEFAULT_COLUMNS_COUNT; i++) {
             Column c = tbl.getColumn(i + QueryUtils.DEFAULT_COLUMNS_COUNT);
 

@@ -17,12 +17,20 @@
 
 package org.apache.ignite.internal.sql.optimizer.affinity;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
+import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
- * Node with partition which should be extracted from argument.
+ * Node with partition(s) which should be extracted from argument.
+ *
+ * HK-PATCHED: add support to ARRAY arguments (compute multiple partitions per argument)
  */
 public class PartitionParameterNode extends PartitionSingleNode {
     /** Indexing. */
@@ -58,22 +66,29 @@ public class PartitionParameterNode extends PartitionSingleNode {
     }
 
     /** {@inheritDoc} */
-    @Override public Integer applySingle(PartitionClientContext cliCtx, Object... args) throws IgniteCheckedException {
+    @Override public Set<Integer> applySingle(PartitionClientContext cliCtx, Object... args) throws IgniteCheckedException {
         assert args != null;
         assert idx < args.length;
 
         Object arg = args[idx];
 
-        if (cliCtx != null)
-            return cliCtx.partition(arg, clientType);
-        else {
+        if (cliCtx != null) {
+            Integer part = cliCtx.partition(arg, clientType);
+            if (part == null) {
+                return null;
+            }
+            return Collections.singleton(part);
+        } else {
             assert partRslvr != null;
-
-            return partRslvr.partition(
+            int[] partitions =  partRslvr.partitions(
                 arg,
                 type,
                 tbl.cacheName()
             );
+            if (F.isEmpty(partitions)){
+                return Collections.emptySet();
+            }
+            return Arrays.stream(partitions).mapToObj(i->i).collect(Collectors.toSet());
         }
     }
 

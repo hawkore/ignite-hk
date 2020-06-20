@@ -32,6 +32,8 @@ import org.apache.ignite.internal.util.typedef.internal.S;
  * Contains list of fields to be indexed. It is possible to provide field name
  * suffixed with index specific extension, for example for {@link QueryIndexType#SORTED sorted} index
  * the list can be provided as following {@code (id, name asc, age desc)}.
+ *
+ * HK-PATCHED: advanced lucene index options
  */
 @SuppressWarnings("TypeMayBeWeakened")
 public class QueryIndex implements Serializable {
@@ -54,8 +56,8 @@ public class QueryIndex implements Serializable {
     /** lucene index options */
     @GridToStringInclude
     private String luceneIndexOptions;
-    
-    
+
+
     /** */
     private QueryIndexType type = DFLT_IDX_TYP;
 
@@ -321,8 +323,8 @@ public class QueryIndex implements Serializable {
         this.luceneIndexOptions = luceneIndexOptions;
         return this;
     }
-    
-    
+
+
     /** {@inheritDoc} */
     @Override public boolean equals(Object o) {
         if (this == o)

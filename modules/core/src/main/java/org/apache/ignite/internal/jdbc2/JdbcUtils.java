@@ -19,6 +19,7 @@ package org.apache.ignite.internal.jdbc2;
 
 import java.math.BigDecimal;
 import java.net.URL;
+import java.sql.PseudoColumnUsage;
 import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -55,6 +56,8 @@ import static java.sql.Types.VARCHAR;
 
 /**
  * Utility methods for JDBC driver.
+ *
+ * HK-PATCHED: pseudo columns (hidden fields)
  */
 public class JdbcUtils {
     /** The only possible name for catalog. */
@@ -239,6 +242,35 @@ public class JdbcUtils {
         row.add((Short)null);                   // 22. SOURCE_DATA_TYPE
         row.add("NO");                          // 23. IS_AUTOINCREMENT
         row.add("NO");                          // 23. IS_GENERATEDCOLUMN
+
+        return row;
+    }
+
+    /**
+     * @param schema Schema name.
+     * @param tbl Table name.
+     * @param col Column name.
+     * @param type Type.
+     * @param typeName Type name.
+     * @param nullable Nullable flag.
+     * @param pos Ordinal position.
+     * @return speudo column metadata row.
+     */
+    public static List<Object> pseudoColumnRow(JdbcColumnMeta colMeta, int pos) {
+        List<Object> row = new ArrayList<>(20);
+
+        row.add(CATALOG_NAME);                  // 1. TABLE_CAT
+        row.add(colMeta.schemaName());          // 2. TABLE_SCHEM
+        row.add(colMeta.tableName());           // 3. TABLE_NAME
+        row.add(colMeta.columnName());          // 4. COLUMN_NAME
+        row.add(colMeta.dataType());            // 5. DATA_TYPE
+        row.add(colMeta.precision() == -1 ? null : colMeta.precision()); // 6. COLUMN_SIZE
+        row.add(colMeta.scale() == -1 ? null : colMeta.scale());           // 7. DECIMAL_DIGITS
+        row.add(10);                    // 8. NUM_PREC_RADIX
+        row.add(PseudoColumnUsage.NO_USAGE_RESTRICTIONS);                    // 9. COLUMN_USAGE
+        row.add(null);                  // 10. REMARKS
+        row.add(Integer.MAX_VALUE);     // 11. CHAR_OCTET_LENGTH
+        row.add(colMeta.isNullable() ? "YES" : "NO"); // 12. IS_NULLABLE
 
         return row;
     }

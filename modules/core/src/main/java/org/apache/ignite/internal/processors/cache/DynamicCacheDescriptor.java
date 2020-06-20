@@ -39,6 +39,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Cache start descriptor.
+ *
+ * HK-PATCHED: add support to mutate query entities at runtime
  */
 public class DynamicCacheDescriptor {
     /** Cache start ID. */

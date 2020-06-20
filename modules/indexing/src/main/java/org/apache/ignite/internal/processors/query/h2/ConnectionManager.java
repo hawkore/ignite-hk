@@ -23,6 +23,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -42,9 +44,12 @@ import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.IgniteSystemProperties.IGNITE_H2_INDEXING_CACHE_CLEANUP_PERIOD;
 import static org.apache.ignite.IgniteSystemProperties.IGNITE_H2_INDEXING_CACHE_THREAD_USAGE_TIMEOUT;
+import static org.apache.ignite.internal.processors.query.h2.H2Utils.bindParameters;
 
 /**
  * H2 connection manager.
+ *
+ * HK-PATCHED: additional methods
  */
 public class ConnectionManager {
     /** Default DB options. */
@@ -252,6 +257,69 @@ public class ConnectionManager {
         finally {
             U.close(stmt, log);
         }
+    }
+
+    /**
+     * Execute prepared statement.
+     *
+     * @param schema
+     *     Schema
+     * @param sql
+     *     SQL statement.
+     * @param args
+     *     the args
+     * @throws IgniteCheckedException
+     *     If failed.
+     */
+    public void executePreparedStatement(String schema, String sql, Object... args) throws IgniteCheckedException {
+        PreparedStatement stmt = null;
+        Connection c = null;
+        try {
+            c = connectionForThread().connection(schema);
+
+            stmt = preparedStatementWithParams(c, sql, args != null ? Arrays.asList(args): null, false);
+
+            stmt.execute();
+        }
+        catch (SQLException e) {
+            onSqlException(c);
+
+            throw new IgniteSQLException("Failed to execute statement: " + sql, e);
+        }
+        finally {
+            U.close(stmt, log);
+        }
+    }
+
+    /**
+     * Prepared statement with params.
+     *
+     * @param conn
+     *     the conn
+     * @param sql
+     *     the sql
+     * @param params
+     *     the params
+     * @param useStmtCache
+     *     the use stmt cache
+     * @return the prepared statement
+     * @throws IgniteCheckedException
+     *     the ignite checked exception
+     */
+    public PreparedStatement preparedStatementWithParams(Connection conn, String sql, Collection<Object> params,
+        boolean useStmtCache) throws IgniteCheckedException {
+        final PreparedStatement stmt;
+
+        try {
+            stmt = prepareStatement(conn, sql);
+        }
+        catch (SQLException e) {
+            throw new IgniteCheckedException("Failed to parse SQL query: " + sql, e);
+        }
+
+        bindParameters(stmt, params);
+
+        return stmt;
     }
 
     /**

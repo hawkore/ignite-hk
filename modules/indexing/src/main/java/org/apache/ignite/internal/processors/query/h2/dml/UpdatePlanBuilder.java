@@ -72,6 +72,8 @@ import org.h2.table.Column;
 
 /**
  * Logic for building update plans performed by {@link DmlStatementsProcessor}.
+ *
+ * HK-PATCHED: adapt to new code
  */
 public final class UpdatePlanBuilder {
     /** Converter from GridSqlColumn to Column. */
@@ -918,6 +920,7 @@ public final class UpdatePlanBuilder {
                     false,
                     idx,
                     prep.getParameters().size(),
+                    null,
                     log
                 );
 

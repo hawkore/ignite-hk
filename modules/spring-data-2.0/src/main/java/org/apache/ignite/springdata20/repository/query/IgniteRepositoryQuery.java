@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.TreeMap;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -108,7 +109,7 @@ import static org.apache.ignite.springdata20.repository.support.IgniteRepository
  * {@code @Query}(value = "SELECT * from #{#entityName} where email = :email")
  * User searchUserByEmail({@code @Param}("email") String email);
  *
- * {@code @Query}(value = "SELECT * from #{#entityName} where country = ?#{[0] and city = ?#{[1]}")
+ * {@code @Query}(value = "SELECT * from #{#entityName} where country = ?#{[0]} and city = ?#{[1]}")
  * List<User> searchUsersByCity({@code @Param}("country") String country, {@code @Param}("city") String city,
  * Pageable pageable);
  *
@@ -397,21 +398,7 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
     private ReturnStrategy calcReturnType(Method mtd, boolean isFieldQry) {
         Class<?> returnType = mtd.getReturnType();
 
-        if (List.class.isAssignableFrom(returnType)) {
-            if (isFieldQry) {
-                if (hasAssignableGenericReturnTypeFrom(ArrayList.class, mtd)) {
-                    return ReturnStrategy.LIST_OF_LISTS;
-                }
-            } else if (hasAssignableGenericReturnTypeFrom(Cache.Entry.class, mtd)) {
-                return ReturnStrategy.LIST_OF_CACHE_ENTRIES;
-            }
-
-            return ReturnStrategy.LIST_OF_VALUES;
-        } else if (returnType == Page.class) {
-            return ReturnStrategy.PAGE_OF_VALUES;
-        } else if (returnType == Stream.class) {
-            return ReturnStrategy.STREAM_OF_VALUES;
-        } else if (returnType == Slice.class) {
+        if (returnType == Slice.class) {
             if (isFieldQry) {
                 if (hasAssignableGenericReturnTypeFrom(ArrayList.class, mtd)) {
                     return ReturnStrategy.SLICE_OF_LISTS;
@@ -419,10 +406,22 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
             } else if (hasAssignableGenericReturnTypeFrom(Cache.Entry.class, mtd)) {
                 return ReturnStrategy.SLICE_OF_CACHE_ENTRIES;
             }
-
             return ReturnStrategy.SLICE_OF_VALUES;
+        } else if (returnType == Page.class) {
+            return ReturnStrategy.PAGE_OF_VALUES;
+        } else if (returnType == Stream.class) {
+            return ReturnStrategy.STREAM_OF_VALUES;
         } else if (Cache.Entry.class.isAssignableFrom(returnType)) {
             return ReturnStrategy.CACHE_ENTRY;
+        } else if (Iterable.class.isAssignableFrom(returnType)) {
+            if (isFieldQry) {
+                if (hasAssignableGenericReturnTypeFrom(ArrayList.class, mtd)) {
+                    return ReturnStrategy.LIST_OF_LISTS;
+                }
+            } else if (hasAssignableGenericReturnTypeFrom(Cache.Entry.class, mtd)) {
+                return ReturnStrategy.LIST_OF_CACHE_ENTRIES;
+            }
+            return ReturnStrategy.LIST_OF_VALUES;
         } else {
             return ReturnStrategy.ONE_VALUE;
         }
@@ -511,6 +510,21 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
                                             + "= true");
     }
 
+    private static boolean isPrimitiveOrWrapper(Class<?> cls){
+        return cls.isPrimitive() ||
+                   Boolean.class.equals(cls) ||
+                   Byte.class.equals(cls) ||
+                   Character.class.equals(cls) ||
+                   Short.class.equals(cls) ||
+                   Integer.class.equals(cls) ||
+                   Long.class.equals(cls) ||
+                   Float.class.equals(cls) ||
+                   Double.class.equals(cls) ||
+                   Void.class.equals(cls)||
+                   String.class.equals(cls) ||
+                   UUID.class.equals(cls);
+    }
+
     /**
      * @param prmtrs
      *     Prmtrs.
@@ -537,6 +551,8 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
         }
 
         if (qry.isFieldQuery()) {
+            // take control over single primite result from queries, i.e. DELETE, SELECT COUNT, UPDATE ...
+            boolean singlePrimitiveResult = isPrimitiveOrWrapper(returnClass);
 
             final List<GridQueryFieldMetadata> meta = ((QueryCursorEx)qryCursor).fieldsMeta();
 
@@ -547,8 +563,14 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
                 BinaryType binType = binType();
                 cWrapperTransformFunction = row -> rowToEntity(binary, binType, row, meta);
             } else {
-                if (hasProjection) {
-                    cWrapperTransformFunction = row -> this.factory.createProjection(returnClass, rowToMap(row, meta));
+                if (hasProjection || singlePrimitiveResult) {
+                    if (singlePrimitiveResult) {
+                        cWrapperTransformFunction = row -> row.get(0);
+                    } else {
+                        // Map row -> projection class
+                        cWrapperTransformFunction = row -> this.factory
+                                                               .createProjection(returnClass, rowToMap(row, meta));
+                    }
                 } else {
                     cWrapperTransformFunction = row -> rowToMap(row, meta);
                 }
@@ -741,6 +763,7 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
                         parameters = Arrays.copyOfRange(parameters, 0, values.length - 1);
                     }
                     break;
+                default:
             }
 
             if (qry.isFieldQuery()) {
@@ -801,7 +824,7 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
                 queryString = (String)eval;
             }
 
-            TextQuery textQuery = new TextQuery(type, queryString);
+            TextQuery textQuery = new TextQuery(type, queryString, config.limit());
 
             textQuery.setLocal(config.local());
 

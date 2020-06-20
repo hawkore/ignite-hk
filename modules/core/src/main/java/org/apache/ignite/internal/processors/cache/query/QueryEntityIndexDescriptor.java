@@ -37,6 +37,8 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
  * Index descriptor.
+ *
+ * HK-PATCHED: add support to advanced lucene indexing
  */
 public class QueryEntityIndexDescriptor implements GridQueryIndexDescriptor {
     /** Fields sorted by order number. */
@@ -60,13 +62,13 @@ public class QueryEntityIndexDescriptor implements GridQueryIndexDescriptor {
     private Collection<String> descendings;
 
     private String luceneIndexOptions;
-    
+
     /** QueryTextField at type level */
     private List<QueryTextField> typeTextAnnotations;
-    
+
     /** QueryTextField annotations at field level */
     private Map<String, List<QueryTextField>> fieldTextAnnotations;
-    
+
     /**
      * @param type Type.
      * @param inlineSize Inline size.
@@ -121,7 +123,7 @@ public class QueryEntityIndexDescriptor implements GridQueryIndexDescriptor {
 
             descendings.add(field);
         }
-        
+
 		if (ann!=null){
 			if (getFieldTextAnnotations().containsKey(field))
 				throw new CacheException("Duplicate text QueryTextField for field: " + field+" on type "+this.name());
@@ -153,7 +155,7 @@ public class QueryEntityIndexDescriptor implements GridQueryIndexDescriptor {
 
 
     public void setTypeTextAnnotations(List<QueryTextField> typeTextAnnotations) {
-        this.typeTextAnnotations = typeTextAnnotations;   
+        this.typeTextAnnotations = typeTextAnnotations;
     }
 
 
@@ -167,7 +169,7 @@ public class QueryEntityIndexDescriptor implements GridQueryIndexDescriptor {
     public void setFieldTextAnnotations(Map<String, List<QueryTextField>> fieldTextAnnotations) {
         this.fieldTextAnnotations = fieldTextAnnotations;
     }
-    
+
     /** {@inheritDoc} */
     @Override
     public void setLuceneIndexOptions(String luceneIndexOptions) {

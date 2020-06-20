@@ -31,7 +31,7 @@
     </parent>
 
     <artifactId>apache-ignite</artifactId>
-    <version>2.8.1</version>
+    <version>2.8.1-hk-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <scm>
@@ -140,7 +140,7 @@
             </modules>
         </profile>
 
-		<!-- generate apache ignite distribution with hk extensions. You must activate profiles: generate-assembly-maven, generate-assembly-docker, attach-assembly-maven, attach-assembly-docker -->
+		    <!-- generate apache ignite distribution with hk extensions. You must activate profiles: generate-assembly-maven, generate-assembly-docker, attach-assembly-maven, attach-assembly-docker -->
         <profile>
             <id>hawkore-dist</id>
             <modules>
@@ -802,7 +802,7 @@
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>flatten-maven-plugin</artifactId>
                 <version>1.0.1</version>
-				<inherited>false</inherited>
+				        <inherited>false</inherited>
 
                 <configuration>
                     <flattenMode>minimum</flattenMode>

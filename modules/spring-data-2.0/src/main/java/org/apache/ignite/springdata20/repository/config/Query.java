@@ -97,7 +97,9 @@ public @interface Query {
      * This is a hint for potentially more effective execution.
      * <p>
      * Only applicable to SqlFieldsQuery and SqlQuery
+     * @deprecated No longer used as of Apache Ignite 2.8.
      */
+    @Deprecated
     boolean replicatedOnly() default false;
 
     /**
@@ -140,5 +142,10 @@ public @interface Query {
      * {@link DynamicQueryConfig} parameter if present (runtime ignite query tuning).
      */
     boolean dynamicQuery() default false;
+
+    /**
+     * Sets limit to response records count for TextQuery. If 0 or less, considered to be no limit.
+     */
+    int limit() default 0;
 
 }

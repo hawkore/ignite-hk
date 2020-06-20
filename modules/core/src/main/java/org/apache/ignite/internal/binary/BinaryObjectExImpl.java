@@ -38,6 +38,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Internal binary object interface.
+ *
+ * HK-PATCHED: improve performance (cached simple class names)
  */
 public abstract class BinaryObjectExImpl implements BinaryObjectEx {
     /**

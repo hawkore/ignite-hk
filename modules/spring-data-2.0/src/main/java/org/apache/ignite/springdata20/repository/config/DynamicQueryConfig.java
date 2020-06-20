@@ -27,6 +27,7 @@ public class DynamicQueryConfig {
     private boolean lazy = false;
     private boolean local = false;
     private int[] parts;
+    private int limit;
 
     /**
      * From Query annotation.
@@ -47,6 +48,7 @@ public class DynamicQueryConfig {
             config.lazy = queryConfiguration.lazy();
             config.parts = queryConfiguration.parts();
             config.local = queryConfiguration.local();
+            config.limit = queryConfiguration.limit();
         }
         return config;
     }
@@ -146,7 +148,9 @@ public class DynamicQueryConfig {
      * Only applicable to SqlFieldsQuery and SqlQuery
      *
      * @return the boolean
+     * @deprecated No longer used as of Apache Ignite 2.8.
      */
+    @Deprecated
     public boolean replicatedOnly() {
         return replicatedOnly;
     }
@@ -193,6 +197,15 @@ public class DynamicQueryConfig {
      */
     public int[] parts() {
         return parts;
+    }
+
+    /**
+     * Gets limit to response records count for TextQuery. If 0 or less, considered to be no limit.
+     *
+     * @return Limit value.
+     */
+    public int limit() {
+        return limit;
     }
 
     /**
@@ -324,6 +337,17 @@ public class DynamicQueryConfig {
      */
     public DynamicQueryConfig setParts(int[] parts) {
         this.parts = parts;
+        return this;
+    }
+
+    /**
+     * Sets limit to response records count for TextQuery.
+     *
+     * @param limit If 0 or less, considered to be no limit.
+     * @return {@code this} For chaining.
+     */
+    public DynamicQueryConfig setLimit(int limit) {
+        this.limit = limit;
         return this;
     }
 

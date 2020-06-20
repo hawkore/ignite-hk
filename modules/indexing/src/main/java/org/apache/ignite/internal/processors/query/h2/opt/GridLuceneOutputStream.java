@@ -31,6 +31,8 @@ import org.apache.lucene.util.Accountables;
 
 /**
  * A memory-resident {@link IndexOutput} implementation.
+ *
+ * HK-PATCHED: CRC computation
  */
 public class GridLuceneOutputStream extends IndexOutput implements Accountable {
     /** Off-heap page size. */
@@ -199,10 +201,10 @@ public class GridLuceneOutputStream extends IndexOutput implements Accountable {
                 byte[] buff = new byte[toCp];
 
                 input.readBytes(buff, 0, toCp, false);
-                
+
                 //crc must be updated
                 crc.update(buff, 0, toCp);
-                
+
                 mem.writeBytes(currBuf + bufPosition, buff);
             }
 

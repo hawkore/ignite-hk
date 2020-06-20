@@ -61,6 +61,8 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Query entity is a description of {@link org.apache.ignite.IgniteCache cache} entry (composed of key and value)
  * in a way of how it must be indexed and can be queried.
+ *
+ * HK-PATCHED: hidden fields and advanced lucene index options
  */
 public class QueryEntity implements Serializable {
     /** */
@@ -89,7 +91,7 @@ public class QueryEntity implements Serializable {
     /** Aliases. */
     @GridToStringInclude
     private Map<String, String> aliases = new HashMap<>();
-	
+
     /** Collection of query indexes. */
     @GridToStringInclude
     private Collection<QueryIndex> idxs;
@@ -108,14 +110,14 @@ public class QueryEntity implements Serializable {
 
     /** Scale for fields. */
     private Map<String, Integer> fieldsScale = new HashMap<>();
-    
+
     /** Fields that must be inivisible in H2 table. NB: DO NOT remove underscore to avoid clashes with QueryEntityEx. */
     private Set<String> _hiddenFields;
-        
+
     /** lucene index options */
     @GridToStringInclude
     private String luceneIndexOptions;
-    
+
     /**
      * Creates an empty query entity.
      */
@@ -153,9 +155,9 @@ public class QueryEntity implements Serializable {
         fieldsScale = other.fieldsScale != null ? new HashMap<>(other.fieldsScale) : new HashMap<>();
 
         _hiddenFields = other._hiddenFields != null ? new HashSet<>(other._hiddenFields) : null;
-        
+
         luceneIndexOptions = other.luceneIndexOptions;
-        
+
     }
 
     /**
@@ -203,15 +205,15 @@ public class QueryEntity implements Serializable {
 
         if (conflicts.length() != 0)
             return QueryEntityPatch.conflict(tableName + " conflict: \n" + conflicts.toString());
-        
-        
+
+
         List<QueryField> queryFieldsToAdd = checkFields(target, conflicts);
 
         Collection<QueryIndex> indexesToAdd = checkIndexes(target, conflicts);
-        
+
         if (conflicts.length() != 0 && !forceMutateQueryEntity)
             return QueryEntityPatch.conflict(tableName + " conflict: \n" + conflicts.toString());
-        
+
         Collection<SchemaAbstractOperation> patchOperations = new ArrayList<>();
 
         // Advanced Ignite H2 indexing on classpath
@@ -275,7 +277,7 @@ public class QueryEntity implements Serializable {
         Map<String, QueryIndex> currentIndexes = new HashMap<>();
 
         Map<String, QueryIndex> newIndexes = new HashMap<>();
-        
+
         for (QueryIndex index : getIndexes()) {
             if (currentIndexes.put(index.getName(), index) != null)
                 throw new IllegalStateException("Duplicate key");
@@ -284,12 +286,12 @@ public class QueryEntity implements Serializable {
         for (QueryIndex index : target.getIndexes()) {
             newIndexes.put(index.getName(), index);
         }
-        
+
         for (QueryIndex queryIndex : getIndexes()) {
             if (!newIndexes.containsKey(queryIndex.getName())){
                 conflicts.append(String.format("Dropping index %s is not supported", queryIndex.getName()));
             }else{
-                
+
                 if (queryIndex.getIndexType().equals(QueryIndexType.FULLTEXT)){
                     IndexOptions currentIndexOptions = null;
                     IndexOptions newIndexOptions = null;
@@ -300,7 +302,7 @@ public class QueryEntity implements Serializable {
                     }catch (Exception e){
                         conflicts.append(String.format("Bad old lucene index %s options", queryIndex.getName()));
                     }
-                    
+
                     try{
                         if (queryIndex.getLuceneIndexOptions() != null){
                             newIndexOptions = new IndexOptions(queryIndex.getLuceneIndexOptions());
@@ -308,16 +310,16 @@ public class QueryEntity implements Serializable {
                     }catch (Exception e){
                         conflicts.append(String.format("Bad new lucene index %s options", queryIndex.getName()));
                     }
-                    
+
                     if (checkIndexConfigIndexAnnotations(currentIndexOptions, newIndexOptions, conflicts)){
                         indexesToAdd.add(newIndexes.get(queryIndex.getName()));
                     }
                 }
             }
         }
- 
+
         for (QueryIndex queryIndex : target.getIndexes()) {
-           
+
             if(currentIndexes.containsKey(queryIndex.getName())) {
                 if (!Objects.deepEquals(currentIndexes.get(queryIndex.getName()), queryIndex)){
                     indexesToAdd.add(queryIndex);
@@ -326,7 +328,6 @@ public class QueryEntity implements Serializable {
             else
                 indexesToAdd.add(queryIndex);
         }
-        
         return indexesToAdd;
     }
 
@@ -335,11 +336,11 @@ public class QueryEntity implements Serializable {
      * @param currentIndexOptions
      * @param newIndexOptions
      * @param conflicts
-     * 
+     *
      * @return if changes detected
      */
     public static boolean checkIndexConfigIndexAnnotations(IndexOptions currentIndexOptions, IndexOptions newIndexOptions, StringBuilder conflicts){
-        
+
         if (currentIndexOptions == null && newIndexOptions == null){
             return false;
         }
@@ -348,7 +349,7 @@ public class QueryEntity implements Serializable {
         if (currentIndexOptions != null && newIndexOptions == null){
             conflicts.append(String.format("Remove lucene index options is not allowed"));
         }
-        
+
         //checks new index options
         if (newIndexOptions != null && currentIndexOptions != null){
                 // ensure not changes on partitions
@@ -368,12 +369,12 @@ public class QueryEntity implements Serializable {
                     conflicts.append(String.format("New index options must contains at least old custom text analyzers"));
                 }
                 //changes found on index schema or index configuration
-                return !Objects.deepEquals(currentIndexOptions.schemaBuilder(), newIndexOptions.schemaBuilder()) || !Objects.deepEquals(currentIndexOptions.options(), newIndexOptions.options());           
+                return !Objects.deepEquals(currentIndexOptions.schemaBuilder(), newIndexOptions.schemaBuilder()) || !Objects.deepEquals(currentIndexOptions.options(), newIndexOptions.options());
         }
- 
+
         return currentIndexOptions == null && newIndexOptions != null;
     }
-    
+
     /**
      * Comparing local entity fields and target entity fields.
      *
@@ -432,7 +433,7 @@ public class QueryEntity implements Serializable {
                     getFromMap(target.getDefaultFieldValues(), targetFieldName),
                     precision == null ? -1 : precision,
                     scale == null ? -1 : scale,
-                    contains(target.getHiddenFields(),targetFieldName)
+                    contains(target.getHiddenFields(), targetFieldName)
                 ));
             }
         }
@@ -716,7 +717,7 @@ public class QueryEntity implements Serializable {
         return this;
     }
 
-    
+
     /**
      * Gets names of fields that must hidden from sql.
      *
@@ -836,7 +837,7 @@ public class QueryEntity implements Serializable {
         this.luceneIndexOptions = luceneIndexOptions;
         return this;
     }
-    
+
     /**
      * @param desc Type descriptor.
      * @return Type metadata.
@@ -856,24 +857,24 @@ public class QueryEntity implements Serializable {
         QueryIndex txtIdx = null;
 
         Collection<QueryIndex> idxs = new ArrayList<>();
-        
+
         //just process top level
-        if (desc.getFullTextIdx() != null){            
+        if (desc.getFullTextIdx() != null){
             txtIdx = new QueryIndex();
             txtIdx.setInlineSize(0);
             txtIdx.setIndexType(QueryIndexType.FULLTEXT);
             txtIdx.setFieldNames(desc.getFullTextIdx().fields(), true);
             txtIdx.setName((QueryUtils.tableName(entity)+ Index.LUCENE_INDEX_NAME_SUFIX).toUpperCase());
             txtIdx.setLuceneIndexOptions(desc.getFullTextIdx().luceneIndexOptions());
-          
+
             //add definition to top Level query entity
             entity.setLuceneIndexOptions(desc.getFullTextIdx().luceneIndexOptions());
         }
-        
-        
+
+
         for (Map.Entry<String, GridQueryIndexDescriptor> idxEntry : desc.indexes().entrySet()) {
             GridQueryIndexDescriptor idx = idxEntry.getValue();
-                
+
             if (idx.type() == QueryIndexType.FULLTEXT){
                 if (txtIdx == null){
                     txtIdx = new QueryIndex();
@@ -902,7 +903,7 @@ public class QueryEntity implements Serializable {
                 idxs.add(sortedIdx);
             }
         }
-        
+
         if (txtIdx != null)
             idxs.add(txtIdx);
 
@@ -911,7 +912,7 @@ public class QueryEntity implements Serializable {
 
         if (!F.isEmpty(desc.notNullFields()))
             entity.setNotNullFields(desc.notNullFields());
-        
+
         if (!F.isEmpty(desc.hiddenFields()))
             entity.setHiddenFields(desc.hiddenFields());
 
@@ -921,8 +922,8 @@ public class QueryEntity implements Serializable {
         if (!F.isEmpty(desc.fieldsScale()))
             entity.setFieldsScale(desc.fieldsScale());
 
-        
-        
+
+
         return entity;
     }
 
@@ -942,7 +943,7 @@ public class QueryEntity implements Serializable {
 
         processAnnotationsInClass(true, d.keyClass(), d, null);
         processAnnotationsInClass(false, d.valueClass(), d, null);
-        
+
         return d;
     }
 
@@ -955,7 +956,7 @@ public class QueryEntity implements Serializable {
         Class<?> keyCls,
         Class<?> valCls
     ) {
-       
+
     	QueryEntityTypeDescriptor d = new QueryEntityTypeDescriptor();
 
         d.keyClass(keyCls);
@@ -965,10 +966,10 @@ public class QueryEntity implements Serializable {
         processAnnotationsInClass(false, d.valueClass(), d, null);
 
         // here we build lucene index options
-        
+
         return convert(d);
     }
-    
+
     /**
      *  Get recursive annotations
      * @param clazz
@@ -987,8 +988,8 @@ public class QueryEntity implements Serializable {
 	        }
 		return r;
 	}
-    
-	
+
+
 	  /**
      * Process annotations for class.
      *
@@ -1017,7 +1018,7 @@ public class QueryEntity implements Serializable {
 
         //get inherited class level QueryTextField annotations
         List<QueryTextField> txtAnnCls = findAnnotations(cls,QueryTextField.class);
-        
+
         if (parent == null) { // Check class annotation at top level only.
             if (txtAnnCls != null && !txtAnnCls.isEmpty()) {
                 type.createTextIndex();
@@ -1062,7 +1063,7 @@ public class QueryEntity implements Serializable {
             }
         }
     }
-	
+
     /**
      * Processes annotation at field or method.
      *
@@ -1104,7 +1105,7 @@ public class QueryEntity implements Serializable {
             if (sqlAnn.hidden())
                 desc.addHiddenField(prop.fullName());
 
-            
+
             if (sqlAnn.precision() != -1)
                 desc.addPrecision(prop.fullName(), sqlAnn.precision());
 

@@ -136,7 +136,9 @@ import static org.apache.ignite.spi.discovery.tcp.ClientImpl.State.STARTING;
 import static org.apache.ignite.spi.discovery.tcp.ClientImpl.State.STOPPED;
 
 /**
- *
+ * HK-PATCHED: allow set client SPI custom port instead of default one (0 -> 47500).
+ * Some discovery mechanisms, like kubernetes, use this port to connect to servers
+ * so if server starts on NON default port (47500) client will be unable to connect to it.
  */
 class ClientImpl extends TcpDiscoveryImpl {
     /** */

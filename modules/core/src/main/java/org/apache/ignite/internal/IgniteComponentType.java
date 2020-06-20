@@ -27,6 +27,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Component type.
+ *
+ * HK-PATCHED: add support to advanced indexing
  */
 public enum IgniteComponentType {
     /** IGFS. */
@@ -175,7 +177,7 @@ public enum IgniteComponentType {
             return false;
         }
     }
-    
+
     /**
      * Creates component.
      *

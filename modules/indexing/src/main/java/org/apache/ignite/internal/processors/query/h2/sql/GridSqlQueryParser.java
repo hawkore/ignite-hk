@@ -131,6 +131,8 @@ import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlType.fro
 
 /**
  * H2 Query parser.
+ *
+ * HK-PATCHED: support more aggregate functions
  */
 public class GridSqlQueryParser {
     /** */

@@ -39,6 +39,7 @@ import org.jetbrains.annotations.Nullable;
  *  * <b>Note:</b>Batch eviction is enabled only if maximum memory limit isn't set ({@code maxMemSize == 0}).
  * {@code batchSize} elements will be evicted in this case. The default {@code batchSize} value is {@code 1}.
  *
+ * HK-PATCHED: allow tune underline cache configuration
  */
 public class CollectionConfiguration implements Serializable {
     /** */
@@ -211,4 +212,3 @@ public class CollectionConfiguration implements Serializable {
         return S.toString(CollectionConfiguration.class, this);
     }
 }
-

@@ -21,6 +21,8 @@ import org.h2.expression.Function;
 
 /**
  * Full list of available functions see at {@link Function}
+ *
+ * HK-PATCHED: support more aggregate functions
  */
 public enum GridSqlFunctionType {
     // Aggregate functions.
@@ -63,13 +65,13 @@ public enum GridSqlFunctionType {
 
     /** TABLE and TABLE_DISTINCT */
     TABLE,
-    
+
     /** GEOMETRY AGGREGATION */
     ST_ACCUM,
-    
+
     /** GEOMETRY AGGREGATION - same as ST_ACCUM */
     ST_COLLECT,
-    
+
     /** Constant for all other functions. */
     UNKNOWN_FUNCTION;
 

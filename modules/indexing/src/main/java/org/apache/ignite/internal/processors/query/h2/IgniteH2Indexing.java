@@ -23,6 +23,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -213,11 +214,14 @@ import static org.apache.ignite.internal.processors.cache.mvcc.MvccUtils.request
 import static org.apache.ignite.internal.processors.cache.mvcc.MvccUtils.tx;
 import static org.apache.ignite.internal.processors.cache.mvcc.MvccUtils.txStart;
 import static org.apache.ignite.internal.processors.cache.query.GridCacheQueryType.TEXT;
+import static org.apache.ignite.internal.processors.query.QueryUtils.KEY_FIELD_NAME;
+import static org.apache.ignite.internal.processors.query.QueryUtils.LUCENE_FIELD_NAME;
+import static org.apache.ignite.internal.processors.query.QueryUtils.LUCENE_SCORE_DOC;
+import static org.apache.ignite.internal.processors.query.QueryUtils.VAL_FIELD_NAME;
 import static org.apache.ignite.internal.processors.query.QueryUtils.matches;
 import static org.apache.ignite.internal.processors.query.h2.H2Utils.UPDATE_RESULT_META;
 import static org.apache.ignite.internal.processors.query.h2.H2Utils.generateFieldsQueryString;
 import static org.apache.ignite.internal.processors.query.h2.H2Utils.session;
-import static org.apache.ignite.internal.processors.query.h2.H2Utils.validateTypeDescriptor;
 import static org.apache.ignite.internal.processors.query.h2.H2Utils.zeroCursor;
 
 /**
@@ -228,6 +232,8 @@ import static org.apache.ignite.internal.processors.query.h2.H2Utils.zeroCursor;
  * {@code '_key'} and {@code '_val'} fields for key and value, and fields from
  * {@link GridQueryTypeDescriptor#fields()}.
  * For each table it will create indexes declared in {@link GridQueryTypeDescriptor#indexes()}.
+ *
+ * HK-PATCHED: add support to advanced lucene index, dynamic query entities and indexes rebuild
  */
 public class IgniteH2Indexing implements GridQueryIndexing {
     /*
@@ -380,6 +386,15 @@ public class IgniteH2Indexing implements GridQueryIndexing {
 
         tbl.table().update(row, prevRow,  prevRowAvailable);
 
+        // legacy lucene index support
+        if (tbl.luceneIndex() != null && !H2Utils.ADVANCED_LUCENE_IDX_PRESENT) {
+            long expireTime = row.expireTime();
+
+            if (expireTime == 0L)
+                expireTime = Long.MAX_VALUE;
+
+            tbl.luceneIndex().store(row.key(), row.value(), row.version(), expireTime);
+        }
     }
 
     /** {@inheritDoc} */
@@ -398,8 +413,11 @@ public class IgniteH2Indexing implements GridQueryIndexing {
         if (tbl == null)
             return;
 
-		tbl.table().remove(row);
-
+        if (tbl.table().remove(row)) {
+            if (tbl.luceneIndex() != null && !H2Utils.ADVANCED_LUCENE_IDX_PRESENT) {
+                tbl.luceneIndex().remove(row.key());
+            }
+        }
     }
 
     /** {@inheritDoc} */
@@ -503,7 +521,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
             Long qryId = runningQueryManager().register(qry, TEXT, schemaName, true, null);
 
             try {
-                return tbl.luceneIndex().query(qry.toUpperCase(), filters, limit);
+                return tbl.luceneIndex().query(qry, filters, limit);
             }
             finally {
                 runningQueryManager().unregister(qryId, false);
@@ -1822,6 +1840,10 @@ public class IgniteH2Indexing implements GridQueryIndexing {
         for (H2TableDescriptor tbl : schemaMgr.tablesForCache(cacheName)) {
             if (F.eq(tbl.cacheName(), cacheName))
                 return tbl.cacheInfo();
+        }
+
+        return null;
+    }
     /**
      * Validates properties described by query types.
      *
@@ -1846,126 +1868,10 @@ public class IgniteH2Indexing implements GridQueryIndexing {
         for (String name : names) {
             if (name.equalsIgnoreCase(KEY_FIELD_NAME) ||
                 name.equalsIgnoreCase(VAL_FIELD_NAME) ||
-					name.equalsIgnoreCase(VER_FIELD_NAME) ||
 					name.equalsIgnoreCase(LUCENE_FIELD_NAME) ||
 					name.equalsIgnoreCase(LUCENE_SCORE_DOC))
                 throw new IgniteCheckedException(MessageFormat.format(ptrn, name));
         }
-    }
-
-    /**
-     * Create db table by using given table descriptor.
-     *
-     * @param schemaName Schema name.
-     * @param schema Schema.
-     * @param tbl Table descriptor.
-     * @param conn Connection.
-     * @throws SQLException If failed to create db table.
-     * @throws IgniteCheckedException If failed.
-     */
-    private void createTable(String schemaName, H2Schema schema, H2TableDescriptor tbl, Connection conn)
-        throws SQLException, IgniteCheckedException {
-        assert schema != null;
-        assert tbl != null;
-
-        GridQueryProperty keyProp = tbl.type().property(KEY_FIELD_NAME);
-        GridQueryProperty valProp = tbl.type().property(VAL_FIELD_NAME);
-
-        String keyType = dbTypeFromClass(tbl.type().keyClass(),
-            keyProp == null ? -1 : keyProp.precision(),
-            keyProp == null ? -1 : keyProp.scale());
-
-        String valTypeStr = dbTypeFromClass(tbl.type().valueClass(),
-            valProp == null ? -1 : valProp.precision(),
-            valProp == null ? -1 : valProp.scale());
-
-        SB sql = new SB();
-
-        String keyValVisibility = tbl.type().fields().isEmpty() ? " VISIBLE" : " INVISIBLE";
-
-        sql.a("CREATE TABLE ").a(tbl.fullTableName()).a(" (")
-            .a(KEY_FIELD_NAME).a(' ').a(keyType).a(keyValVisibility).a(" NOT NULL");
-
-        sql.a(',').a(VAL_FIELD_NAME).a(' ').a(valTypeStr).a(keyValVisibility);
-        sql.a(',').a(VER_FIELD_NAME).a(" OTHER INVISIBLE");
-		sql.a(',').a(LUCENE_FIELD_NAME).a(" VARCHAR INVISIBLE");
-        sql.a(',').a(LUCENE_SCORE_DOC).a(" OTHER INVISIBLE");
-
-        for (Map.Entry<String, Class<?>> e : tbl.type().fields().entrySet()) {
-            GridQueryProperty prop = tbl.type().property(e.getKey());
-
-            sql.a(',')
-                .a(H2Utils.withQuotes(e.getKey()))
-                .a(' ')
-                .a(dbTypeFromClass(e.getValue(), prop.precision(), prop.scale()))
-                .a(prop.hidden()? " INVISIBLE" : "")
-                .a(prop.notNull() ? " NOT NULL" : "");
-        }
-
-        sql.a(')');
-
-        if (log.isDebugEnabled())
-            log.debug("Creating DB table with SQL: " + sql);
-
-        GridH2RowDescriptor rowDesc = new GridH2RowDescriptor(this, tbl, tbl.type());
-
-        H2RowFactory rowFactory = tbl.rowFactory(rowDesc);
-
-        GridH2Table h2Tbl = H2TableEngine.createTable(conn, sql.toString(), rowDesc, rowFactory, tbl);
-
-        for (GridH2IndexBase usrIdx : tbl.createUserIndexes())
-            addInitialUserIndex(schemaName, tbl, usrIdx);
-
-        if (dataTables.putIfAbsent(h2Tbl.identifier(), h2Tbl) != null)
-            throw new IllegalStateException("Table already exists: " + h2Tbl.identifierString());
-    }
-
-    /**
-     * Find table by name in given schema.
-     *
-     * @param schemaName Schema name.
-     * @param tblName Table name.
-     * @return Table or {@code null} if none found.
-     */
-    public GridH2Table dataTable(String schemaName, String tblName) {
-        return dataTable(new QueryTable(schemaName, tblName));
-    }
-
-    /**
-     * Find table by it's identifier.
-     *
-     * @param tbl Identifier.
-     * @return Table or {@code null} if none found.
-     */
-    public GridH2Table dataTable(QueryTable tbl) {
-        return dataTables.get(tbl);
-    }
-
-    /**
-     * @param h2Tbl Remove data table.
-     */
-    public void removeDataTable(GridH2Table h2Tbl) {
-        dataTables.remove(h2Tbl.identifier(), h2Tbl);
-    }
-
-    /**
-     * Find table for index.
-     *
-     * @param schemaName Schema name.
-     * @param idxName Index name.
-     * @return Table or {@code null} if index is not found.
-     */
-    public GridH2Table dataTableForIndex(String schemaName, String idxName) {
-        for (Map.Entry<QueryTable, GridH2Table> dataTableEntry : dataTables.entrySet()) {
-            if (F.eq(dataTableEntry.getKey().schema(), schemaName)) {
-                GridH2Table h2Tbl = dataTableEntry.getValue();
-
-                if (h2Tbl.containsUserIndex(idxName))
-                    return h2Tbl;
-            }
-        }
-
-        return null;
     }
 
     /** {@inheritDoc} */
@@ -2056,7 +1962,8 @@ public class IgniteH2Indexing implements GridQueryIndexing {
                                 prop.defaultValue(),
                                 prop.precision(),
                                 prop.scale(),
-                                isAff);
+                                isAff,
+                                prop.hidden());
                         });
                 }
             ).forEach(infos::add);
@@ -2079,7 +1986,8 @@ public class IgniteH2Indexing implements GridQueryIndexing {
                                 null,
                                 (int)c.getPrecision(),
                                 c.getScale(),
-                                false))
+                                false,
+                                c.getVisible()))
                 ).forEach(infos::add);
         }
 
@@ -2475,48 +2383,6 @@ public class IgniteH2Indexing implements GridQueryIndexing {
         };
     }
 
-    /**
-     * Registers SQL functions.
-     *
-     * @param schema Schema.
-     * @param clss Classes.
-     * @throws IgniteCheckedException If failed.
-     */
-    private void createSqlFunctions(String schema, Class<?>[] clss) throws IgniteCheckedException {
-        if (F.isEmpty(clss))
-            return;
-
-        for (Class<?> cls : clss) {
-            for (Method m : cls.getDeclaredMethods()) {
-                QuerySqlFunction ann = m.getAnnotation(QuerySqlFunction.class);
-
-                if (ann != null) {
-                    int modifiers = m.getModifiers();
-
-                    if (!Modifier.isStatic(modifiers) || !Modifier.isPublic(modifiers))
-                        throw new IgniteCheckedException("Method " + m.getName() + " must be public static.");
-
-                    String alias = ann.alias().isEmpty() ? m.getName() : ann.alias();
-
-                    boolean onPublicSchema = ann.onPublicSchema();
-
-                    String clause = "CREATE ALIAS IF NOT EXISTS " + alias + (ann.deterministic() ?
-                        " DETERMINISTIC FOR \"" :
-                        " FOR \"") +
-                        cls.getName() + '.' + m.getName() + '"';
-
-                    if (onPublicSchema){
-                        //register function on default schema
-                        executeStatement(QueryUtils.DFLT_SCHEMA, clause);
-                        executeStatement(null, clause);
-                    }
-
-                    executeStatement(schema, clause);
-                }
-            }
-        }
-    }
-
     /** {@inheritDoc} */
     @Override public void stop() {
         if (log.isDebugEnabled())
@@ -2719,44 +2585,6 @@ public class IgniteH2Indexing implements GridQueryIndexing {
         rdcQryExec.onDisconnected(reconnectFut);
 
         cmdProc.onDisconnected();
-    /**
-     * Bind query parameters and calculate partitions derived from the query.
-     *
-     * @param partInfoList Collection of query derived partition info.
-     * @param params Query parameters.
-     * @return Partitions.
-     * @throws IgniteCheckedException, If fails.
-     */
-    private int[] calculateQueryPartitions(CacheQueryPartitionInfo[] partInfoList, Object[] params)
-        throws IgniteCheckedException {
-
-        ArrayList<Integer> list = new ArrayList<>(partInfoList.length);
-
-        for (CacheQueryPartitionInfo partInfo: partInfoList) {
-
-            int i = 0;
-
-            List<Integer> partsId = (partInfo.partition() >= 0) ? Arrays.asList(partInfo.partition()) :
-                bindPartitionInfoParameter(partInfo, params);
-
-            for (Integer partId : partsId) {
-                while (i < list.size() && list.get(i) < partId)
-                    i++;
-
-                if (i < list.size()) {
-                    if (list.get(i) > partId)
-                        list.add(i, partId);
-                } else
-                    list.add(partId);
-            }
-        }
-
-        int[] result = new int[list.size()];
-
-        for (int i = 0; i < list.size(); i++)
-            result[i] = list.get(i);
-
-        return result;
     }
 
     /**
@@ -2766,32 +2594,6 @@ public class IgniteH2Indexing implements GridQueryIndexing {
      */
     public List<GridRunningQueryInfo> runningSqlQueries() {
         return runningQryMgr.runningSqlQueries();
-    private List<Integer> bindPartitionInfoParameter(CacheQueryPartitionInfo partInfo, Object[] params)
-        throws IgniteCheckedException {
-        assert partInfo != null;
-        assert partInfo.partition() < 0;
-
-        List<Integer> partitions = new ArrayList<>();
-
-        GridH2RowDescriptor desc = dataTable(schema(partInfo.cacheName()), partInfo.tableName()).rowDescriptor();
-
-        Object indexedParam = params[partInfo.paramIdx()];
-
-        // add support to array values
-        if (indexedParam != null) {
-            if (DataType.getTypeFromClass(indexedParam.getClass()) == Value.ARRAY){
-                for (Object o : (Object[])indexedParam){
-                    Object param = H2Utils.convert(o,
-                        desc, partInfo.dataType());
-                    partitions.add(kernalContext().affinity().partition(partInfo.cacheName(), param));
-                }
-            } else {
-                Object param = H2Utils.convert(indexedParam, desc, partInfo.dataType());
-                partitions.add(kernalContext().affinity().partition(partInfo.cacheName(), param));
-            }
-        }
-
-        return partitions;
     }
 
     /** {@inheritDoc} */

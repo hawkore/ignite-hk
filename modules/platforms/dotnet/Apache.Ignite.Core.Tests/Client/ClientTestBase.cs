@@ -34,7 +34,7 @@ namespace Apache.Ignite.Core.Tests.Client
     /// <summary>
     /// Base class for client tests.
     /// </summary>
-    internal class ClientTestBase
+    public class ClientTestBase
     {
         /** Cache name. */
         protected const string CacheName = "cache";
@@ -106,7 +106,7 @@ namespace Apache.Ignite.Core.Tests.Client
 
             Assert.AreEqual(0, cache.GetSize(CachePeekMode.All));
             Assert.AreEqual(0, GetClientCache<int>().GetSize(CachePeekMode.All));
-            
+
             ClearLoggers();
         }
 
@@ -221,7 +221,7 @@ namespace Apache.Ignite.Core.Tests.Client
             var listLogger = (ListLogger) logger;
             return listLogger.Entries;
         }
-        
+
         /// <summary>
         /// Gets client request names for a given server node.
         /// </summary>
@@ -230,7 +230,7 @@ namespace Apache.Ignite.Core.Tests.Client
             var instanceName = serverIndex == 0 ? null : serverIndex.ToString();
             var grid = Ignition.GetIgnite(instanceName);
             var logger = (ListLogger) grid.Logger;
-         
+
             return GetServerRequestNames(logger, prefix);
         }
 

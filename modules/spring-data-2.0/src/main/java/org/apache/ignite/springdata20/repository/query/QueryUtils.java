@@ -76,23 +76,15 @@ public abstract class QueryUtils {
     private static final Pattern COUNT_MATCH;
     private static final Pattern PROJECTION_CLAUSE = Pattern
                                                          .compile("select\\s+(.+)\\s+from", Pattern.CASE_INSENSITIVE);
-    private static final Pattern NO_DIGITS = Pattern.compile("\\D+");
     private static final String JOIN = "join\\s+(fetch\\s+)?" + IDENTIFIER + "\\s+(as\\s+)?" + IDENTIFIER_GROUP;
     private static final Pattern JOIN_PATTERN = Pattern.compile(JOIN, Pattern.CASE_INSENSITIVE);
     private static final String EQUALS_CONDITION_STRING = "%s.%s = :%s";
-    private static final Pattern ORDER_BY = Pattern.compile(".*order\\s+by\\s+.*", CASE_INSENSITIVE);
     private static final Pattern NAMED_PARAMETER = Pattern.compile(
         COLON_NO_DOUBLE_COLON + IDENTIFIER + "|\\#" + IDENTIFIER, CASE_INSENSITIVE);
     private static final Pattern CONSTRUCTOR_EXPRESSION;
     private static final int QUERY_JOIN_ALIAS_GROUP_INDEX = 3;
     private static final int VARIABLE_NAME_GROUP_INDEX = 4;
-    private static final Pattern PUNCTATION_PATTERN = Pattern.compile(".*((?![\\._])[\\p{Punct}|\\s])");
     private static final Pattern FUNCTION_PATTERN;
-    private static final String UNSAFE_PROPERTY_REFERENCE =
-        "Sort expression '%s' must only contain property references or "
-            + "aliases used in the select clause. If you really want to use something other than that for sorting, "
-			+ "please use "
-            + "JpaSort.unsafe(…)!";
 
     static {
 
@@ -194,7 +186,7 @@ public abstract class QueryUtils {
      */
     static Set<String> getOuterJoinAliases(String query) {
 
-        Set<String> result = new HashSet<String>();
+        Set<String> result = new HashSet<>();
         Matcher matcher = JOIN_PATTERN.matcher(query);
 
         while (matcher.find()) {

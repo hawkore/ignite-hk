@@ -48,6 +48,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Empty indexing class used in tests to simulate failures.
+ *
+ * HK-PATCHED: adapt tests to modified code
  */
 @SuppressWarnings({"deprecation", "RedundantThrows"})
 public class DummyQueryIndexing implements GridQueryIndexing {
@@ -132,6 +134,17 @@ public class DummyQueryIndexing implements GridQueryIndexing {
         String idxName,
         boolean ifExists
     ) throws IgniteCheckedException {
+
+    }
+
+    @Override
+    public void dynamicRegisterQueryEntity(String cacheName,
+        String tblName,
+        QueryTypeDescriptorImpl queryEntity,
+        SchemaIndexCacheVisitor cacheVisitor,
+        boolean forceRebuildIndexes,
+        boolean forceMutateQueryEntity,
+        boolean async) throws IgniteCheckedException {
 
     }
 
@@ -328,4 +341,14 @@ public class DummyQueryIndexing implements GridQueryIndexing {
         String colNamePtrn) {
         return null;
     }
+
+    @Override
+    public void dynamicIndexesRebuild(String schemaName,
+        String tblName,
+        List<String> indexNames,
+        SchemaIndexCacheVisitor cacheVisitor,
+        boolean async) throws IgniteCheckedException {
+
+    }
+
 }

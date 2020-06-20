@@ -17,14 +17,10 @@
 
 package org.apache.ignite.internal.processors.query.h2.opt;
 
-import static org.apache.ignite.internal.processors.query.QueryUtils.KEY_FIELD_NAME;
-import static org.apache.ignite.internal.processors.query.QueryUtils.VAL_FIELD_NAME;
-
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicLong;
-
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.cache.CacheObject;
@@ -38,8 +34,8 @@ import org.apache.ignite.internal.util.lang.GridCloseableIterator;
 import org.apache.ignite.internal.util.offheap.unsafe.GridUnsafeMemory;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteBiTuple;
-import org.apache.ignite.spi.indexing.IndexingQueryCacheFilter;
 import org.apache.ignite.spi.indexing.IndexingQueryFilter;
+import org.apache.ignite.spi.indexing.IndexingQueryCacheFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -69,50 +65,66 @@ import org.h2.table.TableFilter;
 import org.h2.util.JdbcUtils;
 import org.jetbrains.annotations.Nullable;
 
+import static org.apache.ignite.internal.processors.query.QueryUtils.KEY_FIELD_NAME;
+import static org.apache.ignite.internal.processors.query.QueryUtils.VAL_FIELD_NAME;
+
 /**
- * Lucene fulltext index.
+ * Legacy Lucene fulltext index.
+ *
+ * HK-PATCHED: refactored GridLuceneIndex to add support to advanced lucene index implementation
  */
 public class GridLuceneIndexLegacyImpl extends GridLuceneIndex implements AutoCloseable {
+
     /** Field name for string representation of value. */
     public static final String VAL_STR_FIELD_NAME = "_gg_val_str__";
-
     /** Field name for value version. */
     public static final String VER_FIELD_NAME = "_gg_ver__";
-
     /** Field name for value expiration time. */
     public static final String EXPIRATION_TIME_FIELD_NAME = "_gg_expires__";
-
-    /** */
+    /**
+     *
+     */
     private final String cacheName;
-
-    /** */
+    /**
+     *
+     */
     private final GridQueryTypeDescriptor type;
-
-    /** */
+    /**
+     *
+     */
     private final IndexWriter writer;
-
-    /** */
+    /**
+     *
+     */
     private final String[] idxdFields;
-
-    /** */
+    /**
+     *
+     */
     private final AtomicLong updateCntr = new GridAtomicLong();
-
-    /** */
+    /**
+     *
+     */
     private final GridLuceneDirectory dir;
-
-    /** */
+    /**
+     *
+     */
     private final GridKernalContext ctx;
 
     /**
      * Constructor.
      *
-     * @param ctx Kernal context.
-     * @param cacheName Cache name.
-     * @param type Type descriptor.
-     * @throws IgniteCheckedException If failed.
+     * @param ctx
+     *     Kernal context.
+     * @param cacheName
+     *     Cache name.
+     * @param type
+     *     Type descriptor.
+     * @throws IgniteCheckedException
+     *     If failed.
      */
-    public GridLuceneIndexLegacyImpl(GridKernalContext ctx, @Nullable String cacheName, GridQueryTypeDescriptor type)
+    public GridLuceneIndexLegacyImpl(GridH2Table tbl, GridKernalContext ctx, @Nullable String cacheName, GridQueryTypeDescriptor type)
         throws IgniteCheckedException {
+        super(tbl);
         this.ctx = ctx;
         this.cacheName = cacheName;
         this.type = type;
@@ -121,8 +133,7 @@ public class GridLuceneIndexLegacyImpl extends GridLuceneIndex implements AutoCl
 
         try {
             writer = new IndexWriter(dir, new IndexWriterConfig(new StandardAnalyzer()));
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             throw new IgniteCheckedException(e);
         }
 
@@ -134,8 +145,7 @@ public class GridLuceneIndexLegacyImpl extends GridLuceneIndex implements AutoCl
             idxdFields = new String[fields.size() + 1];
 
             fields.toArray(idxdFields);
-        }
-        else {
+        } else {
             assert this.type.textIndex() != null || type.valueClass() == String.class;
 
             idxdFields = new String[1];
@@ -157,12 +167,18 @@ public class GridLuceneIndexLegacyImpl extends GridLuceneIndex implements AutoCl
     /**
      * Stores given data in this fulltext index.
      *
-     * @param k Key.
-     * @param v Value.
-     * @param ver Version.
-     * @param expires Expiration time.
-     * @throws IgniteCheckedException If failed.
+     * @param k
+     *     Key.
+     * @param v
+     *     Value.
+     * @param ver
+     *     Version.
+     * @param expires
+     *     Expiration time.
+     * @throws IgniteCheckedException
+     *     If failed.
      */
+    @Override
     @SuppressWarnings("ConstantConditions")
     public void store(CacheObject k, CacheObject v, GridCacheVersion ver, long expires) throws IgniteCheckedException {
         CacheObjectContext coctx = objectContext();
@@ -212,11 +228,9 @@ public class GridLuceneIndexLegacyImpl extends GridLuceneIndex implements AutoCl
 
             // Next implies remove than add atomically operation.
             writer.updateDocument(term, doc);
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             throw new IgniteCheckedException(e);
-        }
-        finally {
+        } finally {
             updateCntr.incrementAndGet();
         }
     }
@@ -224,18 +238,18 @@ public class GridLuceneIndexLegacyImpl extends GridLuceneIndex implements AutoCl
     /**
      * Removes entry for given key from this index.
      *
-     * @param key Key.
-     * @throws IgniteCheckedException If failed.
+     * @param key
+     *     Key.
+     * @throws IgniteCheckedException
+     *     If failed.
      */
+    @Override
     public void remove(CacheObject key) throws IgniteCheckedException {
         try {
-            writer.deleteDocuments(new Term(KEY_FIELD_NAME,
-                new BytesRef(key.valueBytes(objectContext()))));
-        }
-        catch (IOException e) {
+            writer.deleteDocuments(new Term(KEY_FIELD_NAME, new BytesRef(key.valueBytes(objectContext()))));
+        } catch (IOException e) {
             throw new IgniteCheckedException(e);
-        }
-        finally {
+        } finally {
             updateCntr.incrementAndGet();
         }
     }
@@ -243,13 +257,20 @@ public class GridLuceneIndexLegacyImpl extends GridLuceneIndex implements AutoCl
     /**
      * Runs lucene fulltext query over this index.
      *
-     * @param qry Query.
-     * @param filters Filters over result.
+     * @param qry
+     *     Query.
+     * @param filters
+     *     Filters over result.
+     * @param limit
+     *     Limits response records count. If 0 or less, the limit considered to be Integer.MAX_VALUE, that is virtually
+     *     no limit.
      * @return Query result.
-     * @throws IgniteCheckedException If failed.
+     * @throws IgniteCheckedException
+     *     If failed.
      */
-    public <K, V> GridCloseableIterator<IgniteBiTuple<K, V>> query(String qry,
-        IndexingQueryFilter filters) throws IgniteCheckedException {
+    @Override
+    public <K, V> GridCloseableIterator<IgniteBiTuple<K, V>> query(String qry, IndexingQueryFilter filters, int limit)
+        throws IgniteCheckedException {
         IndexReader reader;
 
         try {
@@ -263,8 +284,7 @@ public class GridLuceneIndexLegacyImpl extends GridLuceneIndex implements AutoCl
 
             //We can cache reader\searcher and change this to 'openIfChanged'
             reader = DirectoryReader.open(writer);
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             throw new IgniteCheckedException(e);
         }
 
@@ -275,22 +295,18 @@ public class GridLuceneIndexLegacyImpl extends GridLuceneIndex implements AutoCl
         try {
             searcher = new IndexSearcher(reader);
 
-            MultiFieldQueryParser parser = new MultiFieldQueryParser(idxdFields,
-                writer.getAnalyzer());
+            MultiFieldQueryParser parser = new MultiFieldQueryParser(idxdFields, writer.getAnalyzer());
 
-//            parser.setAllowLeadingWildcard(true);
+            //            parser.setAllowLeadingWildcard(true);
 
             // Filter expired items.
             Query filter = LongPoint.newRangeQuery(EXPIRATION_TIME_FIELD_NAME, U.currentTimeMillis(), Long.MAX_VALUE);
 
-            BooleanQuery query = new BooleanQuery.Builder()
-                .add(parser.parse(qry), BooleanClause.Occur.MUST)
-                .add(filter, BooleanClause.Occur.FILTER)
-                .build();
+            BooleanQuery query = new BooleanQuery.Builder().add(parser.parse(qry), BooleanClause.Occur.MUST)
+                                     .add(filter, BooleanClause.Occur.FILTER).build();
 
-            docs = searcher.search(query, Integer.MAX_VALUE);
-        }
-        catch (Exception e) {
+            docs = searcher.search(query, limit > 0 ? limit : Integer.MAX_VALUE);
+        } catch (Exception e) {
             U.closeQuiet(reader);
 
             throw new IgniteCheckedException(e);
@@ -305,7 +321,8 @@ public class GridLuceneIndexLegacyImpl extends GridLuceneIndex implements AutoCl
     }
 
     /** {@inheritDoc} */
-    @Override public void close() {
+    @Override
+    public void close() {
         U.closeQuiet(writer);
         U.close(dir, ctx.log(GridLuceneIndex.class));
     }
@@ -314,38 +331,53 @@ public class GridLuceneIndexLegacyImpl extends GridLuceneIndex implements AutoCl
      * Key-value iterator over fulltext search result.
      */
     private class It<K, V> extends GridCloseableIteratorAdapter<IgniteBiTuple<K, V>> {
-        /** */
+
+        /**
+         *
+         */
         private static final long serialVersionUID = 0L;
-
-        /** */
+        /**
+         *
+         */
         private final IndexReader reader;
-
-        /** */
+        /**
+         *
+         */
         private final IndexSearcher searcher;
-
-        /** */
+        /**
+         *
+         */
         private final ScoreDoc[] docs;
-
-        /** */
+        /**
+         *
+         */
         private final IndexingQueryCacheFilter filters;
-
-        /** */
+        /**
+         *
+         */
         private int idx;
-
-        /** */
+        /**
+         *
+         */
         private IgniteBiTuple<K, V> curr;
-
-        /** */
+        /**
+         *
+         */
         private CacheObjectContext coctx;
 
         /**
          * Constructor.
          *
-         * @param reader Reader.
-         * @param searcher Searcher.
-         * @param docs Docs.
-         * @param filters Filters over result.
-         * @throws IgniteCheckedException if failed.
+         * @param reader
+         *     Reader.
+         * @param searcher
+         *     Searcher.
+         * @param docs
+         *     Docs.
+         * @param filters
+         *     Filters over result.
+         * @throws IgniteCheckedException
+         *     if failed.
          */
         private It(IndexReader reader, IndexSearcher searcher, ScoreDoc[] docs, IndexingQueryCacheFilter filters)
             throws IgniteCheckedException {
@@ -360,10 +392,13 @@ public class GridLuceneIndexLegacyImpl extends GridLuceneIndex implements AutoCl
         }
 
         /**
-         * @param bytes Bytes.
-         * @param ldr Class loader.
+         * @param bytes
+         *     Bytes.
+         * @param ldr
+         *     Class loader.
          * @return Object.
-         * @throws IgniteCheckedException If failed.
+         * @throws IgniteCheckedException
+         *     If failed.
          */
         @SuppressWarnings("unchecked")
         private <Z> Z unmarshall(byte[] bytes, ClassLoader ldr) throws IgniteCheckedException {
@@ -376,7 +411,8 @@ public class GridLuceneIndexLegacyImpl extends GridLuceneIndex implements AutoCl
         /**
          * Finds next element.
          *
-         * @throws IgniteCheckedException If failed.
+         * @throws IgniteCheckedException
+         *     If failed.
          */
         @SuppressWarnings("unchecked")
         private void findNext() throws IgniteCheckedException {
@@ -387,8 +423,7 @@ public class GridLuceneIndexLegacyImpl extends GridLuceneIndex implements AutoCl
 
                 try {
                     doc = searcher.doc(docs[idx++].doc);
-                }
-                catch (IOException e) {
+                } catch (IOException e) {
                     throw new IgniteCheckedException(e);
                 }
 
@@ -402,9 +437,9 @@ public class GridLuceneIndexLegacyImpl extends GridLuceneIndex implements AutoCl
                 if (filters != null && !filters.apply(k))
                     continue;
 
-                V v = type.valueClass() == String.class ?
-                    (V)doc.get(VAL_STR_FIELD_NAME) :
-                    this.<V>unmarshall(doc.getBinaryValue(VAL_FIELD_NAME).bytes, ldr);
+                V v = type.valueClass() == String.class
+                          ? (V)doc.get(VAL_STR_FIELD_NAME)
+                          : this.<V>unmarshall(doc.getBinaryValue(VAL_FIELD_NAME).bytes, ldr);
 
                 assert v != null;
 
@@ -415,7 +450,8 @@ public class GridLuceneIndexLegacyImpl extends GridLuceneIndex implements AutoCl
         }
 
         /** {@inheritDoc} */
-        @Override protected IgniteBiTuple<K, V> onNext() throws IgniteCheckedException {
+        @Override
+        protected IgniteBiTuple<K, V> onNext() throws IgniteCheckedException {
             IgniteBiTuple<K, V> res = curr;
 
             findNext();
@@ -424,88 +460,80 @@ public class GridLuceneIndexLegacyImpl extends GridLuceneIndex implements AutoCl
         }
 
         /** {@inheritDoc} */
-        @Override protected boolean onHasNext() throws IgniteCheckedException {
+        @Override
+        protected boolean onHasNext() throws IgniteCheckedException {
             return curr != null;
         }
 
         /** {@inheritDoc} */
-        @Override protected void onClose() throws IgniteCheckedException {
+        @Override
+        protected void onClose() throws IgniteCheckedException {
             U.closeQuiet(reader);
         }
+
     }
 
     // JUST FOR COMPATIBILITY with GridH2Index API
-    
+
     /** {@inheritDoc} */
     @Override
     public void updateIndexConfig(GridH2Table tbl, String luceneIndexOptions, boolean forceMutateQueryEntity) {
         // NOP
     }
 
-    /** {@inheritDoc} */
     @Override
-    public Cursor find(Session session, SearchRow first, SearchRow last) {
+    public H2CacheRow put(H2CacheRow row) {
         throw new UnsupportedOperationException();
     }
 
-    /** {@inheritDoc} */
     @Override
-    public double getCost(Session session, int[] masks, TableFilter[] filters, int filter, SortOrder sortOrder,
-        HashSet<Column> allColumnsSet) {
+    public boolean putx(H2CacheRow row) {
         throw new UnsupportedOperationException();
     }
 
-    /** {@inheritDoc} */
-    @Override
-    public boolean canGetFirstOrLast() {
-        throw new UnsupportedOperationException();
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public Cursor findFirstOrLast(Session session, boolean first) {
-        throw new UnsupportedOperationException();
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public long getRowCount(Session session) {
-        throw new UnsupportedOperationException();
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public long getRowCountApproximation() {
-        throw new UnsupportedOperationException();
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public GridH2Row put(GridH2Row row) {
-        throw new UnsupportedOperationException();
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public boolean putx(GridH2Row row) {
-        throw new UnsupportedOperationException();
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public GridH2Row remove(SearchRow row) {
-        throw new UnsupportedOperationException();
-    }
-
-    /** {@inheritDoc} */
     @Override
     public boolean removex(SearchRow row) {
         throw new UnsupportedOperationException();
     }
 
-    /** {@inheritDoc} */
     @Override
-    protected int segmentsCount() {
+    public int segmentsCount() {
         throw new UnsupportedOperationException();
     }
+
+    @Override
+    public long totalRowCount(IndexingQueryCacheFilter partsFilter) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Cursor find(Session session, SearchRow first, SearchRow last) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public double getCost(Session session,
+        int[] masks,
+        TableFilter[] filters,
+        int filter,
+        SortOrder sortOrder,
+        HashSet<Column> allColumnsSet) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean canGetFirstOrLast() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Cursor findFirstOrLast(Session session, boolean first) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long getRowCount(Session session) {
+        throw new UnsupportedOperationException();
+    }
+
 }

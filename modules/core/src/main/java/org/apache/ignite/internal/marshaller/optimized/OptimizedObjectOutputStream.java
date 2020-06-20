@@ -62,6 +62,8 @@ import static org.apache.ignite.internal.marshaller.optimized.OptimizedMarshalle
 
 /**
  * Optimized object output stream.
+ *
+ * HK-PATCHED: fix string bigger than 4K. Performance degrades, x2 slower than JDK serialization
  */
 public class OptimizedObjectOutputStream extends ObjectOutputStream {
     /** */
@@ -182,12 +184,12 @@ public class OptimizedObjectOutputStream extends ObjectOutputStream {
             writeByte(NULL);
         else {
         	boolean jdkStringWrite = false;
-        	
-        	//for string bigger than 4K performance degrades x2 slower than JDK 
+
+        	//for string bigger than 4K performance degrades x2 slower than JDK
         	if (obj instanceof String){
-        		jdkStringWrite = (((String)obj).length() > 4096); 
+        		jdkStringWrite = (((String)obj).length() > 4096);
         	}
-        	
+
             if ((jdkStringWrite || obj instanceof Throwable) && !(obj instanceof Externalizable) || U.isEnum(obj.getClass())) {
                 // Avoid problems with differing Enum objects or Enum implementation class deadlocks.
                 writeByte(JDK);

@@ -19,6 +19,8 @@ package org.apache.ignite.internal.sql.optimizer.affinity;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Set;
+
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.F;
@@ -26,6 +28,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Node with a single partition.
+ *
+ * HK-PATCHED: add support to ARRAY arguments (compute multiple partitions per argument)
  */
 public abstract class PartitionSingleNode implements PartitionNode {
     /** Table descriptor. */
@@ -44,9 +48,9 @@ public abstract class PartitionSingleNode implements PartitionNode {
     /** {@inheritDoc} */
     @Override public Collection<Integer> apply(PartitionClientContext cliCtx, Object... args)
         throws IgniteCheckedException {
-        Integer part = applySingle(cliCtx, args);
-
-        return part != null ? Collections.singletonList(part) : null;
+        Set<Integer> parts = applySingle(cliCtx, args);
+        // null on error
+        return parts == null ? null : parts;
     }
 
     /**
@@ -54,9 +58,9 @@ public abstract class PartitionSingleNode implements PartitionNode {
      *
      * @param cliCtx Client context.
      * @param args Arguments.
-     * @return Partition or {@code null} if failed.
+     * @return Partitions or {@code null} if failed.
      */
-    public abstract Integer applySingle(@Nullable PartitionClientContext cliCtx, Object... args)
+    public abstract Set<Integer> applySingle(@Nullable PartitionClientContext cliCtx, Object... args)
         throws IgniteCheckedException;
 
     /**

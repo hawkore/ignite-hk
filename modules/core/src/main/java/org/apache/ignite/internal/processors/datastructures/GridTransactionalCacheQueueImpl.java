@@ -17,15 +17,10 @@
 
 package org.apache.ignite.internal.processors.datastructures;
 
-import static org.apache.ignite.internal.processors.cache.GridCacheUtils.retryTopologySafe;
-import static org.apache.ignite.transactions.TransactionConcurrency.PESSIMISTIC;
-import static org.apache.ignite.transactions.TransactionIsolation.REPEATABLE_READ;
-
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
-
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteQueue;
@@ -36,8 +31,14 @@ import org.apache.ignite.internal.util.typedef.internal.A;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.jetbrains.annotations.Nullable;
 
+import static org.apache.ignite.internal.processors.cache.GridCacheUtils.retryTopologySafe;
+import static org.apache.ignite.transactions.TransactionConcurrency.PESSIMISTIC;
+import static org.apache.ignite.transactions.TransactionIsolation.REPEATABLE_READ;
+
 /**
  * {@link IgniteQueue} implementation using transactional cache.
+ *
+ * HK-PATCHED: improve performance
  */
 public class GridTransactionalCacheQueueImpl<T> extends GridCacheQueueAdapter<T> {
     /**
@@ -59,13 +60,13 @@ public class GridTransactionalCacheQueueImpl<T> extends GridCacheQueueAdapter<T>
                 @Override public Boolean call() throws Exception {
                     boolean retVal;
 
-                    try (GridNearTxLocal tx = queueCache.txStartEx(PESSIMISTIC, REPEATABLE_READ)) {
-                        Long idx = (Long)queueCache.invoke(queueKey, new AddProcessor(id, 1)).get();
+                    try (GridNearTxLocal tx = cache.txStartEx(PESSIMISTIC, REPEATABLE_READ)) {
+                        Long idx = (Long)cache.invoke(queueKey, new AddProcessor(id, 1)).get();
 
                         if (idx != null) {
                             checkRemoved(idx);
 
-                            queueCache.put(itemKey(idx), item);
+                            cache.put(itemKey(idx), item);
 
                             retVal = true;
                         }
@@ -94,7 +95,7 @@ public class GridTransactionalCacheQueueImpl<T> extends GridCacheQueueAdapter<T>
     @SuppressWarnings("unchecked")
     @Nullable @Override public T poll() throws IgniteException {
         try {
-        	
+
     		GridCacheQueueHeader cHdr = getCurrentHdr(false);
 
     		//avoid over cluster polling if queue has no more elements
@@ -102,20 +103,20 @@ public class GridTransactionalCacheQueueImpl<T> extends GridCacheQueueAdapter<T>
     			checkRemoved(cHdr);
     			return null;
     		}
-        	
-        	
+
+
             return retryTopologySafe(new Callable<T>() {
                 @Override public T call() throws Exception {
                     T retVal;
 
                     while (true) {
-                        try (GridNearTxLocal tx = queueCache.txStartEx(PESSIMISTIC, REPEATABLE_READ)) {
-                            Long idx = (Long)queueCache.invoke(queueKey, new PollProcessor(id)).get();
+                        try (GridNearTxLocal tx = cache.txStartEx(PESSIMISTIC, REPEATABLE_READ)) {
+                            Long idx = (Long)cache.invoke(queueKey, new PollProcessor(id)).get();
 
                             if (idx != null) {
                                 checkRemoved(idx);
 
-                                retVal = (T)queueCache.getAndRemove(itemKey(idx));
+                                retVal = (T)cache.getAndRemove(itemKey(idx));
 
                                 if (retVal == null) { // Possible if data was lost.
                                     tx.commit();
@@ -155,8 +156,8 @@ public class GridTransactionalCacheQueueImpl<T> extends GridCacheQueueAdapter<T>
                 @Override public Boolean call() throws Exception {
                     boolean retVal;
 
-                    try (GridNearTxLocal tx = queueCache.txStartEx(PESSIMISTIC, REPEATABLE_READ)) {
-                        Long idx = (Long)queueCache.invoke(queueKey, new AddProcessor(id, items.size())).get();
+                    try (GridNearTxLocal tx = cache.txStartEx(PESSIMISTIC, REPEATABLE_READ)) {
+                        Long idx = (Long)cache.invoke(queueKey, new AddProcessor(id, items.size())).get();
 
                         if (idx != null) {
                             checkRemoved(idx);
@@ -169,7 +170,7 @@ public class GridTransactionalCacheQueueImpl<T> extends GridCacheQueueAdapter<T>
                                 idx++;
                             }
 
-                            queueCache.putAll(putMap);
+                            cache.putAll(putMap);
 
                             retVal = true;
                         }
@@ -200,13 +201,13 @@ public class GridTransactionalCacheQueueImpl<T> extends GridCacheQueueAdapter<T>
         try {
             retryTopologySafe(new Callable<Object>() {
                 @Override public Object call() throws Exception {
-                    try (GridNearTxLocal tx = queueCache.txStartEx(PESSIMISTIC, REPEATABLE_READ)) {
-                        Long idx = (Long)queueCache.invoke(queueKey, new RemoveProcessor(id, rmvIdx)).get();
+                    try (GridNearTxLocal tx = cache.txStartEx(PESSIMISTIC, REPEATABLE_READ)) {
+                        Long idx = (Long)cache.invoke(queueKey, new RemoveProcessor(id, rmvIdx)).get();
 
                         if (idx != null) {
                             checkRemoved(idx);
 
-                            queueCache.remove(itemKey(idx));
+                            cache.remove(itemKey(idx));
                         }
 
                         tx.commit();

@@ -84,6 +84,8 @@ import static org.apache.ignite.internal.processors.query.h2.opt.H2TableScanInde
 
 /**
  * H2 Table implementation.
+ *
+ * HK-PATCHED: add support to advanced indexing
  */
 public class GridH2Table extends TableBase {
     /** Insert hack flag. */
@@ -731,7 +733,7 @@ public class GridH2Table extends TableBase {
         return (GridH2IndexBase)idxs.get(2);
     }
 
-   /**
+    /**
      * Updates table for given key. If value is null then row with given key will be removed from table,
      * otherwise value and expiration time will be updated or new row will be added.
      *
@@ -844,14 +846,9 @@ public class GridH2Table extends TableBase {
         boolean replaced = idx.putx(row);
 
         // Row was not replaced, need to remove manually.
-        if (!replaced && prevRow != null){
-            boolean advancedSpatial = F.eq(H2Utils.ADVANCED_SPATIAL_IDX_CLS, idx.getClass().getName());
-            boolean advancedLucene = F.eq(H2Utils.ADVANCED_LUCENE_IDX_CLS, idx.getClass().getName());
-            //on advanced lucene and spatial we must not remove index prevRow!! data will be lost
-        	if (!advancedSpatial && !advancedLucene){
-        		idx.removex(prevRow);
-        	}
-         }
+        if (!replaced && prevRow != null && idx.isAllowRemoveOnAddToIndex()){
+            idx.removex(prevRow);
+        }
     }
 
     /**

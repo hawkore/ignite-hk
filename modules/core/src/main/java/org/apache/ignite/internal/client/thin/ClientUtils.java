@@ -70,6 +70,8 @@ import static org.apache.ignite.internal.processors.platform.cache.expiry.Platfo
 
 /**
  * Shared serialization/deserialization utils.
+ *
+ * HK-PATCHED: hidden fields
  */
 final class ClientUtils {
     /** Marshaller. */
@@ -350,7 +352,7 @@ final class ClientUtils {
                                 );
                                 w.writeString(i.getLuceneIndexOptions());
                             });
-                        
+
                         w.writeString(e.getLuceneIndexOptions());
                     }
                 )
@@ -433,10 +435,10 @@ final class ClientUtils {
                                 String name = reader.readString();
                                 String typeName = reader.readString();
                                 boolean isKey = reader.readBoolean();
-                                boolean isNotNull = reader.readBoolean(); 
+                                boolean isNotNull = reader.readBoolean();
                                 Object dfltVal = reader.readObject();
                                 int precision = isCliVer1_2 ? reader.readInt() : -1;
-                                int scale = isCliVer1_2 ? reader.readInt() : -1; 
+                                int scale = isCliVer1_2 ? reader.readInt() : -1;
 								boolean isHidden = reader.readBoolean();
                                 return new QueryField(name,
                                     typeName,
@@ -446,11 +448,11 @@ final class ClientUtils {
                                     precision,
                                     scale,
                                     isHidden);
-                            }                            
+                            }
                         );
 
                         qryEntity.setLuceneIndexOptions(reader.readString());
-                        
+
                         return qryEntity
                             .setFields(qryFields.stream().collect(Collectors.toMap(
                                 QueryField::getName, QueryField::getTypeName, (a, b) -> a, LinkedHashMap::new
@@ -499,9 +501,9 @@ final class ClientUtils {
                                     ));
 
                                     QueryIndex qIdx =  new QueryIndex(fields, type).setName(name).setInlineSize(inlineSize);
-                                    
+
                                     qIdx.setLuceneIndexOptions(reader.readString());
-                                    
+
                                     return qIdx;
                                 }
                             ));
@@ -624,7 +626,7 @@ final class ClientUtils {
 
         /** Is not hidden. */
         private final boolean isHidden;
-        
+
         /** Default value. */
         private final Object dfltVal;
 
@@ -701,7 +703,7 @@ final class ClientUtils {
         boolean isHidden() {
             return isHidden;
         }
-        
+
         /**
          * @return Default value.
          */

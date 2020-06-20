@@ -30,6 +30,8 @@ import org.apache.ignite.internal.processors.cache.query.CacheQuery;
  * Annotates fields for SQL queries. All fields that will be involved in SQL clauses must have
  * this annotation. For more information about cache queries see {@link CacheQuery} documentation.
  * @see CacheQuery
+ *
+ * HK-PATCHED: hidden field
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)

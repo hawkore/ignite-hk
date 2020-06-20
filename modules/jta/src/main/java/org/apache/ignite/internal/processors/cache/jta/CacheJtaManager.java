@@ -37,6 +37,8 @@ import static org.apache.ignite.transactions.TransactionState.SUSPENDED;
 
 /**
  * Implementation of {@link CacheJtaManagerAdapter}.
+ *
+ * HK-PATCHED: exposes XA resource
  */
 public class CacheJtaManager extends CacheJtaManagerAdapter {
     /** */
@@ -223,7 +225,7 @@ public class CacheJtaManager extends CacheJtaManagerAdapter {
     @Nullable @Override public Object tmLookup() {
         return tmLookupRef.get();
     }
-    
+
     @Override
 	public XAResource getXaResource() {
 		return rsrc.get();

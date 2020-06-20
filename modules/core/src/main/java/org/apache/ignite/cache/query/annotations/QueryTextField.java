@@ -29,19 +29,21 @@ import org.apache.ignite.internal.processors.cache.query.CacheQuery;
 /**
  * Annotation for fields to be indexed for full text search using Lucene. For
  * more information refer to {@link CacheQuery} documentation.
- * 
+ *
  * <p>
- * Extended to support QueryEntity definition by annotation configuration 
+ * Extended to support QueryEntity definition by annotation configuration
  * for Advanced Lucence Index.
  * <p>
- * 
+ *
  * <b>For more info and full documentation visit:</b>
- * 
+ *
  * <a href="https://hawkore.com">HAWKORE, S.L. web site</a>
- * 
+ *
  * @author Manuel Núñez (manuel.nunez@hawkore.com)
- * 
+ *
  * @see CacheQuery
+ *
+ * HK-PATCHED: advanced lucene indexing
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
@@ -116,7 +118,7 @@ public @interface QueryTextField {
     UUIDMapper[] uuidMappers() default {};
 
     /**
-     * 
+     *
      * mapper's type
      *
      * @author Manuel Núñez (manuel.nunez@hawkore.com)
@@ -188,7 +190,7 @@ public @interface QueryTextField {
     }
 
     /**
-     * 
+     *
      * GeoTransformation Type
      *
      * @author Manuel Núñez (manuel.nunez@hawkore.com)
@@ -225,9 +227,9 @@ public @interface QueryTextField {
      * Custom analyzer using a Lucene's {@code Analyzer}s in classpath.
      *
      * It's uses the {@code Analyzer}'s default (no args) constructor.
-     * 
+     *
      * @author Manuel Núñez (manuel.nunez@hawkore.com)
-     * 
+     *
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ ElementType.TYPE })
@@ -247,7 +249,7 @@ public @interface QueryTextField {
     }
 
     /**
-     * 
+     *
      * Custom analyzer for tartarus.org snowball {@code Analyzer}.
      *
      * <p>
@@ -256,7 +258,7 @@ public @interface QueryTextField {
      * Finnish, Irish, Hungarian, Turkish, Armenian, Basque and Catalan.
      *
      * @author Manuel Núñez (manuel.nunez@hawkore.com)
-     * 
+     *
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ ElementType.TYPE })
@@ -285,7 +287,7 @@ public @interface QueryTextField {
     }
 
     /**
-     * 
+     *
      * Index user-specified configuration options
      *
      * @author Manuel Núñez (manuel.nunez@hawkore.com)
@@ -353,7 +355,7 @@ public @interface QueryTextField {
          * When Apache Ignite native persistence is enabled Lucene index will be
          * persisted under well known directory names, for better performance
          * it's assumed the index directory is on a separated HDD/SSD.
-         * 
+         *
          * <pre>
          * - 1. Per global root directory "directoryPath/db/lucene", if directoryPath not provided default is "IGNITE_WORK/db/lucene"
          * |
@@ -363,16 +365,16 @@ public @interface QueryTextField {
          *     |
          *     --- 4. per index segments s_0..s_(#-1), where # is the degree of parallelism within
          * a single node per index
-         * 
+         *
          * </pre>
-         * 
+         *
          * Once index is created you can't change this value, unless you drop
          * the index and create it again
-         * 
+         *
          * <p>
-         * 
+         *
          * Will be ignored if Apache Ignite native persistence is disabled
-         * 
+         *
          */
         String directoryPath() default DEFAULT_DIRECTORY_PATH;
 
@@ -382,14 +384,14 @@ public @interface QueryTextField {
          * <p>
          * This value will be changed at runtime if changes detected on
          * {@link QueryTextField.IndexOptions}.
-         * 
+         *
          */
         int refreshSeconds() default DEFAULT_REFRESH_SECONDS;
 
         /**
          * Memory on MB for indexWriter buffer on <b>on-heap</b> JVM memory
          * (default 5MB).
-         * 
+         *
          * <pre>
          * Additional <b>on-heap</b> JVM Memory consumed per Lucene index = ramBufferMB * #partitions * #segments
          * </pre>
@@ -402,7 +404,7 @@ public @interface QueryTextField {
         /**
          * The Lucene's max off-heap memory storage size, in MB. Use 0 for
          * unlimited.
-         * 
+         *
          * <ul>
          * <li>When Apache Ignite native persistence is <b>enabled</b>,
          * <b>default</b> value will be <b>20% of associated cache's data
@@ -411,7 +413,7 @@ public @interface QueryTextField {
          * change default 0.2 (20%) factor by setting
          * <b>IGNITE_LUCENE_INDEX_MAX_MEMORY_FACTOR</b> system property on
          * server nodes. Needs restart server nodes</li>
-         * 
+         *
          * <li>If Apache Ignite native persistence is <b>disabled</b>,
          * <b>default</b> value will be <b>unlimited (0)</b>. Changing
          * maxCachedMB value will be allowed if current allocated memory for
@@ -419,10 +421,10 @@ public @interface QueryTextField {
          * limit determined by maxCachedMB a GridOffHeapOutOfMemoryException
          * will be thrown</li>
          * </ul>
-         * 
+         *
          * This value will be changed at runtime if changes detected on
          * {@link QueryTextField.IndexOptions}.
-         * 
+         *
          */
         int maxCachedMB() default DEFAULT_MAX_CACHED_MB;
 
@@ -436,7 +438,7 @@ public @interface QueryTextField {
 
         /**
          * Whether Lucene index automatic optimization is enabled
-         * 
+         *
          * This value will be changed at runtime if changes detected on
          * {@link QueryTextField.IndexOptions}.
          */
@@ -444,15 +446,15 @@ public @interface QueryTextField {
 
         /**
          * Optimizer's schedule CRON expression.
-         * 
+         *
          * <p>
-         * 
+         *
          * By default optimizer will run every day at 1:00 AM (0 1 * * *)
-         * 
+         *
          * @See <a href=
          *      "https://apacheignite.readme.io/docs/cron-based-scheduling">Cron
          *      -Based Scheduling</a>
-         * 
+         *
          *      This value will be changed at runtime if changes detected on
          *      {@link QueryTextField.IndexOptions}.
          */
@@ -478,7 +480,7 @@ public @interface QueryTextField {
 
     /**
      * Big decimal mapper
-     * 
+     *
      * <p>
      * Maps arbitrary precision signed decimal values.
      * <p>
@@ -497,14 +499,14 @@ public @interface QueryTextField {
 
         /**
          * The mapper's name, lucene document's indexable field name.
-         * 
+         *
          */
         String name() default "";
 
         /**
          * The name of the column (real table's column name) storing the value
          * to be indexed. If not provided mapper's name will be used.
-         * 
+         *
          */
         String column() default "";
 
@@ -523,7 +525,7 @@ public @interface QueryTextField {
 
     /**
      * Big integer mapper
-     * 
+     *
      * <p>
      * Maps arbitrary precision signed integer values.
      * <p>
@@ -541,14 +543,14 @@ public @interface QueryTextField {
 
         /**
          * The mapper's name, lucene document's indexable field name.
-         * 
+         *
          */
         String name() default "";
 
         /**
          * The name of the column (real table's column name) storing the value
          * to be indexed. If not provided mapper's name will be used.
-         * 
+         *
          */
         String column() default "";
 
@@ -564,7 +566,7 @@ public @interface QueryTextField {
 
     /**
      * Bitemporal mapper
-     * 
+     *
      * <p>
      * Maps four columns containing the four dates defining a bitemporal fact.
      * The mapped columns shouldn't be collections.
@@ -583,7 +585,7 @@ public @interface QueryTextField {
 
         /**
          * The mapper's name, lucene document's indexable field name.
-         * 
+         *
          */
         String name() default "";
 
@@ -634,7 +636,7 @@ public @interface QueryTextField {
 
     /**
      * Blob mapper
-     * 
+     *
      * <p>
      * Maps a blob value.
      * <p>
@@ -652,14 +654,14 @@ public @interface QueryTextField {
 
         /**
          * The mapper's name, lucene document's indexable field name.
-         * 
+         *
          */
         String name() default "";
 
         /**
          * The name of the column (real table's column name) storing the value
          * to be indexed. If not provided mapper's name will be used.
-         * 
+         *
          */
         String column() default "";
 
@@ -672,7 +674,7 @@ public @interface QueryTextField {
 
     /**
      * Boolean mapper
-     * 
+     *
      * <p>
      * Maps a boolean value..
      * <p>
@@ -690,14 +692,14 @@ public @interface QueryTextField {
 
         /**
          * The mapper's name, lucene document's indexable field name.
-         * 
+         *
          */
         String name() default "";
 
         /**
          * The name of the column (real table's column name) storing the value
          * to be indexed. If not provided mapper's name will be used.
-         * 
+         *
          */
         String column() default "";
 
@@ -710,7 +712,7 @@ public @interface QueryTextField {
 
     /**
      * Date mapper
-     * 
+     *
      * <p>
      * Maps dates using a either a pattern, an UNIX timestamp or a time UUID.
      * <p>
@@ -728,7 +730,7 @@ public @interface QueryTextField {
 
         /**
          * The mapper's name, lucene document's indexable field name.
-         * 
+         *
          */
         String name() default "";
 
@@ -741,7 +743,7 @@ public @interface QueryTextField {
         /**
          * The name of the column (real table's column name) storing the value
          * to be indexed. If not provided mapper's name will be used.
-         * 
+         *
          */
         String column() default "";
 
@@ -756,7 +758,7 @@ public @interface QueryTextField {
 
     /**
      * Date range mapper
-     * 
+     *
      * <p>
      * Maps a time duration/period defined by a start date and a stop date. The
      * mapped columns shouldn't be collections.
@@ -775,7 +777,7 @@ public @interface QueryTextField {
 
         /**
          * The mapper's name, lucene document's indexable field name.
-         * 
+         *
          */
         String name() default "";
 
@@ -809,7 +811,7 @@ public @interface QueryTextField {
 
     /**
      * Double mapper
-     * 
+     *
      * <p>
      * Maps a 64-bit decimal number.
      * <p>
@@ -828,14 +830,14 @@ public @interface QueryTextField {
 
         /**
          * The mapper's name, lucene document's indexable field name.
-         * 
+         *
          */
         String name() default "";
 
         /**
          * The name of the column (real table's column name) storing the value
          * to be indexed. If not provided mapper's name will be used.
-         * 
+         *
          */
         String column() default "";
 
@@ -851,7 +853,7 @@ public @interface QueryTextField {
 
     /**
      * Float mapper
-     * 
+     *
      * <p>
      * Maps a 32-bit decimal number.
      * <p>
@@ -869,14 +871,14 @@ public @interface QueryTextField {
 
         /**
          * The mapper's name, lucene document's indexable field name.
-         * 
+         *
          */
         String name() default "";
 
         /**
          * The name of the column (real table's column name) storing the value
          * to be indexed. If not provided mapper's name will be used.
-         * 
+         *
          */
         String column() default "";
 
@@ -892,7 +894,7 @@ public @interface QueryTextField {
 
     /**
      * Geo point mapper
-     * 
+     *
      * <p>
      * Maps a geospatial location (point) defined by two columns containing a
      * latitude and a longitude.
@@ -922,7 +924,7 @@ public @interface QueryTextField {
 
         /**
          * The mapper's name, lucene document's indexable field name.
-         * 
+         *
          */
         String name() default "";
 
@@ -956,7 +958,7 @@ public @interface QueryTextField {
 
     /**
      * Geo shape mapper
-     * 
+     *
      * <p>
      * Maps a geographical shape stored in a text column with Well Known Text
      * (WKT) format. The supported WKT shapes are point, linestring, polygon,
@@ -991,14 +993,14 @@ public @interface QueryTextField {
 
         /**
          * The mapper's name, lucene document's indexable field name.
-         * 
+         *
          */
         String name() default "";
 
         /**
          * The name of the column (real table's column name) storing the value
          * to be indexed. If not provided mapper's name will be used.
-         * 
+         *
          */
         String column() default "";
 
@@ -1025,12 +1027,12 @@ public @interface QueryTextField {
 
         /**
          * Geo transformation
-         * 
+         *
          * <p>
          * Geo shape mapper could takes a list of geometrical transformations as
          * argument. These transformations are sequentially applied to the shape
          * that is going to be indexed or searched.
-         * 
+         *
          * <p>
          * <b>Transformation types</b>
          * <ul>
@@ -1050,7 +1052,7 @@ public @interface QueryTextField {
          * <li><b>convex_hull</b>: Convex hull transformation. Convex hull
          * transformation returns the convex envelope of a shape.
          * </ul>
-         * 
+         *
          * <p>
          * <b>Distance</b>
          * <p>
@@ -1058,7 +1060,7 @@ public @interface QueryTextField {
          * distance as argument. This distance is just a string with the form
          * "1km", "1000m", etc. The following table shows the available options
          * for distance units. The default distance unit is meter.
-         * 
+         *
          * <p>
          * <b>Available distance units (real unit)</b>
          * <ul>
@@ -1076,7 +1078,7 @@ public @interface QueryTextField {
          * <li>M, NM, mil, nautical_miles <i>(nautical mile)</i>
          * </ul>
          *
-         * 
+         *
          * @author Manuel Núñez (manuel.nunez@hawkore.com)
          *
          */
@@ -1106,7 +1108,7 @@ public @interface QueryTextField {
 
     /**
      * Inet Address mapper
-     * 
+     *
      * <p>
      * Maps an IP address. Either IPv4 and IPv6 are supported.
      * <p>
@@ -1124,14 +1126,14 @@ public @interface QueryTextField {
 
         /**
          * The mapper's name, lucene document's indexable field name.
-         * 
+         *
          */
         String name() default "";
 
         /**
          * The name of the column (real table's column name) storing the value
          * to be indexed. If not provided mapper's name will be used.
-         * 
+         *
          */
         String column() default "";
 
@@ -1144,7 +1146,7 @@ public @interface QueryTextField {
 
     /**
      * Integer mapper
-     * 
+     *
      * <p>
      * Maps a 32-bit integer number.
      * <p>
@@ -1163,14 +1165,14 @@ public @interface QueryTextField {
 
         /**
          * The mapper's name, lucene document's indexable field name.
-         * 
+         *
          */
         String name() default "";
 
         /**
          * The name of the column (real table's column name) storing the value
          * to be indexed. If not provided mapper's name will be used.
-         * 
+         *
          */
         String column() default "";
 
@@ -1186,7 +1188,7 @@ public @interface QueryTextField {
 
     /**
      * Long mapper
-     * 
+     *
      * <p>
      * Maps a 64-bit integer number.
      * <p>
@@ -1205,14 +1207,14 @@ public @interface QueryTextField {
 
         /**
          * The mapper's name, lucene document's indexable field name.
-         * 
+         *
          */
         String name() default "";
 
         /**
          * The name of the column (real table's column name) storing the value
          * to be indexed. If not provided mapper's name will be used.
-         * 
+         *
          */
         String column() default "";
 
@@ -1228,7 +1230,7 @@ public @interface QueryTextField {
 
     /**
      * String mapper
-     * 
+     *
      * <p>
      * Maps a not-analyzed text value.
      * <p>
@@ -1247,14 +1249,14 @@ public @interface QueryTextField {
 
         /**
          * The mapper's name, lucene document's indexable field name.
-         * 
+         *
          */
         String name() default "";
 
         /**
          * The name of the column (real table's column name) storing the value
          * to be indexed. If not provided mapper's name will be used.
-         * 
+         *
          */
         String column() default "";
 
@@ -1270,7 +1272,7 @@ public @interface QueryTextField {
 
     /**
      * Text mapper
-     * 
+     *
      * <p>
      * Maps a language-aware text value analyzed according to the specified
      * analyzer.
@@ -1583,14 +1585,14 @@ public @interface QueryTextField {
 
         /**
          * The mapper's name, lucene document's indexable field name.
-         * 
+         *
          */
         String name() default "";
 
         /**
          * The name of the column (real table's column name) storing the value
          * to be indexed. If not provided mapper's name will be used.
-         * 
+         *
          */
         String column() default "";
 
@@ -1617,7 +1619,7 @@ public @interface QueryTextField {
 
     /**
      * UUID mapper
-     * 
+     *
      * <p>
      * Maps an UUID value.
      * <p>
@@ -1635,14 +1637,14 @@ public @interface QueryTextField {
 
         /**
          * The mapper's name, lucene document's indexable field name.
-         * 
+         *
          */
         String name() default "";
 
         /**
          * The name of the column (real table's column name) storing the value
          * to be indexed. If not provided mapper's name will be used.
-         * 
+         *
          */
         String column() default "";
 

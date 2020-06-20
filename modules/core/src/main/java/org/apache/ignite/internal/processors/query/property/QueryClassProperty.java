@@ -27,6 +27,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Description of type property.
+ *
+ * HK-PATCHED: hidden attribute
  */
 public class QueryClassProperty implements GridQueryProperty {
     /** */
@@ -46,7 +48,7 @@ public class QueryClassProperty implements GridQueryProperty {
 
     /** */
     private final boolean notNull;
-    
+
     /** */
     private final boolean hidden;
 
@@ -71,7 +73,7 @@ public class QueryClassProperty implements GridQueryProperty {
         this.notNull = notNull;
 
         this.coCtx = coCtx;
-        
+
         this.hidden = hidden;
     }
 
@@ -162,7 +164,7 @@ public class QueryClassProperty implements GridQueryProperty {
     @Override public int scale() {
         return -1;
     }
-    
+
     /** {@inheritDoc} */
     @Override
     public boolean hidden() {

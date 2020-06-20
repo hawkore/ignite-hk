@@ -28,6 +28,8 @@ import org.apache.ignite.lang.IgniteInClosure;
 
 /**
  * Enables multithreaded notification of session opened, message received and session closed events.
+ *
+ * HK-PATCHED: improve performance
  */
 public class GridNioAsyncNotifyFilter extends GridNioFilterAdapter {
     /** Logger. */
@@ -48,7 +50,7 @@ public class GridNioAsyncNotifyFilter extends GridNioFilterAdapter {
      * @param log Logger.
      */
     public GridNioAsyncNotifyFilter(String igniteInstanceName, Executor exec, IgniteLogger log) {
-        
+
     	super(className);
 
         this.igniteInstanceName = igniteInstanceName;

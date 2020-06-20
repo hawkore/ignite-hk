@@ -22,11 +22,12 @@ import java.util.Arrays;
 /**
  * Lightweight identity hash table which maps objects to integer handles,
  * assigned in ascending order.
- * 
+ *
+ * HK-PATCHED:
  * Improve OptimizedMarshaller performance hash calculator by caching
- * hashes, this improve performance when serialize objects with high complexity.
+ * hashes, this improve performance when serialize objects with high complexity and cycle references.
  * x10 faster than old implementation
- * 
+ *
  */
 public class GridHandleTable {
     /** Number of mappings in table/next available handle. */
@@ -46,7 +47,7 @@ public class GridHandleTable {
 
     /** Maps handle value -> associated object. */
     private Object[] objs;
-    
+
     /** Maps handle object hash -> associated object hash to improve performance x10 faster than old implementation*/
     private int[] objHashes;
 
@@ -55,7 +56,7 @@ public class GridHandleTable {
 
     /** */
     private int[] nextEmpty;
-    
+
 
     /**
      * Creates new HandleTable with given capacity and load factor.
@@ -68,10 +69,10 @@ public class GridHandleTable {
 
         spine = new int[initCap];
         next = new int[initCap];
-        
+
         objs = new Object[initCap];
         objHashes = new int[initCap];
-        
+
         spineEmpty = new int[initCap];
         nextEmpty = new int[initCap];
 
@@ -91,9 +92,9 @@ public class GridHandleTable {
      * @return Handle.
      */
     public int lookup(Object obj) {
-    	
+
     	int objHash = hash(obj);
-    	
+
         int idx = objHash % spine.length;
 
         if (size > 0) {
@@ -126,9 +127,9 @@ public class GridHandleTable {
         System.arraycopy(nextEmpty, 0, next, 0, nextEmpty.length);
 
         Arrays.fill(objs, null);
-        
+
         Arrays.fill(objHashes, 0);
-        
+
         size = 0;
     }
 
@@ -165,7 +166,7 @@ public class GridHandleTable {
         next[handle] = spine[idx];
         spine[idx] = handle;
     }
-    
+
     /**
      * Expands the hash "spine" - equivalent to increasing the number of
      * buckets in a conventional hash table.
@@ -181,7 +182,7 @@ public class GridHandleTable {
 
         System.arraycopy(spineEmpty, 0, spine, 0, spineEmpty.length);
 
-        for (int i = 0; i < this.size; i++) {       	
+        for (int i = 0; i < this.size; i++) {
             updateSpine(i, objHashes[i] % spine.length);
         }
     }
@@ -203,13 +204,13 @@ public class GridHandleTable {
         Object[] newObjs = new Object[newLen];
 
         System.arraycopy(objs, 0, newObjs, 0, size);
-        
+
         int[] newObjHashes = new int[newLen];
-        
+
         System.arraycopy(objHashes, 0, newObjHashes, 0, size);
-        
+
         objs = newObjs;
-        
+
         objHashes = newObjHashes;
     }
 

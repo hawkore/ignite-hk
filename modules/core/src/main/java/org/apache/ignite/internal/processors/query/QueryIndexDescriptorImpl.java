@@ -20,22 +20,19 @@ package org.apache.ignite.internal.processors.query;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.TreeSet;
 
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.cache.QueryIndexType;
-import org.apache.ignite.cache.query.annotations.QueryTextField;
-import org.apache.ignite.internal.processors.query.h2.opt.lucene.LuceneQueryUtils;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.T2;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
  * Index descriptor.
+ *
+ * HK-PATCHED: advanced lucene index configuration
  */
 public class QueryIndexDescriptorImpl implements GridQueryIndexDescriptor {
     /** Fields sorted by order number. */
@@ -66,10 +63,10 @@ public class QueryIndexDescriptorImpl implements GridQueryIndexDescriptor {
     private final int inlineSize;
 
     /**
-     * 
+     *
      */
     private String luceneIndexOptions;
-    
+
     /**
      * Constructor.
      *
@@ -134,14 +131,14 @@ public class QueryIndexDescriptorImpl implements GridQueryIndexDescriptor {
             throw new IgniteCheckedException("Field not found: " + field);
 
 	    GridQueryProperty p = typDesc.property(field);
-	    
+
 	    // property with alias
 	    if (p != null){
-	        
-	        String alias = typDesc.aliases().get(p.name()); 
-	        
+
+	        String alias = typDesc.aliases().get(p.name());
+
 	        if (alias != null){
-	            field = alias; 
+	            field = alias;
 	        }else{
 	            field = p.name();
 	        }
@@ -181,5 +178,5 @@ public class QueryIndexDescriptorImpl implements GridQueryIndexDescriptor {
     public void setLuceneIndexOptions(String luceneIndexOptions) {
         this.luceneIndexOptions = luceneIndexOptions;
     }
- 
+
 }

@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+// HK-PATCHED: adapt to modified code
 namespace Apache.Ignite.Core.Tests.ApiParity
 {
     using Apache.Ignite.Core.Cache.Configuration;
@@ -46,7 +46,7 @@ namespace Apache.Ignite.Core.Tests.ApiParity
         public void TestQueryEntityConfiguration()
         {
             ParityTest.CheckConfigurationParity(
-                @"modules\core\src\main\java\org\apache\ignite\cache\QueryEntity.java", 
+                @"modules\core\src\main\java\org\apache\ignite\cache\QueryEntity.java",
                 typeof(QueryEntity),
                 UnneededProperties);
         }

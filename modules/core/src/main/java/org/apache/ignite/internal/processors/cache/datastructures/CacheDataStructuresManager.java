@@ -77,7 +77,7 @@ import static javax.cache.event.EventType.REMOVED;
 import static org.apache.ignite.internal.GridClosureCallMode.BROADCAST;
 
 /**
- *
+ * HK-PATCHED: allow tune underline cache for collection configuration
  */
 public class CacheDataStructuresManager extends GridCacheManagerAdapter {
     /** Known classes which are safe to use on server nodes. */
@@ -233,7 +233,7 @@ public class CacheDataStructuresManager extends GridCacheManagerAdapter {
         throws IgniteCheckedException
     {
         waitInitialization();
-        
+
         return queue0(name, cap, colloc, create, cfg);
     }
 

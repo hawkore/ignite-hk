@@ -31,27 +31,67 @@ import static org.apache.ignite.internal.processors.cache.mvcc.MvccUtils.MVCC_OP
 
 /**
  * Dummy H2 search row adadpter.
+ *
+ * HK-PATCHED: allow add row to org.h2.table.RegularTable - register H2 spatial functions
  */
 public abstract class H2Row implements Row, MvccVersionAware {
+
+    private long k;
+    private int version;
+    private boolean deleted;
+    private int sessionId;
+
+    /** {@inheritDoc} */
+    @Override
+    public int getVersion() {
+        return this.version;
+    }
+    /** {@inheritDoc} */
+    @Override
+    public void setVersion(int paramInt) {
+        this.version = paramInt;
+    }
+    /** {@inheritDoc} */
+    @Override
+    public long getKey() {
+        return this.k;
+    }
+    /** {@inheritDoc} */
+    @Override
+    public void setKey(long paramLong) {
+        this.k = paramLong;
+    }
+    /** {@inheritDoc} */
+    @Override
+    public void setDeleted(boolean paramBoolean) {
+        this.deleted = paramBoolean;
+    }
+    /** {@inheritDoc} */
+    @Override
+    public void setSessionId(int paramInt) {
+        this.sessionId = paramInt;
+    }
+    /** {@inheritDoc} */
+    @Override
+    public int getSessionId() {
+        return this.sessionId;
+    }
+    /** {@inheritDoc} */
+    @Override
+    public void commit() {
+        this.sessionId = 0;
+    }
+    /** {@inheritDoc} */
+    @Override
+    public boolean isDeleted() {
+        return this.deleted;
+    }
+
     /** {@inheritDoc} */
     @Override public void setKeyAndVersion(SearchRow old) {
         throw new UnsupportedOperationException();
     }
 
-    /** {@inheritDoc} */
-    @Override public int getVersion() {
-        throw new UnsupportedOperationException();
-    }
-
-    /** {@inheritDoc} */
-    @Override public void setKey(long key) {
-        // No-op, may be set in H2 INFORMATION_SCHEMA.
-    }
-
-    /** {@inheritDoc} */
-    @Override public long getKey() {
-        throw new UnsupportedOperationException();
-    }
 
     /** {@inheritDoc} */
     @Override public int getMemory() {
@@ -63,10 +103,6 @@ public abstract class H2Row implements Row, MvccVersionAware {
         throw new UnsupportedOperationException();
     }
 
-    /** {@inheritDoc} */
-    @Override public void setVersion(int version) {
-        throw new UnsupportedOperationException();
-    }
 
     /** {@inheritDoc} */
     @Override public int getByteCount(Data dummy) {
@@ -75,31 +111,6 @@ public abstract class H2Row implements Row, MvccVersionAware {
 
     /** {@inheritDoc} */
     @Override public boolean isEmpty() {
-        throw new UnsupportedOperationException();
-    }
-
-    /** {@inheritDoc} */
-    @Override public void setDeleted(boolean deleted) {
-        throw new UnsupportedOperationException();
-    }
-
-    /** {@inheritDoc} */
-    @Override public void setSessionId(int sessionId) {
-        throw new UnsupportedOperationException();
-    }
-
-    /** {@inheritDoc} */
-    @Override public int getSessionId() {
-        throw new UnsupportedOperationException();
-    }
-
-    /** {@inheritDoc} */
-    @Override public void commit() {
-        // No-op.
-    }
-
-    /** {@inheritDoc} */
-    @Override public boolean isDeleted() {
         throw new UnsupportedOperationException();
     }
 

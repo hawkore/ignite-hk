@@ -23,9 +23,11 @@ import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
+import org.apache.ignite.springdata.misc.SampleEvaluationContextExtension.SamplePassParamExtension;
+import org.apache.ignite.springdata20.repository.config.EnableIgniteRepositories;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.apache.ignite.springdata20.repository.config.EnableIgniteRepositories;
+import org.springframework.data.spel.spi.EvaluationContextExtension;
 
 /**
  *
@@ -44,6 +46,16 @@ public class ApplicationConfiguration {
         bean.setPersonCacheName("PersonCache");
 
         return bean;
+    }
+
+    @Bean
+    public EvaluationContextExtension sampleSpELExtension() {
+        return new SampleEvaluationContextExtension();
+    }
+
+    @Bean(value = "sampleExtensionBean")
+    public SamplePassParamExtension sampleExtensionBean() {
+        return new SamplePassParamExtension();
     }
 
     /**
@@ -67,4 +79,5 @@ public class ApplicationConfiguration {
 
         return Ignition.start(cfg);
     }
+
 }

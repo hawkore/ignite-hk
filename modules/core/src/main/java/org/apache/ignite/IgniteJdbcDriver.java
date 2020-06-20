@@ -284,6 +284,8 @@ import org.apache.ignite.internal.jdbc.JdbcDriverPropertyInfo;
  *     ...
  * }
  * </pre>
+ *
+ * HK-PATCHED: access to methods
  */
 public class IgniteJdbcDriver implements Driver {
     /** Prefix for property names. */

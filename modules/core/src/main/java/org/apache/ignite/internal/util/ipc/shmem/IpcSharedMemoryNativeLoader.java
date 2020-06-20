@@ -42,6 +42,8 @@ import static org.apache.ignite.internal.IgniteVersionUtils.VER_STR;
 
 /**
  * Shared memory native loader.
+ *
+ * HK-PATCHED: expecial loader per classloader appName
  */
 @SuppressWarnings("ErrorNotRethrown")
 public class IpcSharedMemoryNativeLoader {
@@ -350,8 +352,8 @@ public class IpcSharedMemoryNativeLoader {
 
             try{
         		NativeLibraries nat = new NativeLibraries();
-	            if (nat.getLoadedLibraries().contains(target.getCanonicalPath()) 
-	            		|| nat.getLoadedLibraries().contains(target.getAbsolutePath()) 
+	            if (nat.getLoadedLibraries().contains(target.getCanonicalPath())
+	            		|| nat.getLoadedLibraries().contains(target.getAbsolutePath())
 	            		|| nat.getLoadedLibraries().contains(target.getName())){
 	            	return true;
 	            }
@@ -404,8 +406,8 @@ public class IpcSharedMemoryNativeLoader {
 
             try{
         		NativeLibraries nat = new NativeLibraries();
-	            if (nat.getLoadedLibraries().contains(target.getCanonicalPath()) 
-	            		|| nat.getLoadedLibraries().contains(target.getAbsolutePath()) 
+	            if (nat.getLoadedLibraries().contains(target.getCanonicalPath())
+	            		|| nat.getLoadedLibraries().contains(target.getAbsolutePath())
 	            		|| nat.getLoadedLibraries().contains(target.getName())){
 	            	return true;
 	            }

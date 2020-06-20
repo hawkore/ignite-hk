@@ -65,6 +65,8 @@ import static org.apache.ignite.internal.processors.rest.GridRestCommand.TOPOLOG
 
 /**
  * Command handler for API requests.
+ *
+ * HK-PATCHED: node properties
  */
 public class GridTopologyCommandHandler extends GridRestCommandHandlerAdapter {
     /** Supported commands. */

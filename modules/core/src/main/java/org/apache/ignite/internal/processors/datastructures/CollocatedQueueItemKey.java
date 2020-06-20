@@ -22,7 +22,7 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.lang.IgniteUuid;
 
 /**
- *
+ * HK-PATCHED: improve performance, avoid compute queue hashcode on every item key creation
  */
 public class CollocatedQueueItemKey implements QueueItemKey {
     /** */

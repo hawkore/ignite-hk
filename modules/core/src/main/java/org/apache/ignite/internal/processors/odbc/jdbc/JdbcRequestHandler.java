@@ -104,6 +104,8 @@ import static org.apache.ignite.internal.processors.odbc.jdbc.JdbcRequest.QRY_ME
 
 /**
  * JDBC request handler.
+ *
+ * HK-PATCHED: hidden columns
  */
 public class JdbcRequestHandler implements ClientListenerRequestHandler {
     /** Jdbc query cancelled response. */
@@ -1093,7 +1095,7 @@ public class JdbcRequestHandler implements ClientListenerRequestHandler {
     private JdbcResponse getColumnsMeta(JdbcMetaColumnsRequest req) {
         try {
             Collection<JdbcColumnMeta> colsMeta =
-                meta.getColumnsMeta(protocolVer, req.schemaName(), req.tableName(), req.columnName());
+                meta.getColumnsMeta(protocolVer, req.schemaName(), req.tableName(), req.columnName(), false);
 
             JdbcMetaColumnsResult res;
 

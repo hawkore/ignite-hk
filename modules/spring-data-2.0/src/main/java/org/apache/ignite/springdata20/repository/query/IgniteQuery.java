@@ -21,6 +21,9 @@ import java.util.StringJoiner;
 
 /**
  * Ignite query helper class. For internal use only.
+ *
+ * @author Apache Ignite Team
+ * @author Manuel Núñez (manuel.nunez@hawkore.com)
  */
 public class IgniteQuery {
 

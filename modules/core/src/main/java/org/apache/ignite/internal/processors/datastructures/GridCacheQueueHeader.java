@@ -33,6 +33,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Queue header.
+ *
+ * HK-PATCHED: bounded calculation by capacity
  */
 public class GridCacheQueueHeader implements GridCacheInternal, Externalizable {
     /** */

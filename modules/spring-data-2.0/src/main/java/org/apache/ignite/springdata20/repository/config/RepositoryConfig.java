@@ -29,6 +29,9 @@ import org.apache.ignite.configuration.IgniteConfiguration;
 
 /**
  * The annotation can be used to pass Ignite specific parameters to a bound repository.
+ *
+ * @author Apache Ignite Team
+ * @author Manuel Núñez (manuel.nunez@hawkore.com)
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
@@ -65,7 +68,7 @@ public @interface RepositoryConfig {
     String igniteSpringCfgPath() default "igniteSpringCfgPath";
 
     /**
-     * Auto create cache. Default false to enforce control over cache creation.
+     * Auto create cache. Default false to enforce control over cache creation and to avoid cache creation by mistake
      *
      * Tells to Ignite Repository factory wether cache should be auto created if not exists.
      *

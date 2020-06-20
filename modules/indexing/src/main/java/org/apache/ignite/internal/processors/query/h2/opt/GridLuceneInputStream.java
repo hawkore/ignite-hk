@@ -29,6 +29,8 @@ import static org.apache.ignite.internal.processors.query.h2.opt.GridLuceneOutpu
 
 /**
  * A memory-resident {@link IndexInput} implementation.
+ *
+ * HK-PATCHED: CRC computation
  */
 public class GridLuceneInputStream extends IndexInput implements Cloneable {
     /** */
@@ -190,11 +192,10 @@ public class GridLuceneInputStream extends IndexInput implements Cloneable {
     public IndexInput slice(final String sliceDescription, final long offset, final long length) throws IOException {
         if (offset < 0 || length < 0 || offset + length > this.length)
             throw new IllegalArgumentException("slice() " + sliceDescription + " out of bounds: " + this);
-        
+
         return new SlicedInputStream(getFullSliceDescription(sliceDescription), offset, length);
     }
-    
-    
+
     /**
      * For direct calls from {@link GridLuceneOutputStream}.
      *
@@ -214,12 +215,12 @@ public class GridLuceneInputStream extends IndexInput implements Cloneable {
             int bytesToCp = len < remainInBuf ? len : remainInBuf;
 
             mem.copyMemory(currBuf + bufPosition, ptr, bytesToCp);
-            
+
             //crc must be updated
             byte[] buff = new byte[bytesToCp];
             mem.readBytes(currBuf + bufPosition, buff, 0, bytesToCp);
             crc.update(buff, 0, bytesToCp);
-            
+
             ptr += bytesToCp;
             len -= bytesToCp;
 

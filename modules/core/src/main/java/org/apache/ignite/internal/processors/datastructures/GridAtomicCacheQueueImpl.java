@@ -35,6 +35,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * {@link org.apache.ignite.IgniteQueue} implementation using atomic cache.
+ *
+ * HK-PATCHED: improve performance and allow tune underline collections cache
  */
 public class GridAtomicCacheQueueImpl<T> extends GridCacheQueueAdapter<T> {
     /** */
@@ -60,7 +62,7 @@ public class GridAtomicCacheQueueImpl<T> extends GridCacheQueueAdapter<T> {
 
             checkRemoved(idx);
 
-            queueCache.put(itemKey(idx), item);
+            cache.put(itemKey(idx), item);
 
             return true;
         }
@@ -94,7 +96,7 @@ public class GridAtomicCacheQueueImpl<T> extends GridCacheQueueAdapter<T> {
 
                 QueueItemKey key = itemKey(idx);
 
-                T data = (T)queueCache.getAndRemove(key);
+                T data = (T)cache.getAndRemove(key);
 
                 if (data != null)
                     return data;
@@ -102,7 +104,7 @@ public class GridAtomicCacheQueueImpl<T> extends GridCacheQueueAdapter<T> {
                 long stop = U.currentTimeMillis() + RETRY_TIMEOUT;
 
                 while (U.currentTimeMillis() < stop) {
-                    data = (T)queueCache.getAndRemove(key);
+                    data = (T)cache.getAndRemove(key);
 
                     if (data != null)
                         return data;
@@ -138,7 +140,7 @@ public class GridAtomicCacheQueueImpl<T> extends GridCacheQueueAdapter<T> {
                 idx++;
             }
 
-            queueCache.putAll(putMap);
+            cache.putAll(putMap);
 
             return true;
         }
@@ -158,20 +160,20 @@ public class GridAtomicCacheQueueImpl<T> extends GridCacheQueueAdapter<T> {
             return;
         }
 
-        Long idx = (Long)queueCache.invoke(queueKey, new RemoveProcessor(id, rmvIdx)).get();
+        Long idx = (Long)cache.invoke(queueKey, new RemoveProcessor(id, rmvIdx)).get();
 
         if (idx != null) {
             checkRemoved(idx);
 
             QueueItemKey key = itemKey(idx);
 
-            if (queueCache.remove(key))
+            if (cache.remove(key))
                 return;
 
             long stop = U.currentTimeMillis() + RETRY_TIMEOUT;
 
             while (U.currentTimeMillis() < stop) {
-                if (queueCache.remove(key))
+                if (cache.remove(key))
                     return;
             }
 
@@ -187,6 +189,6 @@ public class GridAtomicCacheQueueImpl<T> extends GridCacheQueueAdapter<T> {
     @SuppressWarnings("unchecked")
     @Nullable private Long transformHeader(EntryProcessor<GridCacheQueueHeaderKey, GridCacheQueueHeader, Long> c)
         throws IgniteCheckedException {
-        return (Long)queueCache.invoke(queueKey, c).get();
+        return (Long)cache.invoke(queueKey, c).get();
     }
 }

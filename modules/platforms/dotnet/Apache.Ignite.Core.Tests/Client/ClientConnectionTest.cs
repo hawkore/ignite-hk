@@ -36,8 +36,7 @@ namespace Apache.Ignite.Core.Tests.Client
     /// <summary>
     /// Tests client connection: port ranges, version checks, etc.
     /// </summary>
-    [Ignore]
-    internal class ClientConnectionTest
+    public class ClientConnectionTest
     {
         /** Temp dir for WAL. */
         private readonly string _tempDir = PathUtils.GetTempDirectoryName();
@@ -237,7 +236,7 @@ namespace Apache.Ignite.Core.Tests.Client
                 {
                     Assert.AreEqual("foo", client.GetCacheNames().Single());
                 }
-                
+
                 // Port range.
                 cfg = new IgniteClientConfiguration("127.0.0.1:10798..10800");
 
@@ -257,9 +256,9 @@ namespace Apache.Ignite.Core.Tests.Client
             var cfg = new IgniteClientConfiguration("127.0.0.1:10800..10700");
 
             var ex = Assert.Throws<IgniteClientException>(() => Ignition.StartClient(cfg));
-            
+
             Assert.AreEqual(
-                "Invalid format of IgniteClientConfiguration.Endpoint, port range is empty: 127.0.0.1:10800..10700", 
+                "Invalid format of IgniteClientConfiguration.Endpoint, port range is empty: 127.0.0.1:10800..10700",
                 ex.Message);
         }
 

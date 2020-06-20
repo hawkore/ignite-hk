@@ -23,6 +23,8 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
  * Information about table column.
+ *
+ * HK-PATCHED: hidden attribute
  */
 public class ColumnInformation {
     /** */
@@ -55,6 +57,8 @@ public class ColumnInformation {
     /** */
     private final boolean affinityCol;
 
+    /** */
+    private final boolean hidden;
 
     /**
      * @param ordinalPosition Ordinal column position.
@@ -68,7 +72,7 @@ public class ColumnInformation {
      * @param scale Scale for a column or -1 if not applicable.
      */
     public ColumnInformation(int ordinalPosition, String schemaName, String tblName, String colName, Class<?> fieldCls,
-        boolean nullable, Object dfltVal, int precision, int scale, boolean affinityCol) {
+        boolean nullable, Object dfltVal, int precision, int scale, boolean affinityCol, boolean hidden) {
         this.ordinalPosition = ordinalPosition;
         this.schemaName = schemaName;
         this.tblName = tblName;
@@ -79,6 +83,7 @@ public class ColumnInformation {
         this.precision = precision;
         this.scale = scale;
         this.affinityCol = affinityCol;
+        this.hidden = hidden;
     }
 
     /**
@@ -149,6 +154,13 @@ public class ColumnInformation {
      */
     public boolean affinityColumn() {
         return affinityCol;
+    }
+
+    /**
+     * @return {@code true} whether column is hidden
+     */
+    public boolean hidden() {
+        return hidden;
     }
 
     /** {@inheritDoc} */

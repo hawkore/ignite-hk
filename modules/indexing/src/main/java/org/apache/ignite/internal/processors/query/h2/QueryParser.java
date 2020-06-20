@@ -82,6 +82,8 @@ import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlQuerySpl
 
 /**
  * Parser module. Splits incoming request into a series of parsed results.
+ *
+ * HK-PATCHED: add support extended partitions resolver
  */
 public class QueryParser {
     /** */
@@ -535,6 +537,7 @@ public class QueryParser {
                         locSplit,
                         idx,
                         paramsCnt,
+                        qry.getArgs(),
                         log
                     );
                 }
@@ -553,6 +556,7 @@ public class QueryParser {
                     locSplit,
                     idx,
                     paramsCnt,
+                    qry.getArgs(),
                     log
                 );
             }

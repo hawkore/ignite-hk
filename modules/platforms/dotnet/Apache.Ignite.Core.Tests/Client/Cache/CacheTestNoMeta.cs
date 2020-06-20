@@ -31,8 +31,7 @@ namespace Apache.Ignite.Core.Tests.Client.Cache
     /// <summary>
     /// Client cache test without metadata (no-op binary processor).
     /// </summary>
-    [Ignore]
-    internal class CacheTestNoMeta : ClientTestBase
+    public class CacheTestNoMeta : ClientTestBase
     {
         /// <summary>
         /// Tests the cache put / get with user data types.

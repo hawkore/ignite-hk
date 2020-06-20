@@ -45,6 +45,8 @@ import static org.apache.ignite.internal.processors.cache.index.AbstractSchemaSe
 
 /**
  * Common stuff for dynamic columns tests.
+ *
+ * HK-PATCHED: adapt tests to modified code
  */
 public abstract class DynamicColumnsAbstractTest extends AbstractIndexingCommonTest {
     /** SQL to create test table. */

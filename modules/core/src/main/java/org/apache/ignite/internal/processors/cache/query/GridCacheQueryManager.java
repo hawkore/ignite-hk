@@ -141,6 +141,8 @@ import static org.apache.ignite.internal.processors.cache.query.GridCacheQueryTy
 
 /**
  * Query and index manager.
+ *
+ * HK-PATCHED: hidden fields
  */
 @SuppressWarnings("FieldAccessedSynchronizedAndUnsynchronized")
 public abstract class GridCacheQueryManager<K, V> extends GridCacheManagerAdapter<K, V> {
@@ -2173,7 +2175,7 @@ public abstract class GridCacheQueryManager<K, V> extends GridCacheManagerAdapte
         @Override public Collection<String> notNullFields(String type) {
             return null;
         }
-        
+
         /** {@inheritDoc} */
         @Override public Collection<String> hiddenFields(String type) {
             return null;

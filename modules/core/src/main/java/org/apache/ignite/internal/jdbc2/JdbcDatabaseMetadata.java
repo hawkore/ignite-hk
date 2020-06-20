@@ -19,7 +19,6 @@ package org.apache.ignite.internal.jdbc2;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
-import java.sql.PseudoColumnUsage;
 import java.sql.ResultSet;
 import java.sql.RowIdLifetime;
 import java.sql.SQLException;
@@ -59,6 +58,8 @@ import static org.apache.ignite.internal.jdbc2.JdbcUtils.tableRow;
 
 /**
  * JDBC database metadata implementation.
+ *
+ * HK-PATCHED: hidden columns (pseudo columns)
  */
 public class JdbcDatabaseMetadata implements DatabaseMetaData {
     /** Driver name. */
@@ -68,12 +69,6 @@ public class JdbcDatabaseMetadata implements DatabaseMetaData {
     private final JdbcConnection conn;
 
     private final JdbcMetadataInfo meta;
-
-    /** Metadata hidden columns */
-    private Map<String, Map<String, Map<String, ColumnInfo>>> metaHidden;
-
-    /** Index info. */
-    private Collection<List<Object>> indexes;
 
     /**
      * @param conn Connection.
@@ -801,7 +796,7 @@ public class JdbcDatabaseMetadata implements DatabaseMetaData {
 
         if (isValidCatalog(catalog)) {
             Collection<JdbcColumnMeta> colMetas =
-                meta.getColumnsMeta(null /* latest */, schemaPtrn, tblNamePtrn, colNamePtrn);
+                meta.getColumnsMeta(null /* latest */, schemaPtrn, tblNamePtrn, colNamePtrn, false);
 
             rows = new ArrayList<>(colMetas.size());
 
@@ -1292,26 +1287,21 @@ public class JdbcDatabaseMetadata implements DatabaseMetaData {
     /** {@inheritDoc} */
     @Override public ResultSet getPseudoColumns(String catalog, String schemaPtrn, String tblNamePtrn,
         String colNamePtrn) throws SQLException {
-        updateMetaData();
+        conn.ensureNotClosed();
 
-        List<List<?>> rows = new LinkedList<>();
+        List<List<?>> rows = Collections.emptyList();
 
+        // FIXME: IGNITE-10745
         int cnt = 0;
 
-        if (validCatalogPattern(catalog)) {
-            for (Map.Entry<String, Map<String, Map<String, ColumnInfo>>> schema : metaHidden.entrySet()) {
-                if (matches(schema.getKey(), schemaPtrn)) {
-                    for (Map.Entry<String, Map<String, ColumnInfo>> tbl : schema.getValue().entrySet()) {
-                        if (matches(tbl.getKey(), tblNamePtrn)) {
-                            for (Map.Entry<String, ColumnInfo> col : tbl.getValue().entrySet()) {
-                                rows.add(pseudoColumnRow(schema.getKey(), tbl.getKey(), col.getKey(),
-                                    JdbcUtils.type(col.getValue().typeName()), JdbcUtils.typeName(col.getValue().typeName()),
-                                    !col.getValue().isNotNull(), ++cnt));
-                            }
-                        }
-                    }
-                }
-            }
+        if (isValidCatalog(catalog)) {
+            Collection<JdbcColumnMeta> colMetas =
+                meta.getColumnsMeta(null /* latest */, schemaPtrn, tblNamePtrn, colNamePtrn, true);
+
+            rows = new ArrayList<>(colMetas.size());
+
+            for (JdbcColumnMeta col : colMetas)
+                rows.add(columnRow(col, ++cnt));
         }
 
         return new JdbcResultSet(true, null,
@@ -1358,84 +1348,6 @@ public class JdbcDatabaseMetadata implements DatabaseMetaData {
     /** {@inheritDoc} */
     @Override public boolean isWrapperFor(Class<?> iface) {
         return iface != null && iface == DatabaseMetaData.class;
-    }
-
-    /**
-     * Updates meta data.
-     *
-     * @throws SQLException In case of error.
-     */
-    @SuppressWarnings("unchecked")
-    private void updateMetaData() throws SQLException {
-        if (conn.isClosed())
-            throw new SQLException("Connection is closed.", SqlStateCode.CONNECTION_CLOSED);
-
-        try {
-            Ignite ignite = conn.ignite();
-
-            UUID nodeId = conn.nodeId();
-
-            Collection<GridCacheSqlMetadata> metas;
-
-            UpdateMetadataTask task = new UpdateMetadataTask(conn.cacheName(), nodeId == null ? ignite : null);
-
-            metas = nodeId == null ? task.call() : ignite.compute(ignite.cluster().forNodeId(nodeId)).call(task);
-
-            meta = U.newHashMap(metas.size());
-            metaHidden = U.newHashMap(metas.size());
-
-            indexes = new ArrayList<>();
-
-            for (GridCacheSqlMetadata m : metas) {
-                String name = m.cacheName();
-
-                if (name == null)
-                    name = "PUBLIC";
-
-                Collection<String> types = m.types();
-
-                Map<String, Map<String, ColumnInfo>> typesMap = U.newHashMap(types.size());
-                Map<String, Map<String, ColumnInfo>> hiddenTypesMap = U.newHashMap(types.size());
-
-                for (String type : types) {
-                    Collection<String> notNullFields = m.notNullFields(type);
-                    Collection<String> hiddenFields = m.hiddenFields(type);
-
-                    Map<String, ColumnInfo> fields = new LinkedHashMap<>();
-                    Map<String, ColumnInfo> fieldsHidden = new LinkedHashMap<>();
-
-
-                    for (Map.Entry<String, String> fld : m.fields(type).entrySet()) {
-                        ColumnInfo colInfo = new ColumnInfo(fld.getValue(),
-                            notNullFields == null ? false : notNullFields.contains(fld.getKey()));
-
-                        if (hiddenFields != null && hiddenFields.contains(fld.getKey()) ){
-                            fieldsHidden.put(fld.getKey(), colInfo);
-                        }else{
-                            fields.put(fld.getKey(), colInfo);
-                        }
-                    }
-
-                    typesMap.put(type.toUpperCase(), fields);
-                    hiddenTypesMap.put(type.toUpperCase(), fieldsHidden);
-
-                    for (GridCacheSqlIndexMetadata idx : m.indexes(type)) {
-                        int cnt = 0;
-
-                        for (String field : idx.fields()) {
-                            indexes.add(F.<Object>asList(name, type.toUpperCase(), !idx.unique(),
-                                idx.name(), ++cnt, field, idx.descending(field)));
-                        }
-                    }
-                }
-
-                meta.put(name, typesMap);
-                metaHidden.put(name, hiddenTypesMap);
-            }
-        }
-        catch (Exception e) {
-            throw convertToSqlException(e, "Failed to get meta data from Ignite.");
-        }
     }
 
     /**

@@ -39,6 +39,7 @@ import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import org.apache.commons.codec.binary.Base32;
+import org.apache.commons.lang.StringUtils;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.IgniteInterruptedCheckedException;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
@@ -81,6 +82,8 @@ import org.jetbrains.annotations.Nullable;
  * {@link org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder} for local or home network tests.
  * <p>
  * Note that this finder is shared by default (see {@link org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder#isShared()}.
+ *
+ * HK-PATCHED: additional configuration
  */
 public class TcpDiscoveryS3IpFinder extends TcpDiscoveryIpFinderAdapter {
     /** Delimiter to use in S3 entries name. */

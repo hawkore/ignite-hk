@@ -122,7 +122,7 @@ public class CacheMvccClusterRestartTest extends GridCommonAbstractTest {
 
         IgniteCache<Object, Object> cache = srv0.createCache(cacheConfiguration());
 
-        Set<Integer> keys = new HashSet<>(primaryKeys(cache, 100, 0));
+        Set<Integer> keys = new HashSet<>(primaryKeys(cache, 1, 0));
 
         try (Transaction tx = srv0.transactions().txStart(PESSIMISTIC, REPEATABLE_READ)) {
             for (Integer k : keys)

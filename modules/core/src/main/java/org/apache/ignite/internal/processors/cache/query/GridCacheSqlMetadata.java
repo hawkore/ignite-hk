@@ -29,6 +29,8 @@ import org.jetbrains.annotations.Nullable;
  * Metadata describes objects stored in the cache and
  * can be used to gather information about what can
  * be queried using Ignite cache queries feature.
+ *
+ * HK-PATCHED: hidden fields
  */
 public interface GridCacheSqlMetadata extends Externalizable {
     /**
@@ -85,7 +87,7 @@ public interface GridCacheSqlMetadata extends Externalizable {
      */
     Collection<String> notNullFields(String type);
 
-    
+
     /**
      * Gets hidden fields.
      *
@@ -93,7 +95,7 @@ public interface GridCacheSqlMetadata extends Externalizable {
      * @return hidden fields collection map or {@code null} if type name is unknown.
      */
     Collection<String> hiddenFields(String type);
-    
+
     /**
      * @return Key classes.
      */

@@ -26,6 +26,8 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 /**
  * Simple class descriptor containing simple and fully qualified class names as well as
  * the list of class fields.
+ *
+ * HK-PATCHED: improve performance
  */
 class GridToStringClassDescriptor {
     /** */

@@ -17,6 +17,12 @@
 
 package org.apache.ignite.internal.processors.query.h2.affinity;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.processors.query.h2.H2Utils;
 import org.apache.ignite.internal.processors.query.h2.IgniteH2Indexing;
@@ -24,6 +30,8 @@ import org.apache.ignite.internal.sql.optimizer.affinity.PartitionResolver;
 
 /**
  * Default partition resolver implementation which uses H2 to convert types appropriately.
+ *
+ * HK-PATCHED: add support to ARRAY type arguments (useful for IN query affinity conditions)
  */
 public class H2PartitionResolver implements PartitionResolver {
     /** Indexing. */
@@ -39,9 +47,21 @@ public class H2PartitionResolver implements PartitionResolver {
     }
 
     /** {@inheritDoc} */
-    @Override public int partition(Object arg, int dataType, String cacheName) throws IgniteCheckedException {
-        Object param = H2Utils.convert(arg, idx, dataType);
+    @Override public int[] partitions(Object arg, int dataType, String cacheName) throws IgniteCheckedException {
+        List<Integer> partitions = new ArrayList<>();
 
-        return idx.kernalContext().affinity().partition(cacheName, param);
+        // add support to array values on IN expressions
+        if (arg != null && (arg.getClass().isArray() || arg instanceof Collection)){
+            Collection args = arg instanceof Collection ? (Collection)arg : Stream.of((Object[])arg).collect(Collectors.toList());
+            for (Object o : args){
+                Object param = H2Utils.convert(o, idx, dataType);
+                partitions.add(idx.kernalContext().affinity().partition(cacheName, param));
+            }
+        } else {
+            Object param = H2Utils.convert(arg, idx, dataType);
+            partitions.add(idx.kernalContext().affinity().partition(cacheName, param));
+        }
+
+        return partitions.stream().mapToInt(i -> i).toArray();
     }
 }

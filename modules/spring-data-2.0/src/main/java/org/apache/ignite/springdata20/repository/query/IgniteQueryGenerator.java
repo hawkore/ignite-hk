@@ -31,6 +31,8 @@ import org.springframework.data.repository.query.parser.PartTree;
  */
 public class IgniteQueryGenerator {
 
+    private IgniteQueryGenerator() {}
+
     /**
      * @param mtd
      *     Method.
@@ -51,15 +53,14 @@ public class IgniteQueryGenerator {
 
             // For the DML queries aside from SELECT *, they should run over SqlFieldQuery
             isCountOrFieldQuery = true;
-        }
-        else {
+        } else {
             sql.append("SELECT ");
 
             if (parts.isDistinct()) {
                 throw new UnsupportedOperationException("DISTINCT clause in not supported.");
             }
 
-            if (isCountOrFieldQuery)
+            if (isCountOrFieldQuery) {
                 sql.append("COUNT(1) ");
             } else {
                 sql.append("* ");
@@ -123,6 +124,7 @@ public class IgniteQueryGenerator {
                         case NULLS_LAST:
                             sql.append("LAST");
                             break;
+                        default:
                     }
                 }
                 sql.append(", ");
@@ -144,9 +146,8 @@ public class IgniteQueryGenerator {
      * @return Builder instance.
      */
     public static StringBuilder addPaging(StringBuilder sql, Pageable pageable) {
-        if (pageable.getSort() != null) {
-            addSorting(sql, pageable.getSort());
-        }
+
+        addSorting(sql, pageable.getSort());
 
         sql.append(" LIMIT ").append(pageable.getPageSize()).append(" OFFSET ").append(pageable.getOffset());
 
@@ -227,15 +228,11 @@ public class IgniteQueryGenerator {
             case TRUE:
                 sql.append(" = TRUE");
                 break;
+            case LIKE:
             case CONTAINING:
                 sql.append(" LIKE '%' || ? || '%'");
                 break;
             case NOT_CONTAINING:
-                sql.append(" NOT LIKE '%' || ? || '%'");
-                break;
-            case LIKE:
-                sql.append(" LIKE '%' || ? || '%'");
-                break;
             case NOT_LIKE:
                 sql.append(" NOT LIKE '%' || ? || '%'");
                 break;

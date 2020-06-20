@@ -38,6 +38,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Row descriptor.
+ *
+ * HK-PATCHED: add support to advanced lucene index
  */
 public class GridH2RowDescriptor {
     /** Non existent column. */
@@ -115,15 +117,13 @@ public class GridH2RowDescriptor {
     	}
 
     	//if this method is invoked (for example after create column) we must ensure field's order is consistent
-    	if (fields!=null){ //we need to preserve fields order
+    	if (fields != null){ //we need to preserve fields order
             Map<String, Class<?>> orderedAllFields = new LinkedHashMap<>();
             Arrays.stream(fields).forEach(field->orderedAllFields.put(field, allFields.get(field)));
             allFields.forEach(orderedAllFields::putIfAbsent); //add new fields at tail if required
             allFields.clear(); //clear and replace reordered
             allFields.putAll(orderedAllFields);
     	}
-
-        //fields = allFields.keySet().stream().filter(f->!this.type.property(f).hidden()).collect(Collectors.toList()).toArray(new String[allFields.size()]);
 
         fields = allFields.keySet().toArray(new String[allFields.size()]);
 
@@ -206,6 +206,28 @@ public class GridH2RowDescriptor {
             throw new IgniteCheckedException("Failed to convert key to SQL type. " +
                 "Please make sure that you always store each value type with the same key type " +
                 "or configure key type as common super class for all actual keys for this value type.", e);
+        }
+
+        return row;
+    }
+
+    /**
+     * Create new lucene row for searching.
+     *
+     * @param dataRow Data row.
+     * @return Row.
+     * @throws IgniteCheckedException If failed.
+     */
+    public H2CacheRow createLuceneRow(CacheDataRow dataRow, String luceneExpression, Object luceneScoreDoc) throws IgniteCheckedException {
+        H2CacheRow row;
+
+        try {
+            row = new H2CacheRow(this, dataRow, luceneExpression, luceneScoreDoc);
+        }
+        catch (ClassCastException e) {
+            throw new IgniteCheckedException("Failed to convert key to SQL type. " +
+                                                 "Please make sure that you always store each value type with the same key type " +
+                                                 "or configure key type as common super class for all actual keys for this value type.", e);
         }
 
         return row;

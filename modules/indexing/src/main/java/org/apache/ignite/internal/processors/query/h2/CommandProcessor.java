@@ -69,12 +69,14 @@ import org.apache.ignite.internal.processors.query.IgniteSQLException;
 import org.apache.ignite.internal.processors.query.NestedTxMode;
 import org.apache.ignite.internal.processors.query.QueryEntityEx;
 import org.apache.ignite.internal.processors.query.QueryField;
+import org.apache.ignite.internal.processors.query.QueryTypeDescriptorImpl;
 import org.apache.ignite.internal.processors.query.QueryUtils;
 import org.apache.ignite.internal.processors.query.SqlClientContext;
 import org.apache.ignite.internal.processors.query.h2.dml.DmlBulkLoadDataConverter;
 import org.apache.ignite.internal.processors.query.h2.dml.UpdatePlan;
 import org.apache.ignite.internal.processors.query.h2.dml.UpdatePlanBuilder;
 import org.apache.ignite.internal.processors.query.h2.opt.GridH2Table;
+import org.apache.ignite.internal.processors.query.h2.opt.lucene.IndexOptions;
 import org.apache.ignite.internal.processors.query.h2.sql.GridSqlAlterTableAddColumn;
 import org.apache.ignite.internal.processors.query.h2.sql.GridSqlAlterTableDropColumn;
 import org.apache.ignite.internal.processors.query.h2.sql.GridSqlColumn;
@@ -130,6 +132,8 @@ import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlQueryPar
 
 /**
  * Processor responsible for execution of all non-SELECT and non-DML commands.
+ *
+ * HK-PATCHED: add support to advanced lucene index creation/update
  */
 public class CommandProcessor {
     /** Kernal context. */
@@ -517,20 +521,44 @@ public class CommandProcessor {
 
                 newIdx.setName(cmd0.indexName());
 
-                newIdx.setIndexType(cmd0.spatial() ? QueryIndexType.GEOSPATIAL : QueryIndexType.SORTED);
+                QueryTypeDescriptorImpl typeDesc = (QueryTypeDescriptorImpl) tbl.rowDescriptor().type();
+
+                if (cmd0.columns().isEmpty()){
+                    throw new SchemaOperationException(SchemaOperationException.CODE_GENERIC,"Indexed fields must be provided to create index "+ cmd0.indexName());
+                }
+
+                if (cmd0.fulltext()){
+
+                    newIdx.setLuceneIndexOptions(cmd0.luceneIndexOptions());
+                    newIdx.setIndexType(QueryIndexType.FULLTEXT);
+
+                    IndexOptions opts = new IndexOptions(cmd0.luceneIndexOptions());
+
+                    //validates columns
+                    List<String> columns = opts.mappedColumns(typeDesc, true);
+
+                    for (String col : columns) {
+                        if (!typeDesc.hasField(QueryUtils.normalizeObjectName(col, true)))
+                            throw new SchemaOperationException(SchemaOperationException.CODE_COLUMN_NOT_FOUND, col);
+                    }
+
+                } else {
+                    newIdx.setIndexType(cmd0.spatial() ? QueryIndexType.GEOSPATIAL : QueryIndexType.SORTED);
+                }
 
                 LinkedHashMap<String, Boolean> flds = new LinkedHashMap<>();
 
                 // Let's replace H2's table and property names by those operated by GridQueryProcessor.
-                GridQueryTypeDescriptor typeDesc = tbl.rowDescriptor().type();
-
                 for (SqlIndexColumn col : cmd0.columns()) {
-                    GridQueryProperty prop = typeDesc.property(col.name());
-
-                    if (prop == null)
-                        throw new SchemaOperationException(SchemaOperationException.CODE_COLUMN_NOT_FOUND, col.name());
-
-                    flds.put(prop.name(), !col.descending());
+                    if (!cmd0.fulltext()){
+                        GridQueryProperty prop = typeDesc.property(col.name());
+                        if (prop == null){
+                            throw new SchemaOperationException(SchemaOperationException.CODE_COLUMN_NOT_FOUND, col.name());
+                        }
+                        flds.put(prop.name(), !col.descending());
+                    }else{
+                        flds.put(col.name(), !col.descending());
+                    }
                 }
 
                 newIdx.setFields(flds);
@@ -656,16 +684,25 @@ public class CommandProcessor {
 
                 LinkedHashMap<String, Boolean> flds = new LinkedHashMap<>();
 
+                if (cmd.index().getFields() == null){
+                    throw new SchemaOperationException(SchemaOperationException.CODE_GENERIC,"Indexed fields must not be null for create index "+ cmd.index().getName());
+                }
+
                 // Let's replace H2's table and property names by those operated by GridQueryProcessor.
                 GridQueryTypeDescriptor typeDesc = tbl.rowDescriptor().type();
 
                 for (Map.Entry<String, Boolean> e : cmd.index().getFields().entrySet()) {
                     GridQueryProperty prop = typeDesc.property(e.getKey());
 
-                    if (prop == null)
-                        throw new SchemaOperationException(SchemaOperationException.CODE_COLUMN_NOT_FOUND, e.getKey());
-
-                    flds.put(prop.name(), e.getValue());
+                    if (prop == null){
+                        if (!e.getKey().equalsIgnoreCase(QueryUtils.LUCENE_FIELD_NAME) && !e.getKey().equalsIgnoreCase(QueryUtils.LUCENE_SCORE_DOC)){
+                            throw new SchemaOperationException(SchemaOperationException.CODE_COLUMN_NOT_FOUND, e.getKey());
+                        }else{
+                            flds.put(e.getKey(), e.getValue());
+                        }
+                    }else{
+                        flds.put(prop.name(), e.getValue());
+                    }
                 }
 
                 newIdx.setFields(flds);
@@ -794,7 +831,7 @@ public class CommandProcessor {
                         QueryField field = new QueryField(col.columnName(),
                             getTypeClassName(col),
                             col.column().isNullable(), col.defaultValue(),
-                            col.precision(), col.scale());
+                            col.precision(), col.scale(), false);
 
                         cols.add(field);
 

@@ -25,6 +25,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Value descriptor which allows to extract fields from value object of given type.
+ *
+ * HK-PATCHED: advanced lucene index configuration
  */
 public interface GridQueryTypeDescriptor {
     /**

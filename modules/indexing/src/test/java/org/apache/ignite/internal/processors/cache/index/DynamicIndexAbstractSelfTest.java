@@ -51,8 +51,6 @@ import org.apache.ignite.lang.IgnitePredicate;
 
 import static org.apache.ignite.internal.processors.cache.persistence.tree.BPlusTree.CONC_DESTROY_MSG;
 
-import static org.apache.ignite.internal.processors.cache.persistence.tree.BPlusTree.CONC_DESTROY_MSG;
-
 /**
  * Tests for dynamic index creation.
  */

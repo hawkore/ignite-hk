@@ -26,6 +26,8 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
  * Description of type property.
+ *
+ * HK-PATCHED: use parent alias to avoid field name duplications
  */
 public class QueryEntityClassProperty {
     /** */
@@ -72,7 +74,7 @@ public class QueryEntityClassProperty {
      * @return Alias.
      */
     public String alias() {
-        //here we must control parent to avoid field name duplications so 
+        // here we must control parent to avoid field name duplications
         if (parent == null){
            return  F.isEmpty(alias) ? name : alias;
         }

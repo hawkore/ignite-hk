@@ -34,7 +34,6 @@ import javax.cache.CacheException;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteLogger;
-import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.cache.query.GridCacheSqlQuery;
 import org.apache.ignite.internal.processors.cache.query.GridCacheTwoStepQuery;
 import org.apache.ignite.internal.processors.cache.query.IgniteQueryErrorCode;
@@ -45,22 +44,15 @@ import org.apache.ignite.internal.processors.query.h2.H2Utils;
 import org.apache.ignite.internal.processors.query.h2.IgniteH2Indexing;
 import org.apache.ignite.internal.processors.query.h2.affinity.PartitionExtractor;
 import org.apache.ignite.internal.processors.query.h2.dml.DmlAstUtils;
-import org.apache.ignite.internal.processors.query.h2.opt.GridH2RowDescriptor;
 import org.apache.ignite.internal.processors.query.h2.opt.GridH2Table;
+import org.apache.ignite.internal.sql.optimizer.affinity.PartitionResult;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.U;
-import org.apache.ignite.internal.util.typedef.X;
-import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.lang.IgniteBiTuple;
 import org.h2.command.Prepared;
 import org.h2.command.dml.Query;
 import org.h2.table.Column;
-import org.h2.command.dml.SelectUnion;
-import org.h2.table.Column;
-import org.h2.table.IndexColumn;
-import org.h2.value.Value;
 import org.hawkore.ignite.lucene.search.Search;
-import org.hawkore.ignite.lucene.search.SearchBuilder;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.internal.processors.query.h2.opt.join.CollocationModel.isCollocated;
@@ -82,6 +74,8 @@ import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlSelect.c
 
 /**
  * Splits a single SQL query into two step map-reduce query.
+ *
+ * HK-PATCHED: add support to advanced lucene index sorting by score doc on reduce phase when required
  */
 @SuppressWarnings("ForLoopReplaceableByForEach")
 public class GridSqlQuerySplitter {
@@ -142,6 +136,8 @@ public class GridSqlQuerySplitter {
     /** Partition extractor. */
     private final PartitionExtractor extractor;
 
+    private final @Nullable Object[] params;
+
     /**
      * @param paramsCnt Parameters count.
      * @param collocatedGrpBy If it is a collocated GROUP BY query.
@@ -152,6 +148,7 @@ public class GridSqlQuerySplitter {
     @SuppressWarnings("AssignmentOrReturnOfFieldWithMutableType")
     public GridSqlQuerySplitter(
         int paramsCnt,
+        @Nullable Object[] params,
         boolean collocatedGrpBy,
         boolean distributedJoins,
         boolean locSplit,
@@ -160,6 +157,7 @@ public class GridSqlQuerySplitter {
         this.paramsCnt = paramsCnt;
         this.collocatedGrpBy = collocatedGrpBy;
         this.extractor = extractor;
+        this.params = params;
 
         // Partitions *CANNOT* be extracted if:
         // 1) Distributed joins are enabled (https://issues.apache.org/jira/browse/IGNITE-10971)
@@ -216,6 +214,7 @@ public class GridSqlQuerySplitter {
         boolean locSplit,
         IgniteH2Indexing idx,
         int paramsCnt,
+        @Nullable Object[] params,
         IgniteLogger log
     ) throws SQLException, IgniteCheckedException {
         SplitterContext.set(distributedJoins);
@@ -231,6 +230,7 @@ public class GridSqlQuerySplitter {
                 locSplit,
                 idx,
                 paramsCnt,
+                params,
                 log
             );
         }
@@ -263,6 +263,7 @@ public class GridSqlQuerySplitter {
         boolean locSplit,
         IgniteH2Indexing idx,
         int paramsCnt,
+        @Nullable Object[] params,
         IgniteLogger log
     ) throws SQLException, IgniteCheckedException {
         final boolean explain = qry.explain();
@@ -271,6 +272,7 @@ public class GridSqlQuerySplitter {
 
         GridSqlQuerySplitter splitter = new GridSqlQuerySplitter(
             paramsCnt,
+            params,
             collocatedGrpBy,
             distributedJoins,
             locSplit,
@@ -1150,7 +1152,7 @@ public class GridSqlQuerySplitter {
 
         final GridSqlSelect mapQry = parent.child(childIdx);
 
-        final IgniteBiTuple<GridSqlColumn, Search> luceneQuery = extractLuceneQuery(mapQry, params);
+        final IgniteBiTuple<GridSqlColumn, Search> luceneQuery = extractor.extractLuceneQuery(mapQry, params);
 
         final int visibleCols = mapQry.visibleColumns();
 
@@ -1186,10 +1188,10 @@ public class GridSqlQuerySplitter {
         boolean luceneSortingRequired = false;
         // sorting is required when lucene filter is present and has multiple partitions to search
         // otherwise data will be returned from an UNIQUE node, so no need sort results on reduce query
-        if (luceneSearchFound && hasPartitionedTables(mapQry)){
+        if (luceneSearchFound && SplitterUtils.hasPartitionedTables(mapQry)){
             // is a partitioned search and not derived partitions found on query or possible derived partitions != 1
-            CacheQueryPartitionInfo[] derived = derivePartitionsFromQuery(mapQry, ctx);
-            luceneSortingRequired = derived == null || derived.length != 1;
+            PartitionResult derived =  extractor.extract(mapQry);
+            luceneSortingRequired = derived == null || derived.partitionsCount() != 1;
         }
         List<GridSqlAst> luceneSortColumns = null;
 
@@ -1842,357 +1844,6 @@ public class GridSqlQuerySplitter {
         try (PreparedStatement s = c.prepareStatement(qry)) {
             return GridSqlQueryParser.prepared(s);
         }
-    }
-    /**
-     * Checks if given query contains expressions over key or affinity key
-     * that make it possible to run it only on a small isolated
-     * set of partitions.
-     *
-     * @param qry Query.
-     * @param ctx Kernal context.
-     * @return Array of partitions, or {@code null} if none identified
-     */
-    private static CacheQueryPartitionInfo[] derivePartitionsFromQuery(GridSqlQuery qry, GridKernalContext ctx)
-        throws IgniteCheckedException {
-
-        if (!(qry instanceof GridSqlSelect))
-            return null;
-
-        GridSqlSelect select = (GridSqlSelect)qry;
-
-        // no joins support yet
-        if (select.from() == null || select.from().size() != 1)
-            return null;
-
-        return extractPartition(select.where(), ctx);
-    }
-
-
-
-
-    /**
-     * @param el AST element to start with.
-     * @param ctx Kernal context.
-     * @return Array of partition info objects, or {@code null} if none identified
-     */
-    private static CacheQueryPartitionInfo[] extractPartition(GridSqlAst el, GridKernalContext ctx)
-        throws IgniteCheckedException {
-
-        if (!(el instanceof GridSqlOperation))
-            return null;
-
-        GridSqlOperation op = (GridSqlOperation)el;
-
-        switch (op.operationType()) {
-
-            case EQUAL: {
-                CacheQueryPartitionInfo partInfo = extractPartitionFromEquality(op, ctx);
-
-                if (partInfo != null)
-                    return new CacheQueryPartitionInfo[] { partInfo };
-
-                return null;
-            }
-
-            case AND: {
-                assert op.size() == 2;
-
-                CacheQueryPartitionInfo[] partsLeft = extractPartition(op.child(0), ctx);
-                CacheQueryPartitionInfo[] partsRight = extractPartition(op.child(1), ctx);
-
-                if (partsLeft != null && partsRight != null)
-                    return null; //kind of conflict (_key = 1) and (_key = 2)
-
-                if (partsLeft != null)
-                    return partsLeft;
-
-                if (partsRight != null)
-                    return partsRight;
-
-                return null;
-            }
-
-            case OR: {
-                assert op.size() == 2;
-
-                CacheQueryPartitionInfo[] partsLeft = extractPartition(op.child(0), ctx);
-                CacheQueryPartitionInfo[] partsRight = extractPartition(op.child(1), ctx);
-
-                if (partsLeft != null && partsRight != null)
-                    return mergePartitionInfo(partsLeft, partsRight);
-
-                return null;
-            }
-
-            //FIX: (_key = 1 OR _key = 2) is transformed to (_key IN (1, 2)) so was ignored
-            case IN:
-                return extractPartitionFromIN(op, ctx);
-
-            default:
-                return null;
-        }
-    }
-
-    /**
-     * Analyses the equality operation and extracts the partition if possible
-     *
-     * @param op AST equality operation.
-     * @param ctx Kernal Context.
-     * @return partition info, or {@code null} if none identified
-     */
-    private static CacheQueryPartitionInfo extractPartitionFromEquality(GridSqlOperation op, GridKernalContext ctx)
-        throws IgniteCheckedException {
-
-        assert op.operationType() == GridSqlOperationType.EQUAL;
-
-        GridSqlElement left = op.child(0);
-        GridSqlElement right = op.child(1);
-
-        if (!(left instanceof GridSqlColumn))
-            return null;
-
-        if (!(right instanceof GridSqlConst) && !(right instanceof GridSqlParameter))
-            return null;
-
-        GridSqlColumn column = (GridSqlColumn)left;
-
-        if (!(column.column().getTable() instanceof GridH2Table))
-            return null;
-
-        GridH2Table tbl = (GridH2Table) column.column().getTable();
-
-        GridH2RowDescriptor desc = tbl.rowDescriptor();
-
-        IndexColumn affKeyCol = tbl.getAffinityKeyColumn();
-
-        int colId = column.column().getColumnId();
-
-        if ((affKeyCol == null || colId != affKeyCol.column.getColumnId()) && !desc.isKeyColumn(colId))
-            return null;
-
-        if (right instanceof GridSqlConst) {
-            GridSqlConst constant = (GridSqlConst)right;
-
-            return new CacheQueryPartitionInfo(ctx.affinity().partition(tbl.cacheName(),
-                constant.value().getObject()), null, null, -1, -1);
-        }
-
-        GridSqlParameter param = (GridSqlParameter) right;
-
-        return new CacheQueryPartitionInfo(-1, tbl.cacheName(), tbl.getName(),
-            column.column().getType(), param.index());
-    }
-
-    /**
-     * @param el AST element to start with.
-     * @param ctx Kernal context.
-     * @return Array of partition info objects, or {@code null} if none identified
-     */
-    private static IgniteBiTuple<GridSqlColumn, Search> extractLuceneQueryFromConditions(GridSqlSelect select, GridSqlAst el, Object[] params) {
-
-        if (!(el instanceof GridSqlOperation))
-            return new IgniteBiTuple<>(null, null);
-
-        GridSqlOperation op = (GridSqlOperation)el;
-
-        switch (op.operationType()) {
-
-            case EQUAL: {
-
-                IgniteBiTuple<GridSqlColumn, Search> condition = extractLuceneConditionFromEquality(select, op, params);
-
-                if (condition == null){
-                    return new IgniteBiTuple<>(null, null);
-                }
-
-                return condition;
-            }
-
-            case AND: {
-                assert op.size() == 2;
-
-                IgniteBiTuple<GridSqlColumn, Search> conditionLeft = extractLuceneQueryFromConditions(select, op.child(0), params);
-                IgniteBiTuple<GridSqlColumn, Search> conditionRight = extractLuceneQueryFromConditions(select, op.child(1), params);
-
-                if (conditionLeft != null && conditionRight != null && conditionLeft.getKey() != null && conditionRight.getKey() != null){
-                    // kind of conflict on advanced JSON condition (lucene = '{...}') and (lucene = '{...}')
-                    throw new IgniteException("Only one lucene filter condition is allowed on query filter");
-                }
-
-                if (conditionLeft != null && conditionLeft.getKey() != null)
-                    return conditionLeft;
-
-                if (conditionRight != null && conditionRight.getKey() != null)
-                    return conditionRight;
-
-                return new IgniteBiTuple<>(null, null);
-            }
-
-            default:
-                return new IgniteBiTuple<>(null, null);
-        }
-    }
-
-    /** return IgniteBiTuple<GridSqlColumn, Search> === lucene query column, advanced lucene JSON search*/
-    private static IgniteBiTuple<GridSqlColumn, Search> extractLuceneConditionFromEquality(GridSqlSelect select, GridSqlAst el, Object[] params) {
-
-        GridSqlOperation op = (GridSqlOperation)el;
-
-        if(op.operationType() != GridSqlOperationType.EQUAL){
-            return null;
-        }
-
-        GridSqlElement left = op.child(0);
-        GridSqlElement right = op.child(1);
-
-        if (!(left instanceof GridSqlColumn))
-            return null;
-
-        GridSqlColumn column = (GridSqlColumn)left;
-
-        // find main query table on select statement
-        Set<GridSqlTable> tbls = new HashSet<>();
-
-        DmlAstUtils.collectAllGridTablesInTarget((GridSqlElement) select.from(), tbls);
-
-        if (tbls.isEmpty()){
-            return null;
-        }
-
-        // first table
-        GridSqlTable tab = tbls.iterator().next();
-        GridH2Table table = tab.dataTable();
-
-        // internal H2 tables
-        if (table == null){
-            return null;
-        }
-
-        Column luceneColumn = null;
-        try{
-            luceneColumn = table.getColumn(QueryUtils.LUCENE_FIELD_NAME);
-        }catch (Exception e){
-            //table has not a lucene column
-            return null;
-        }
-
-        // check if it is a lucene column
-        if (!column.column().equals(luceneColumn)){
-            return null;
-        }
-
-        // lucene sort on reduce query will be required only if table is partitioned
-        if( !table.isPartitioned() ){
-            return new IgniteBiTuple<>(column, null);
-        }
-
-        // check assign
-        if (!(right instanceof GridSqlConst) && !(right instanceof GridSqlParameter))
-            return null;
-
-        // extract and parse lucene query
-        String luceneQuery = null;
-        if (right instanceof GridSqlConst) {
-            GridSqlConst constant = (GridSqlConst)right;
-            luceneQuery = constant.value().getString();
-        }else{
-            GridSqlParameter param = (GridSqlParameter) right;
-            luceneQuery = params[param.index()].toString();
-        }
-
-        Search search = null;
-        try{
-            search = SearchBuilder.fromJson(luceneQuery).build();
-        }catch (Exception e){
-            //just not an Advanced lucene JSON search
-        }
-        return  new IgniteBiTuple<>(column, search);
-    }
-
-    /**
-     * Analyzes the IN operation and extracts the partitions if possible
-     *
-     * FIX: (_key = 1 OR _key = 2) was transformed to (_key IN (1, 2)), not processed by extractPartition method
-     *
-     * @param op AST IN operation.
-     * @param ctx Kernal Context.
-     * @return CacheQueryPartitionInfo[] infos, or {@code null} if none identified
-     */
-    private static CacheQueryPartitionInfo[] extractPartitionFromIN(GridSqlOperation op, GridKernalContext ctx)
-        throws IgniteCheckedException {
-
-        assert op.operationType() == GridSqlOperationType.IN;
-
-        GridSqlElement left = op.child(0); //the table column
-
-        if (!(left instanceof GridSqlColumn))
-            return null;
-
-        GridSqlColumn column = (GridSqlColumn)left;
-
-        assert column.column().getTable() instanceof GridH2Table;
-
-        GridH2Table tbl = (GridH2Table) column.column().getTable();
-
-        GridH2RowDescriptor desc = tbl.rowDescriptor();
-
-        IndexColumn affKeyCol = tbl.getAffinityKeyColumn();
-
-        int colId = column.column().getColumnId();
-
-        if ((affKeyCol == null || colId != affKeyCol.column.getColumnId()) && !desc.isKeyColumn(colId))
-            return null;
-
-        ArrayList<CacheQueryPartitionInfo> list = new ArrayList<>(op.size()-1);
-
-        for (int i = 1; i < op.size(); i++){
-
-            GridSqlElement right = op.child(i); //the IN parameters
-
-            if (!(right instanceof GridSqlConst) && !(right instanceof GridSqlParameter) && !(right instanceof GridSqlSubquery))
-                continue;
-
-            if (right instanceof GridSqlConst) {
-                GridSqlConst constant = (GridSqlConst)right;
-
-                list.add(new CacheQueryPartitionInfo(ctx.affinity().partition(tbl.cacheName(), constant.value().getObject()),
-                    null, null, -1, -1));
-            } else if (right instanceof GridSqlParameter) {
-
-                GridSqlParameter param = (GridSqlParameter) right;
-
-                list.add(new CacheQueryPartitionInfo(-1, tbl.cacheName(), tbl.getName(),
-                    column.column().getType(), param.index()));
-            } else {
-                // Allow IN select expression with GridSqlParameter (?): column IN (select * from table(t bigint = ?3))
-                // this allows register param as array to calculate partitions on IgniteH2Indexing.bindPartitionInfoParameter
-                if (right.child() != null && right.child() instanceof GridSqlSelect) {
-                    GridSqlSelect sel = right.child();
-                    if (sel.from() != null && sel.from().size() == 1 && sel.from().child() instanceof GridSqlFunction) { // table function
-                        GridSqlFunction function = sel.from().child();
-                        if (function.type == GridSqlFunctionType.TABLE  && function.child() instanceof GridSqlAlias) { // ?3 T
-                            GridSqlAlias paramAlias = function.child();
-                            if (paramAlias.child() instanceof GridSqlParameter) { // ?3
-                                GridSqlParameter param = paramAlias.child();
-                                list.add(new CacheQueryPartitionInfo(-1, tbl.cacheName(), tbl.getName(),
-                                    column.column().getType(), param.index()));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if (list.isEmpty()){
-            return null;
-        }
-
-        CacheQueryPartitionInfo[] result = new CacheQueryPartitionInfo[list.size()];
-
-        for (int i = 0; i < list.size(); i++)
-            result[i] = list.get(i);
-
-        return result;
     }
 
 }

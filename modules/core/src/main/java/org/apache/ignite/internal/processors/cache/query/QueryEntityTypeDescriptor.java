@@ -37,6 +37,8 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
  * Descriptor of type.
+ *
+ * HK-PATCHED: add support to advanced lucene indexing and hidden fields
  */
 public class QueryEntityTypeDescriptor {
     /** Value field names and types with preserved order. */
@@ -57,7 +59,7 @@ public class QueryEntityTypeDescriptor {
 
     /** */
     private Set<String> notNullFields = new HashSet<>();
-    
+
     /** */
     private Set<String> hiddenFields = new HashSet<>();
 
@@ -132,7 +134,7 @@ public class QueryEntityTypeDescriptor {
             indexes.put(null, fullTextIdx);
         }
     }
-    
+
     /**
      * Adds field to text index.
      *
@@ -216,7 +218,7 @@ public class QueryEntityTypeDescriptor {
     public void addHiddenField(String field) {
         hiddenFields.add(field);
     }
-    
+
     /**
      * Adds fieldsPrecision info.
      *
@@ -250,7 +252,7 @@ public class QueryEntityTypeDescriptor {
     public Set<String> hiddenFields() {
         return hiddenFields;
     }
-    
+
     /**
      * @return Precision info for fields.
      */
@@ -283,7 +285,7 @@ public class QueryEntityTypeDescriptor {
     @Override public String toString() {
         return S.toString(QueryEntityTypeDescriptor.class, this);
     }
-    
+
     /**
      * @return the fullTextIdx
      */

@@ -36,6 +36,8 @@ import org.apache.ignite.spi.discovery.tcp.messages.TcpDiscoveryNodeLeftMessage;
 
 /**
  * Statistics for {@link org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi}.
+ *
+ * HK-PATCHED: improve performance
  */
 public class TcpDiscoveryStatistics {
     /** Join started timestamp. */
