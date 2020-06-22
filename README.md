@@ -13,7 +13,7 @@
 
 ![advanced-indexing](modules/hk-distribution/assets/advanced-indexing.png)
 
-Take a look at [Apache Ignite Extensions examples](https://github.com/hawkore/examples-apache-ignite-extensions).
+Take a look at [examples project](https://github.com/hawkore/examples-apache-ignite-extensions).
 
 Sign up at [www.hawkore.com](https://www.hawkore.com) to access full documentation.
 
