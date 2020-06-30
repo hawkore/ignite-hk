@@ -3,7 +3,7 @@ package com.hawkore.ignite.springdata20.repository.extensions.spel;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.springframework.data.spel.spi.EvaluationContextExtension;
+import org.springframework.data.repository.query.spi.EvaluationContextExtensionSupport;
 
 /**
  * LuceneQueryBuilder EvaluationContext Extension for Spring Data 2.0
@@ -55,7 +55,7 @@ import org.springframework.data.spel.spi.EvaluationContextExtension;
  *
  * @author Manuel Núñez Sánchez (manuel.nunez@hawkore.com)
  */
-public class LuceneQueryBuilderEvaluationContextExtension implements EvaluationContextExtension {
+public class LuceneQueryBuilderEvaluationContextExtension extends EvaluationContextExtensionSupport {
 
     private static final Map<String, Object> properties = new HashMap<>();
     private static final LuceneQueryBuilder LUCENE_QUERY_BUILDER_INSTANCE = new LuceneQueryBuilder();

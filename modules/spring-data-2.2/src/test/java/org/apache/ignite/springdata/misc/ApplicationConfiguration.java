@@ -36,6 +36,10 @@ import org.springframework.data.spel.spi.EvaluationContextExtension;
 @EnableIgniteRepositories
 public class ApplicationConfiguration {
 
+    public static final String IGNITE_INSTANCE_ONE = "IGNITE_INSTANCE_ONE";
+
+    public static final String IGNITE_INSTANCE_TWO = "IGNITE_INSTANCE_TWO";
+
     /**
      * The bean with cache names
      */
@@ -59,11 +63,13 @@ public class ApplicationConfiguration {
     }
 
     /**
-     * Ignite instance bean.
+     * Ignite instance bean - no instance name provided on RepositoryConfig
      */
     @Bean
     public Ignite igniteInstance() {
         IgniteConfiguration cfg = new IgniteConfiguration();
+
+        cfg.setIgniteInstanceName(IGNITE_INSTANCE_ONE);
 
         CacheConfiguration ccfg = new CacheConfiguration("PersonCache");
 
@@ -80,4 +86,27 @@ public class ApplicationConfiguration {
         return Ignition.start(cfg);
     }
 
+    /**
+     * Ignite instance bean with not default name
+     */
+    @Bean
+    public Ignite igniteInstanceTWO() {
+        IgniteConfiguration cfg = new IgniteConfiguration();
+
+        cfg.setIgniteInstanceName(IGNITE_INSTANCE_TWO);
+
+        CacheConfiguration ccfg = new CacheConfiguration("PersonCache");
+
+        ccfg.setIndexedTypes(Integer.class, Person.class);
+
+        cfg.setCacheConfiguration(ccfg);
+
+        TcpDiscoverySpi spi = new TcpDiscoverySpi();
+
+        spi.setIpFinder(new TcpDiscoveryVmIpFinder(true));
+
+        cfg.setDiscoverySpi(spi);
+
+        return Ignition.start(cfg);
+    }
 }

@@ -7,9 +7,9 @@ To enable Spring Data 2.2 module when starting a standalone node, move 'optional
 'libs' folder before running 'ignite.{sh|bat}' script. The content of the module folder will
 be added to classpath in this case.
 
-Improved with additional features:
+Main features:
 
-- Supports multiple ignite instances on same JVM (@RepositoryConfig).
+- Supports multiple Ignite instances on same JVM (@RepositoryConfig).
 - Supports query tuning parameters in @Query annotation
 - Supports projections
 - Supports Page and Stream responses
