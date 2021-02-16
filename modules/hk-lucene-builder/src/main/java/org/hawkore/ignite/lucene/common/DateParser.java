@@ -200,7 +200,7 @@ public class DateParser {
      */
     public static Date convertToDate(OffsetTime offsetTime) {
 
-        return Date.from(offsetTime.atDate(LocalDate.EPOCH).toInstant());
+        return Date.from(offsetTime.atDate(LocalDate.ofEpochDay(0)).toInstant());
     }
 
     /**
@@ -209,7 +209,7 @@ public class DateParser {
      */
     public static Date convertToDate(LocalTime localTime) {
         return Date.from(
-            localTime.atDate(LocalDate.EPOCH).toInstant(DEFAULT_TIME_ZONE.getRules().getOffset(Instant.now())));
+            localTime.atDate(LocalDate.ofEpochDay(0)).toInstant(DEFAULT_TIME_ZONE.getRules().getOffset(Instant.now())));
     }
 
     /*
