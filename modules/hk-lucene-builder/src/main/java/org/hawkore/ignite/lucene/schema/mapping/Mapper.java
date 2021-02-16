@@ -19,6 +19,13 @@ import static java.util.stream.Collectors.toList;
 
 import java.math.BigInteger;
 import java.net.InetAddress;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.OffsetTime;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -62,7 +69,10 @@ public abstract class Mapper {
     static final List<Class<?>> NUMERIC_TYPES = Arrays.asList(String.class, Number.class);
 
     static final List<Class<?>> DATE_TYPES = Arrays.asList(
-            String.class, Integer.class, Long.class, BigInteger.class, Date.class, UUID.class);
+            String.class, Integer.class, Long.class, BigInteger.class, Date.class, UUID.class,
+            LocalDateTime.class, LocalDate.class, OffsetDateTime.class, ZonedDateTime.class,
+            Instant.class, OffsetTime.class, LocalTime.class
+        );
 
     static final List<Class<?>> NUMERIC_TYPES_WITH_DATE = Arrays.asList(String.class, Number.class, Date.class);
 
@@ -298,6 +308,6 @@ public abstract class Mapper {
             return false;
         return true;
     }
-    
-    
+
+
 }

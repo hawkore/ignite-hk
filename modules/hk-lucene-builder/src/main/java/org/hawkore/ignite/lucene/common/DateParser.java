@@ -18,6 +18,14 @@ package org.hawkore.ignite.lucene.common;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.OffsetTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Date;
 import java.util.UUID;
 
@@ -32,13 +40,11 @@ public class DateParser {
 
     // A grand day! millis at 00:00:00.000 15 Oct 1582.
     private static final long START_EPOCH = -12219292800000L;
-
     /** The default date pattern for parsing {@code String}s and truncations. */
     public static final String DEFAULT_PATTERN = "yyyy/MM/dd HH:mm:ss.SSS Z";
-
+    public static final ZoneId DEFAULT_TIME_ZONE = ZoneId.systemDefault();
     /** The {@link SimpleDateFormat} pattern. */
     public final String pattern;
-
     /** The thread safe date format. */
     private final ThreadLocal<DateFormat> formatter;
 
@@ -46,7 +52,7 @@ public class DateParser {
      * Constructor with pattern.
      *
      * @param pattern
-     *            the {@link SimpleDateFormat} pattern
+     *     the {@link SimpleDateFormat} pattern
      */
     public DateParser(String pattern) {
         this.pattern = pattern == null ? DEFAULT_PATTERN : pattern;
@@ -65,20 +71,38 @@ public class DateParser {
      * {@code null} if the specified {@link Object} is {@code null}.
      *
      * @param value
-     *            the {@link Object} to be parsed
+     *     the {@link Object} to be parsed
      * @param <K>
-     *            the type of the value to be parsed
+     *     the type of the value to be parsed
      * @return the parsed {@link Date}
      */
-    public final <K> Date parse(K value) {
+    public final <K> Date parse(K data) {
 
-        if (value == null) {
+        if (data == null) {
             return null;
         }
 
         try {
+            Object value = data;
+
+            // add support to Java 8 Temporal classes
+            if (value instanceof LocalDate)
+                value = convertToDate((LocalDate)value);
+            else if (value instanceof LocalDateTime)
+                value = convertToDate((LocalDateTime)value);
+            else if (value instanceof OffsetDateTime)
+                value = convertToDate((OffsetDateTime)value);
+            else if (value instanceof ZonedDateTime)
+                value = convertToDate((ZonedDateTime)value);
+            else if (value instanceof Instant)
+                value = convertToDate((Instant)value);
+            else if (value instanceof OffsetTime)
+                value = convertToDate((OffsetTime)value);
+            else if (value instanceof LocalTime)
+                value = convertToDate((LocalTime)value);
+
             if (value instanceof Date) {
-                Date date = (Date) value;
+                Date date = (Date)value;
                 if (date.getTime() == Long.MAX_VALUE || date.getTime() == Long.MIN_VALUE) {
                     return date;
                 } else {
@@ -86,11 +110,11 @@ public class DateParser {
                     return formatter.get().parse(string);
                 }
             } else if (value instanceof UUID) {
-                long timestamp = unixTimestamp((UUID) value);
+                long timestamp = unixTimestamp((UUID)value);
                 Date date = new Date(timestamp);
                 return formatter.get().parse(formatter.get().format(date));
             } else if (Number.class.isAssignableFrom(value.getClass())) {
-                Long number = ((Number) value).longValue();
+                Long number = ((Number)value).longValue();
                 try {
                     return formatter.get().parse(number.toString());
                 } catch (Exception e) {
@@ -101,15 +125,14 @@ public class DateParser {
                     Date date = new Date(number);
                     //fix reduced date by formatter near January 1, 1970, 00:00:00 GMT, may produce negative millis
                     long millis = Math.max(0, formatter.get().parse(formatter.get().format(date)).getTime());
-                    return new Date (millis);
-                    
+                    return new Date(millis);
                 }
             } else {
                 return formatter.get().parse(value.toString());
             }
         } catch (Exception e) {
             throw new IndexException(e, "Error parsing {} with value '{}' using date pattern {}",
-                value.getClass().getSimpleName(), value, pattern);
+                data.getClass().getSimpleName(), data, pattern);
         }
     }
 
@@ -129,9 +152,69 @@ public class DateParser {
         return (uuid.timestamp() / 10000) + START_EPOCH;
     }
 
+    /**
+     * @param localDate
+     * @return Date
+     */
+    public static Date convertToDate(LocalDate localDate) {
+        return Date.from(localDate.atStartOfDay(
+            DEFAULT_TIME_ZONE).toInstant());
+    }
+
+    /**
+     * @param localDateTime
+     * @return Date
+     */
+    public static Date convertToDate(LocalDateTime localDateTime) {
+        return Date.from(localDateTime.atZone(
+            DEFAULT_TIME_ZONE).toInstant());
+    }
+
+    /**
+     * @param offsetDateTime
+     * @return Date
+     */
+    public static Date convertToDate(OffsetDateTime offsetDateTime) {
+        return Date.from(offsetDateTime.toLocalDateTime().toInstant(ZoneOffset.of(offsetDateTime.getOffset().getId())));
+    }
+
+    /**
+     * @param zonedDateTime
+     * @return Date
+     */
+    public static Date convertToDate(ZonedDateTime zonedDateTime) {
+        return Date.from(zonedDateTime.toInstant());
+    }
+
+    /**
+     * @param instant
+     * @return Date
+     */
+    public static Date convertToDate(Instant instant) {
+        return Date.from(instant);
+    }
+
+    /**
+     * @param offsetTime
+     * @return Date
+     */
+    public static Date convertToDate(OffsetTime offsetTime) {
+
+        return Date.from(offsetTime.atDate(LocalDate.EPOCH).toInstant());
+    }
+
+    /**
+     * @param localTime
+     * @return Date
+     */
+    public static Date convertToDate(LocalTime localTime) {
+        return Date.from(
+            localTime.atDate(LocalDate.EPOCH).toInstant(DEFAULT_TIME_ZONE.getRules().getOffset(Instant.now())));
+    }
+
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see java.lang.Object#hashCode()
      */
     @Override
@@ -144,23 +227,28 @@ public class DateParser {
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see java.lang.Object#equals(java.lang.Object)
      */
     @Override
     public boolean equals(Object obj) {
-        if (this == obj)
+        if (this == obj) {
             return true;
-        if (obj == null)
+        }
+        if (obj == null) {
             return false;
-        if (getClass() != obj.getClass())
+        }
+        if (getClass() != obj.getClass()) {
             return false;
-        DateParser other = (DateParser) obj;
+        }
+        DateParser other = (DateParser)obj;
         if (pattern == null) {
-            if (other.pattern != null)
+            if (other.pattern != null) {
                 return false;
-        } else if (!pattern.equals(other.pattern))
+            }
+        } else if (!pattern.equals(other.pattern)) {
             return false;
+        }
         return true;
     }
 
