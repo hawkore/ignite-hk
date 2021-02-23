@@ -41,126 +41,108 @@ import org.apache.lucene.analysis.tr.TurkishAnalyzer;
  * Prebuilt Lucene analyzer stopwords that can be instantiated by language name.
  */
 public enum StandardStopwords {
-
     ENGLISH() {
         @Override
         protected CharArraySet build() {
             return EnglishAnalyzer.getDefaultStopSet();
         }
     },
-
     FRENCH {
         @Override
         protected CharArraySet build() {
             return FrenchAnalyzer.getDefaultStopSet();
         }
     },
-
     SPANISH {
         @Override
         protected CharArraySet build() {
             return SpanishAnalyzer.getDefaultStopSet();
         }
     },
-
     PORTUGUESE {
         @Override
         protected CharArraySet build() {
             return PortugueseAnalyzer.getDefaultStopSet();
         }
     },
-
     ITALIAN {
         @Override
         protected CharArraySet build() {
             return ItalianAnalyzer.getDefaultStopSet();
         }
     },
-
     GERMAN {
         @Override
         protected CharArraySet build() {
             return GermanAnalyzer.getDefaultStopSet();
         }
     },
-
     DUTCH {
         @Override
         protected CharArraySet build() {
             return DutchAnalyzer.getDefaultStopSet();
         }
     },
-
     SWEDISH {
         @Override
         protected CharArraySet build() {
             return SwedishAnalyzer.getDefaultStopSet();
         }
     },
-
     NORWEGIAN {
         @Override
         protected CharArraySet build() {
             return NorwegianAnalyzer.getDefaultStopSet();
         }
     },
-
     DANISH {
         @Override
         protected CharArraySet build() {
             return DanishAnalyzer.getDefaultStopSet();
         }
     },
-
     RUSSIAN {
         @Override
         protected CharArraySet build() {
             return RussianAnalyzer.getDefaultStopSet();
         }
     },
-
     FINNISH {
         @Override
         protected CharArraySet build() {
             return FinnishAnalyzer.getDefaultStopSet();
         }
     },
-
     IRISH {
         @Override
         protected CharArraySet build() {
             return IrishAnalyzer.getDefaultStopSet();
         }
     },
-
     HUNGARIAN {
         @Override
         protected CharArraySet build() {
             return HungarianAnalyzer.getDefaultStopSet();
         }
     },
-
     TURKISH {
         @Override
         protected CharArraySet build() {
             return TurkishAnalyzer.getDefaultStopSet();
         }
     },
-
     ARMENIAN {
         @Override
         protected CharArraySet build() {
             return ArmenianAnalyzer.getDefaultStopSet();
         }
     },
-
     BASQUE {
         @Override
         protected CharArraySet build() {
             return BasqueAnalyzer.getDefaultStopSet();
         }
     },
-
     CATALAN {
         @Override
         protected CharArraySet build() {
@@ -179,9 +161,10 @@ public enum StandardStopwords {
      * Returns the prebuilt analyzer stopwords list identified by the specified name, or {@code null} if there is no
      * such stopwords list.
      *
-     * @param name the name of the searched analyzer
+     * @param name
+     *     the name of the searched analyzer
      * @return the prebuilt analyzer stopwords list identified by the specified name, or {@code null} if there is no
-     * such stopwords list
+     *     such stopwords list
      */
     public static CharArraySet get(String name) {
         try {
@@ -197,7 +180,13 @@ public enum StandardStopwords {
      * @return the analyzer stopwords list
      */
     public CharArraySet get() {
+        CharArraySet stopWords = StandardAnalyzers.DefaultStopSetHolder.CUSTOM_LANG_STOP_SET
+                                     .get(this.name().toLowerCase(Locale.ROOT));
+        if (stopWords != null) {
+            // use custom stop words
+            return stopWords;
+        }
+        // use prebuilt default stop words
         return build();
     }
-
 }
