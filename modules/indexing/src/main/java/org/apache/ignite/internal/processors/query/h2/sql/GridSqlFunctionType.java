@@ -66,11 +66,8 @@ public enum GridSqlFunctionType {
     /** TABLE and TABLE_DISTINCT */
     TABLE,
 
-    /** GEOMETRY AGGREGATION */
-    ST_ACCUM,
-
-    /** GEOMETRY AGGREGATION - same as ST_ACCUM */
-    ST_COLLECT,
+    /** Constant for all other aggregate functions. */
+    UNKNOWN_AGG_FUNCTION,
 
     /** Constant for all other functions. */
     UNKNOWN_FUNCTION;

@@ -17,6 +17,8 @@
 
 package org.apache.ignite.internal.processors.query.h2.sql;
 
+import java.util.Optional;
+
 import org.apache.ignite.internal.util.typedef.F;
 import org.h2.expression.Aggregate;
 import org.h2.util.StatementBuilder;
@@ -28,8 +30,6 @@ import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlFunction
 import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlFunctionType.GROUP_CONCAT;
 import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlFunctionType.MAX;
 import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlFunctionType.MIN;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlFunctionType.ST_ACCUM;
-import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlFunctionType.ST_COLLECT;
 import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlFunctionType.SUM;
 
 /**
@@ -40,7 +40,7 @@ import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlFunction
 public class GridSqlAggregateFunction extends GridSqlFunction {
     /** */
     private static final GridSqlFunctionType[] TYPE_INDEX = new GridSqlFunctionType[] {
-        COUNT_ALL, COUNT, GROUP_CONCAT, SUM, MIN, MAX, AVG, ST_COLLECT, ST_ACCUM
+        COUNT_ALL, COUNT, GROUP_CONCAT, SUM, MIN, MAX, AVG
 //        STDDEV_POP, STDDEV_SAMP, VAR_POP, VAR_SAMP, BOOL_OR, BOOL_AND, SELECTIVITY, HISTOGRAM,
     };
 
@@ -95,6 +95,16 @@ public class GridSqlAggregateFunction extends GridSqlFunction {
      */
     public GridSqlAggregateFunction(boolean distinct, GridSqlFunctionType type) {
         super(type);
+
+        this.distinct = distinct;
+    }
+
+    /**
+     * @param distinct Distinct.
+     * @param type Type.
+     */
+    public GridSqlAggregateFunction(boolean distinct, GridSqlFunctionType type, Optional<String> name) {
+        super(type, name);
 
         this.distinct = distinct;
     }

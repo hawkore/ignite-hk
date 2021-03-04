@@ -29,6 +29,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+
 import javax.cache.CacheException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteLogger;
@@ -2332,7 +2334,8 @@ public class GridSqlQueryParser {
         	JavaAggregate f = (JavaAggregate)expression;
         	Expression[] args = JAVA_AGG_ARGS.get(f);
         	UserAggregate ua = JAVA_AGG_USER_AGGREGATE.get(f);
-            GridSqlAggregateFunction res = new GridSqlAggregateFunction(false, GridSqlFunctionType.valueOf(ua.getName()));
+            GridSqlAggregateFunction res = new GridSqlAggregateFunction(false, GridSqlFunctionType.UNKNOWN_AGG_FUNCTION, Optional
+                                                                                                                            .of(ua.getName()));
 
             if (args != null) {
                 for (Expression arg :args)

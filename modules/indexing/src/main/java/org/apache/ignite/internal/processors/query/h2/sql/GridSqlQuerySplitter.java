@@ -1787,8 +1787,8 @@ public class GridSqlQuerySplitter {
                 }
 
                 break;
-            case ST_ACCUM:
-            case ST_COLLECT:
+
+            case UNKNOWN_AGG_FUNCTION:
                 mapAgg = SplitterUtils.aggregate(agg.distinct(), agg.type()).resultType(agg.resultType()).addChild(agg.child());
                 rdcAgg = SplitterUtils.aggregate(agg.distinct(), agg.type()).addChild(SplitterUtils.column(mapAggAlias.alias()));
 
