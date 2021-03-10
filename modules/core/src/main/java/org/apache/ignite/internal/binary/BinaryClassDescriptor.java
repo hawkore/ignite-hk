@@ -773,7 +773,7 @@ public class BinaryClassDescriptor {
                             if (obj.getClass() != BinaryMetadata.class && obj.getClass() != BinaryTreeMap.class) {
                                 int schemaId = writer.schemaId();
 
-                                if (schemaReg.schema(schemaId) == null) {
+                               // if (schemaReg.schema(schemaId) == null) {
                                     // This is new schema, let's update metadata.
                                     BinaryMetadataCollector collector =
                                         new BinaryMetadataCollector(typeId, typeName, mapper);
@@ -791,7 +791,7 @@ public class BinaryClassDescriptor {
                                     ctx.updateMetadata(typeId, meta, writer.failIfUnregistered());
 
                                     schemaReg.addSchema(newSchema.schemaId(), newSchema);
-                                }
+                               // }
                             }
 
                             postWriteHashCode(writer, obj);
