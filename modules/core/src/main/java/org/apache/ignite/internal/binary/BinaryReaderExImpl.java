@@ -286,7 +286,17 @@ public class BinaryReaderExImpl implements BinaryReader, BinaryRawReaderEx, Bina
             }
 
             mapper = userType ? ctx.userTypeMapper(typeId) : BinaryContext.defaultMapper();
-            schema = BinaryUtils.hasSchema(flags) ? getOrCreateSchema() : null;
+            boolean knownType = false;
+            try {
+                // TODO: review. Exception is thrown (Cannot find metadata for object with compact footer)
+                //  on client node using multiple SQL aggregations
+                //  server returns binaryObject, class definition is on client node and is already registered
+                //  on cliente binary context. Workaround
+                knownType = ctx.descriptorForTypeId(userType, typeId, ldr, false).registered();
+            } catch (Exception e) {
+               // NOP
+            }
+            schema = BinaryUtils.hasSchema(flags) && !knownType ? getOrCreateSchema() : null;
         }
         else {
             dataStart = 0;
