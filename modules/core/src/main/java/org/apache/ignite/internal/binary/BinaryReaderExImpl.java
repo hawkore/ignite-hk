@@ -286,10 +286,6 @@ public class BinaryReaderExImpl implements BinaryReader, BinaryRawReaderEx, Bina
             }
 
             mapper = userType ? ctx.userTypeMapper(typeId) : BinaryContext.defaultMapper();
-            // TODO: review. Exception is thrown (Cannot find metadata for object with compact footer)
-            //  on client node using multiple SQL aggregations
-            //  server returns binaryObject, class definition is on client node and is already registered
-            //  on cliente binary context. Workaround
             schema = BinaryUtils.hasSchema(flags) ? getOrCreateSchema() : null;
         }
         else {
@@ -2021,6 +2017,7 @@ public class BinaryReaderExImpl implements BinaryReader, BinaryRawReaderEx, Bina
                         "does not point to a temp folder or any other folder that is destroyed/cleared on restarts) [" +
                         "typeId=" + typeId +", schemaId=" + schemaId + ", IGNITE_HOME=" + U.getIgniteHome() + ", IGNITE_WORK="
                                                         + ctx.configuration().getWorkDirectory()
+                                                        + ", IGNITE INSTANE NAME=" + ctx.configuration().getIgniteInstanceName()
                                                         + ", Registered Schemas for type="
                                                         + reg.schemas().stream().map(p->p.toString()).collect(Collectors.toList())
                                                         + ", BinaryContext=" + ctx.getClass().getName() + "]");
