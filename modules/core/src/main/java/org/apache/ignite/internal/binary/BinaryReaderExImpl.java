@@ -29,6 +29,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
+
 import org.apache.ignite.binary.BinaryCollectionFactory;
 import org.apache.ignite.binary.BinaryInvalidTypeException;
 import org.apache.ignite.binary.BinaryMapFactory;
@@ -2000,7 +2002,8 @@ public class BinaryReaderExImpl implements BinaryReader, BinaryRawReaderEx, Bina
      * @return Schema.
      */
     public BinarySchema getOrCreateSchema() {
-        BinarySchema schema = ctx.schemaRegistry(typeId).schema(schemaId);
+        BinarySchemaRegistry reg = ctx.schemaRegistry(typeId);
+        BinarySchema schema = reg.schema(schemaId);
 
         if (schema == null) {
             if (fieldIdLen != BinaryUtils.FIELD_ID_LEN) {
@@ -2012,7 +2015,11 @@ public class BinaryReaderExImpl implements BinaryReader, BinaryRawReaderEx, Bina
                     throw new BinaryObjectException("Cannot find metadata for object with compact footer " +
                         "(Ignite work directory might have been cleared after restart. Make sure that IGNITE_HOME " +
                         "does not point to a temp folder or any other folder that is destroyed/cleared on restarts) [" +
-                        "typeId=" + typeId + ", IGNITE_HOME='" + U.getIgniteHome() + "']");
+                        "typeId=" + typeId +", schemaId=" + schemaId + ", IGNITE_HOME=" + U.getIgniteHome() + ", IGNITE_WORK="
+                                                        + ctx.configuration().getWorkDirectory()
+                                                        + ", Registered Schemas for type="
+                                                        + reg.schemas().stream().map(p->p.toString()).collect(Collectors.toList())
+                                                        + ", BinaryContext=" + ctx.getClass().getName() + "]");
 
                 Collection<BinarySchema> existingSchemas = meta.schemas();
 
