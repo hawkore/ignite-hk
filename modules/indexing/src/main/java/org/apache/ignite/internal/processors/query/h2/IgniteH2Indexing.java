@@ -198,6 +198,7 @@ import org.h2.api.ErrorCode;
 import org.h2.api.JavaObjectSerializer;
 import org.h2.engine.Session;
 import org.h2.engine.SysProperties;
+import org.h2.store.DataHandler;
 import org.h2.table.Column;
 import org.h2.table.IndexColumn;
 import org.h2.table.TableType;
@@ -329,11 +330,28 @@ public class IgniteH2Indexing implements GridQueryIndexing {
     /** Functions manager. */
     private FunctionsManager funcMgr;
 
+    private volatile DataHandler h2Datahandler;
+
+    private volatile JavaObjectSerializer h2Serializer;
     /**
      * @return Kernal context.
      */
     public GridKernalContext kernalContext() {
         return ctx;
+    }
+
+    /**
+     * @return H2 datahandler.
+     */
+    public DataHandler h2Datahandler(){
+        return h2Datahandler;
+    }
+
+    /**
+     * @return H2 serializer.
+     */
+    public JavaObjectSerializer h2Serializer(){
+        return h2Serializer;
     }
 
     /** {@inheritDoc} */
@@ -2202,10 +2220,16 @@ public class IgniteH2Indexing implements GridQueryIndexing {
         cmdProc = new CommandProcessor(ctx, schemaMgr, this);
         cmdProc.start();
 
+        // FIX: Deserialization fails on ignite clients, when client apps has more than one ignite client instance
+        //  connected to differents clusters, see h2Datahandler() and h2Serializer() usages in code
+        h2Serializer = H2Utils.createH2Serializer(ctx);
+        h2Datahandler = H2Utils.createH2Datahandler(h2Serializer);
+
         if (JdbcUtils.serializer != null)
             U.warn(log, "Custom H2 serialization is already configured, will override.");
 
-        JdbcUtils.serializer = h2Serializer();
+
+        JdbcUtils.serializer = h2Serializer;
 
         distrCfg = new DistributedSqlConfiguration(ctx, log);
 
@@ -2364,23 +2388,6 @@ public class IgniteH2Indexing implements GridQueryIndexing {
         }
 
         return ok;
-    }
-
-    /**
-     * @return Serializer.
-     */
-    private JavaObjectSerializer h2Serializer() {
-        return new JavaObjectSerializer() {
-            @Override public byte[] serialize(Object obj) throws Exception {
-                return U.marshal(marshaller, obj);
-            }
-
-            @Override public Object deserialize(byte[] bytes) throws Exception {
-                ClassLoader clsLdr = ctx != null ? U.resolveClassLoader(ctx.config()) : null;
-
-                return U.unmarshal(marshaller, bytes, clsLdr);
-            }
-        };
     }
 
     /** {@inheritDoc} */

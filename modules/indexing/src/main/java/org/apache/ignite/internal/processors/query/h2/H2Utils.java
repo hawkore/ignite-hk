@@ -73,13 +73,21 @@ import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.SB;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.resources.LoggerResource;
+import org.h2.api.JavaObjectSerializer;
 import org.h2.engine.Session;
 import org.h2.jdbc.JdbcConnection;
+import org.h2.message.DbException;
 import org.h2.result.Row;
 import org.h2.result.SortOrder;
+import org.h2.store.DataHandler;
+import org.h2.store.FileStore;
+import org.h2.store.LobStorageInterface;
 import org.h2.table.Column;
 import org.h2.table.IndexColumn;
 import org.h2.util.LocalDateTimeUtils;
+import org.h2.util.SmallLRUCache;
+import org.h2.util.TempFileDeleter;
+import org.h2.value.CompareMode;
 import org.h2.value.DataType;
 import org.h2.value.Value;
 import org.hawkore.ignite.lucene.builder.index.Index;
@@ -668,7 +676,7 @@ public class H2Utils {
             case Value.BYTES:
                 return ValueBytes.get((byte[])obj);
             case Value.JAVA_OBJECT:
-                return ValueJavaObject.getNoCopy(obj, null, null);
+                return ValueJavaObject.getNoCopy(obj, null, coCtx == null ? null: H2Utils.getH2Datahandler(coCtx.kernalContext()));
             case Value.ARRAY:
                 Object[] arr = (Object[])obj;
 
@@ -1066,4 +1074,106 @@ public class H2Utils {
         return keyCols.toArray(new IndexColumn[0]);
     }
 
+    public static DataHandler getH2Datahandler(GridKernalContext ctx) {
+        if (ctx == null)
+            return null;
+
+        return ((IgniteH2Indexing)ctx.query().getIndexing()).h2Datahandler();
+    }
+
+    public static JavaObjectSerializer getH2Serializer(GridKernalContext ctx) {
+        if (ctx == null)
+            return null;
+
+        return ((IgniteH2Indexing)ctx.query().getIndexing()).h2Serializer();
+    }
+
+    public static DataHandler createH2Datahandler(GridKernalContext ctx) {
+        return createH2Datahandler(createH2Serializer(ctx));
+    }
+
+
+    public static DataHandler createH2Datahandler(JavaObjectSerializer serializer) {
+        return new DataHandler() {
+            @Override
+            public String getDatabasePath() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public FileStore openFile(String name, String mode, boolean mustExist) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void checkPowerOff() throws DbException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void checkWritingAllowed() throws DbException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public int getMaxLengthInplaceLob() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String getLobCompressionAlgorithm(int type) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public TempFileDeleter getTempFileDeleter() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Object getLobSyncObject() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public SmallLRUCache<String, String[]> getLobFileListCache() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public LobStorageInterface getLobStorage() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public int readLob(long lobId, byte[] hmac, long offset, byte[] buff, int off, int length) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public JavaObjectSerializer getJavaObjectSerializer() {
+                return serializer;
+            }
+
+            @Override
+            public CompareMode getCompareMode() {
+                throw new UnsupportedOperationException();
+            }
+        };
+    }
+
+    public static JavaObjectSerializer createH2Serializer(GridKernalContext ctx) {
+        return new JavaObjectSerializer() {
+            @Override
+            public byte[] serialize(Object obj) throws Exception {
+                return U.marshal(ctx.config().getMarshaller(), obj);
+            }
+
+            @Override
+            public Object deserialize(byte[] bytes) throws Exception {
+                ClassLoader clsLdr = ctx != null ? U.resolveClassLoader(ctx.config()) : null;
+                return U.unmarshal(ctx.config().getMarshaller(), bytes, clsLdr);
+            }
+        };
+    }
 }

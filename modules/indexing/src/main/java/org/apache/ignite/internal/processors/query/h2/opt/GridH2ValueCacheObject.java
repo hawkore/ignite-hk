@@ -24,6 +24,7 @@ import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.binary.BinaryObjectImpl;
 import org.apache.ignite.internal.processors.cache.CacheObject;
 import org.apache.ignite.internal.processors.cache.CacheObjectValueContext;
+import org.apache.ignite.internal.processors.query.h2.H2Utils;
 import org.h2.message.DbException;
 import org.h2.util.Bits;
 import org.h2.util.JdbcUtils;
@@ -117,7 +118,7 @@ public class GridH2ValueCacheObject extends Value {
         }
 
         // For user-provided and array types.
-        return JdbcUtils.serialize(obj, null);
+        return JdbcUtils.serialize(obj, valCtx == null ? null: H2Utils.getH2Datahandler(valCtx.kernalContext()));
     }
 
     /** {@inheritDoc} */
