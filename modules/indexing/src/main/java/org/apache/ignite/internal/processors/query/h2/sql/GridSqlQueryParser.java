@@ -106,10 +106,11 @@ import org.h2.table.TableFilter;
 import org.h2.table.TableView;
 import org.h2.value.DataType;
 import org.h2.value.Value;
+import org.h2.value.ValueString;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-
+import static org.apache.ignite.internal.processors.query.QueryUtils.LUCENE_FIELD_NAME;
 import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.AND;
 import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.BIGGER;
 import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.BIGGER_EQUAL;
@@ -2152,8 +2153,7 @@ public class GridSqlQueryParser {
 
         if (expression instanceof ValueExpression)
             // == comparison is legit, see ValueExpression#getSQL()
-            return expression == ValueExpression.getDefault() ? GridSqlKeyword.DEFAULT :
-                new GridSqlConst(expression.getValue(null));
+            return expression == ValueExpression.getDefault() ? GridSqlKeyword.DEFAULT : new GridSqlConst(expression.getValue(null));
 
         if (expression instanceof Operation) {
             Operation operation = (Operation)expression;
@@ -2186,6 +2186,20 @@ public class GridSqlQueryParser {
                 return new GridSqlOperation(opType, left);
 
             Expression rightExp = COMPARISON_RIGHT.get(cmp);
+
+            // Advanced Lucene Index HINT, replace EQUAL by IN expression with empty value. See PartitionExtractor.extractLuceneConditionFromEquality
+            if (opType.equals(GridSqlOperationType.EQUAL) &&
+                    (left instanceof GridSqlColumn) && ((GridSqlColumn)left).columnName().equalsIgnoreCase(LUCENE_FIELD_NAME)) {
+
+                GridSqlOperation res = new GridSqlOperation(IN);
+
+                res.addChild(left);
+                res.addChild(parseExpression(ValueExpression.get(ValueString.get("")), calcTypes));
+                res.addChild(parseExpression(rightExp, calcTypes));
+
+                return res;
+            }
+
             GridSqlElement right = parseExpression(rightExp, calcTypes);
 
             return new GridSqlOperation(opType, left, right);
