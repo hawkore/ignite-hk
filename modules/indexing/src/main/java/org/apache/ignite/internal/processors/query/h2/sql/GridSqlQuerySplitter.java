@@ -320,9 +320,15 @@ public class GridSqlQuerySplitter {
 
         H2Utils.checkQuery(idx, cacheIds, splitter.tbls);
 
+        // Apply eventual query parser hints in single partition mode.
+        // See GridReduceQueryExecutor.prepareMapQueryForSinglePartition
+        String originalSQLParsed = GridSqlQueryParser.parseQuery(
+            prepare(conn, originalSql, false, false),
+            false, log).getSQL();
+
         // Setup resulting two step query and return it.
         return new GridCacheTwoStepQuery(
-            originalSql,
+            originalSQLParsed,
             paramsCnt,
             splitter.tbls,
             splitter.rdcSqlQry,
