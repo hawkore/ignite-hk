@@ -21,6 +21,7 @@ import org.apache.ignite.IgniteException;
 import org.h2.value.Value;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Optional;
 import java.util.TreeSet;
 
 import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlConst.TRUE;
@@ -205,6 +206,21 @@ public class SplitterUtils {
      */
     public static GridSqlAggregateFunction aggregate(boolean distinct, GridSqlFunctionType type) {
         return new GridSqlAggregateFunction(distinct, type);
+    }
+
+    /**
+     * Aggregate grid sql aggregate function.
+     *
+     * @param distinct
+     *     the distinct
+     * @param type
+     *     the type
+     * @param name
+     *     the name
+     * @return the grid sql aggregate function
+     */
+    public static GridSqlAggregateFunction aggregate(boolean distinct, GridSqlFunctionType type, String name) {
+        return new GridSqlAggregateFunction(distinct, type, Optional.ofNullable(name));
     }
 
     /**
