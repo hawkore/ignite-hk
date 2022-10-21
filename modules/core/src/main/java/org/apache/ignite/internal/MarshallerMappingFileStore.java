@@ -181,21 +181,25 @@ final class MarshallerMappingFileStore {
     void restoreMappings(MarshallerContext marshCtx) throws IgniteCheckedException {
         for (File file : workDir.listFiles()) {
             String name = file.getName();
+            // PROTECT: load .classnameX files
+            if (name.contains(FILE_EXTENSION)) {
 
-            byte platformId = getPlatformId(name);
+                byte platformId = getPlatformId(name);
 
-            int typeId = getTypeId(name);
+                int typeId = getTypeId(name);
 
-            String clsName = readMapping(name);
+                String clsName = readMapping(name);
 
-            if (clsName == null) {
-                throw new IgniteCheckedException("Class name is null for [platformId=" + platformId +
-                    ", typeId=" + typeId + "], marshaller mappings storage is broken. " +
-                    "Clean up marshaller directory (<work_dir>/marshaller) and restart the node. File name: " + name +
-                    ", FileSize: " + file.length());
+                if (clsName == null) {
+                    throw new IgniteCheckedException(
+                        "Class name is null for [platformId=" + platformId + ", typeId=" + typeId + "], marshaller "
+                            + "mappings storage is broken. "
+                            + "Clean up marshaller directory (<work_dir>/marshaller) and restart the node. File name: "
+                            + name + ", FileSize: " + file.length());
+                }
+
+                marshCtx.registerClassNameLocally(platformId, typeId, clsName);
             }
-
-            marshCtx.registerClassNameLocally(platformId, typeId, clsName);
         }
     }
 
