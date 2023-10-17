@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 
 import javax.cache.CacheException;
 import org.apache.ignite.IgniteException;
@@ -111,6 +112,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.internal.processors.query.QueryUtils.LUCENE_FIELD_NAME;
+import static org.apache.ignite.internal.processors.query.QueryUtils.LUCENE_INDEX_NAME_SUFIX;
 import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.AND;
 import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.BIGGER;
 import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlOperationType.BIGGER_EQUAL;
@@ -2194,7 +2196,8 @@ public class GridSqlQueryParser {
                 GridSqlOperation res = new GridSqlOperation(IN);
 
                 res.addChild(left);
-                res.addChild(parseExpression(ValueExpression.get(ValueString.get("")), calcTypes));
+                // add a random value to ensure query is send to lucene index
+                res.addChild(parseExpression(ValueExpression.get(ValueString.get(LUCENE_INDEX_NAME_SUFIX+"_"+ UUID.randomUUID())), calcTypes));
                 res.addChild(parseExpression(rightExp, calcTypes));
 
                 return res;

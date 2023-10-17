@@ -127,6 +127,9 @@ public class QueryUtils {
     /** LUCENE field name. */
     public static final String LUCENE_FIELD_NAME = Index.LUCENE_FIELD_NAME;
 
+    /** LUCENE_INDEX_NAME_SUFIX field name. */
+    public static final String LUCENE_INDEX_NAME_SUFIX = Index.LUCENE_INDEX_NAME_SUFIX;
+
     /** _SCORE_DOC field name. */
     public static final String LUCENE_SCORE_DOC = "_SCORE_DOC";
 
