@@ -2190,18 +2190,18 @@ public class GridSqlQueryParser {
             Expression rightExp = COMPARISON_RIGHT.get(cmp);
 
             // Advanced Lucene Index HINT, replace EQUAL by IN expression with empty value. See PartitionExtractor.extractLuceneConditionFromEquality
-            if (opType.equals(GridSqlOperationType.EQUAL) &&
-                    (left instanceof GridSqlColumn) && ((GridSqlColumn)left).columnName().equalsIgnoreCase(LUCENE_FIELD_NAME)) {
-
-                GridSqlOperation res = new GridSqlOperation(IN);
-
-                res.addChild(left);
-                // add a random value to ensure query is send to lucene index
-                res.addChild(parseExpression(ValueExpression.get(ValueString.get(LUCENE_INDEX_NAME_SUFIX+"_"+ UUID.randomUUID())), calcTypes));
-                res.addChild(parseExpression(rightExp, calcTypes));
-
-                return res;
-            }
+//            if (opType.equals(GridSqlOperationType.EQUAL) &&
+//                    (left instanceof GridSqlColumn) && ((GridSqlColumn)left).columnName().equalsIgnoreCase(LUCENE_FIELD_NAME)) {
+//
+//                GridSqlOperation res = new GridSqlOperation(IN);
+//
+//                res.addChild(left);
+//                // add a random value to ensure query is send to lucene index
+//                res.addChild(parseExpression(ValueExpression.get(ValueString.get(LUCENE_INDEX_NAME_SUFIX+"_"+ UUID.randomUUID())), calcTypes));
+//                res.addChild(parseExpression(rightExp, calcTypes));
+//
+//                return res;
+//            }
 
             GridSqlElement right = parseExpression(rightExp, calcTypes);
 
