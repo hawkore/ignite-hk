@@ -2770,6 +2770,13 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
 
                 switch (rec.type()) {
                     case CHECKPOINT_RECORD: // Calculate initial partition states
+
+                        if (log.isInfoEnabled())
+                            log.info("Applying lost cache updates since last checkpoint record type : CHECKPOINT_RECORD" );
+
+                        if (getBoolean("IGNITE_IGNORE_APPLY_LOGICAL_UPDATE_CHECKPOINT_RECORD", false))
+                            break;
+
                         CheckpointRecord cpRec = (CheckpointRecord)rec;
 
                         for (Map.Entry<Integer, CacheState> entry : cpRec.cacheGroupStates().entrySet()) {
@@ -2790,6 +2797,12 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
                         break;
 
                     case ROLLBACK_TX_RECORD:
+                        if (log.isInfoEnabled())
+                            log.info("Applying lost cache updates since last checkpoint record type : ROLLBACK_TX_RECORD" );
+
+                        if (getBoolean("IGNITE_IGNORE_APPLY_LOGICAL_UPDATE_ROLLBACK_TX_RECORD", false))
+                            break;
+
                         RollbackRecord rbRec = (RollbackRecord)rec;
 
                         CacheGroupContext ctx = cctx.cache().cacheGroup(rbRec.groupId());
@@ -2807,6 +2820,13 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
                     case DATA_RECORD:
                     case ENCRYPTED_DATA_RECORD:
                         DataRecord dataRec = (DataRecord)rec;
+
+                        if (log.isInfoEnabled())
+                            log.info("Applying lost cache updates since last checkpoint record type : *_DATA_RECORD" );
+
+                        if (getBoolean("IGNITE_IGNORE_APPLY_LOGICAL_UPDATE_DATA_RECORD", false))
+                            break;
+
 
                         for (DataEntry dataEntry : dataRec.writeEntries()) {
                             int cacheId = dataEntry.cacheId();
@@ -2840,6 +2860,12 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
                         break;
 
                     case MVCC_TX_RECORD:
+                        if (log.isInfoEnabled())
+                            log.info("Applying lost cache updates since last checkpoint record type : MVCC_TX_RECORD" );
+
+                        if (getBoolean("IGNITE_IGNORE_APPLY_LOGICAL_UPDATE_MVCC_TX_RECORD", false))
+                            break;
+
                         MvccTxRecord txRecord = (MvccTxRecord)rec;
 
                         byte txState = convertToTxState(txRecord.state());
@@ -2849,6 +2875,12 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
                         break;
 
                     case PART_META_UPDATE_STATE:
+                        if (log.isInfoEnabled())
+                            log.info("Applying lost cache updates since last checkpoint record type : PART_META_UPDATE_STATE" );
+
+                        if (getBoolean("IGNITE_IGNORE_APPLY_LOGICAL_UPDATE_PART_META_UPDATE_STATE", false))
+                            break;
+
                         PartitionMetaStateRecord metaStateRecord = (PartitionMetaStateRecord)rec;
 
                         GroupPartitionId groupPartitionId = new GroupPartitionId(
@@ -2860,6 +2892,13 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
                         break;
 
                     case METASTORE_DATA_RECORD:
+
+                        if (log.isInfoEnabled())
+                            log.info("Applying lost cache updates since last checkpoint record type : METASTORE_DATA_RECORD" );
+
+                        if (getBoolean("IGNITE_IGNORE_APPLY_LOGICAL_UPDATE_METASTORE_DATA_RECORD", false))
+                            break;
+
                         MetastoreDataRecord metastoreDataRecord = (MetastoreDataRecord)rec;
 
                         metaStorage.applyUpdate(metastoreDataRecord.key(), metastoreDataRecord.value());
@@ -2870,6 +2909,12 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
                     case META_PAGE_UPDATE_LAST_SUCCESSFUL_SNAPSHOT_ID:
                     case META_PAGE_UPDATE_LAST_SUCCESSFUL_FULL_SNAPSHOT_ID:
                     case META_PAGE_UPDATE_LAST_ALLOCATED_INDEX:
+                        if (log.isInfoEnabled())
+                            log.info("Applying lost cache updates since last checkpoint record type : META_PAGE_UPDATE_*" );
+
+                        if (getBoolean("IGNITE_IGNORE_APPLY_LOGICAL_UPDATE_META_PAGE_UPDATE", false))
+                            break;
+
                         PageDeltaRecord pageDelta = (PageDeltaRecord)rec;
 
                         stripedApplyPage((pageMem) -> {
