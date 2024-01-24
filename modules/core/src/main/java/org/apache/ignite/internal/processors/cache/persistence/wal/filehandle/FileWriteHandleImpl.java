@@ -76,9 +76,6 @@ class FileWriteHandleImpl extends AbstractFileHandle implements FileWriteHandle 
     private static final AtomicLongFieldUpdater<FileWriteHandleImpl> WRITTEN_UPD =
         AtomicLongFieldUpdater.newUpdater(FileWriteHandleImpl.class, "written");
 
-    /** {@link MappedByteBuffer#fd} */
-    private static final Field fd = findField(MappedByteBuffer.class, "fd");
-
     /** Page size. */
     private static final int PAGE_SIZE = GridUnsafe.pageSize();
 
