@@ -232,13 +232,12 @@ public class TcpDiscoveryKubernetesIpFinder extends TcpDiscoveryIpFinderAdapter 
     public void setAccountToken(String accountToken) {
         this.accountToken = accountToken;
     }
-
     /**
      * Determines whether addresses of not-ready pods should be included. Default is false.
      *
      * @param includeNotReadyAddresses Flag to include not-ready pods.
      */
-    public void includeNotReadyAddresses(boolean includeNotReadyAddresses) {
+    public void setIncludeNotReadyAddresses(boolean includeNotReadyAddresses) {
         this.includeNotReadyAddresses = includeNotReadyAddresses;
     }
 
