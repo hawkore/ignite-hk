@@ -598,6 +598,11 @@ public final class GridCacheLockImpl extends AtomicDataStructureProxy<GridCacheL
                                 LinkedList<UUID> nodes = val.getNodes();
 
                                 if (!cancelled) {
+                                    // IGNITE-20730 Fix IgniteLock cannot be acquired after release on JDK 17
+                                    // FIX https://github.com/apache/ignite/pull/11012/commits/375a0a9af2dbf5d27563b600061cbafe3f175328
+                                    if (sync.waitingThreads.contains(thread.getId()) && nodes.contains(thisNode))
+                                        return true;
+
                                     nodes.add(thisNode);
 
                                     val.setChanged(false);
