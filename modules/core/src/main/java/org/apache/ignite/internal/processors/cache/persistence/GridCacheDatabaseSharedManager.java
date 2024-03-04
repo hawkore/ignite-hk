@@ -2279,7 +2279,9 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
         long lastArchivedSegment = cctx.wal().lastArchivedSegment();
 
         if (getBoolean("IGNITE_IGNORE_PERFORM_BINARY_RESTORE", false)){
-           return new RestoreBinaryState(status, new WALIterator() {
+
+            CheckpointStatus statusNoNeedBinaryRecovery = new CheckpointStatus(status.cpStartTs, status.cpEndId, status.endPtr, status.cpEndId, status.endPtr);
+           return new RestoreBinaryState(statusNoNeedBinaryRecovery, new WALIterator() {
                @Override
                public Iterator<IgniteBiTuple<WALPointer, WALRecord>> iterator() {
                    return null;
@@ -2307,7 +2309,7 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
 
                @Override
                public boolean isClosed() {
-                   return false;
+                   return true;
                }
 
                @Override
