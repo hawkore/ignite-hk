@@ -2087,7 +2087,11 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
             // can't write header without that condition.
             WALPointer lastReadPointer = logicalState.lastReadRecordPointer();
 
-            walTail = tailPointer(lastReadPointer.equals(CheckpointStatus.NULL_PTR) ? null : lastReadPointer);
+            if (getBoolean("IGNITE_IGNORE_PERFORM_BINARY_RESTORE", false)){
+                walTail = null;
+             } else {
+                walTail = tailPointer(lastReadPointer.equals(CheckpointStatus.NULL_PTR) ? null : lastReadPointer);
+            }
 
             cctx.wal().onDeActivate(kctx);
         }
@@ -2334,11 +2338,11 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
 
                 @Override
                 public Optional<WALPointer> lastRead() {
-                    return Optional.ofNullable(originalStatus.endPtr);
+                    return Optional.ofNullable(originalStatus.startPtr);
                 }
             };
 
-            status = new CheckpointStatus(status.cpStartTs, status.cpEndId, status.endPtr, status.cpEndId, status.endPtr);
+            status = new CheckpointStatus(status.cpStartTs, status.cpStartId, status.startPtr, status.cpStartId, status.startPtr);
 
         } else {
              it = cctx.wal().replay(recPtr, recordTypePredicate);
@@ -2880,11 +2884,11 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
 
                 @Override
                 public Optional<WALPointer> lastRead() {
-                    return Optional.ofNullable(originalStatus.endPtr);
+                    return Optional.ofNullable(originalStatus.startPtr);
                 }
             };
 
-            status = new CheckpointStatus(status.cpStartTs, status.cpEndId, status.endPtr, status.cpEndId, status.endPtr);
+            status = new CheckpointStatus(status.cpStartTs, status.cpStartId, status.startPtr, status.cpStartId, status.startPtr);
         } else {
             it = cctx.wal().replay(status.startPtr, recordTypePredicate);
         }
