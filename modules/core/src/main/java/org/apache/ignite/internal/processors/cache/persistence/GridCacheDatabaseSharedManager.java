@@ -2201,11 +2201,14 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
      * @throws StorageException In case I/O error occurred during operations with storage.
      */
     private RestoreBinaryState performBinaryMemoryRestore(
-        CheckpointStatus status,
+        CheckpointStatus originalStatus,
         IgnitePredicate<Integer> cacheGroupsPredicate,
         IgniteBiPredicate<WALRecord.RecordType, WALPointer> recordTypePredicate,
         boolean finalizeState
     ) throws IgniteCheckedException {
+
+        CheckpointStatus status = originalStatus;
+
         if (log.isInfoEnabled())
             log.info("Checking memory state [lastValidPos=" + status.endPtr + ", lastMarked="
                 + status.startPtr + ", lastCheckpointId=" + status.cpStartId + ']');
@@ -2281,8 +2284,6 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
 
         long lastArchivedSegment = cctx.wal().lastArchivedSegment();
 
-        RestoreBinaryState restoreBinaryState = null;
-
         WALIterator it = null;
 
         if (getBoolean("IGNITE_IGNORE_PERFORM_BINARY_RESTORE", false)){
@@ -2333,18 +2334,17 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
 
                 @Override
                 public Optional<WALPointer> lastRead() {
-                    return Optional.ofNullable(status.endPtr);
+                    return Optional.ofNullable(originalStatus.endPtr);
                 }
             };
 
-            CheckpointStatus statusNoNeedBinaryRecovery = new CheckpointStatus(status.cpStartTs, status.cpEndId, status.endPtr, status.cpEndId, status.endPtr);
-
-            restoreBinaryState=  new RestoreBinaryState(statusNoNeedBinaryRecovery, it , lastArchivedSegment, cacheGroupsPredicate);
+            status = new CheckpointStatus(status.cpStartTs, status.cpEndId, status.endPtr, status.cpEndId, status.endPtr);
 
         } else {
              it = cctx.wal().replay(recPtr, recordTypePredicate);
-             restoreBinaryState = new RestoreBinaryState(status, it, lastArchivedSegment, cacheGroupsPredicate);
         }
+
+        RestoreBinaryState restoreBinaryState = new RestoreBinaryState(status, it, lastArchivedSegment, cacheGroupsPredicate);
 
         AtomicLong applied = new AtomicLong();
 
