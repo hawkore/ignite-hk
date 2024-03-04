@@ -2278,60 +2278,70 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
 
         long lastArchivedSegment = cctx.wal().lastArchivedSegment();
 
+        RestoreBinaryState restoreBinaryState = null;
+
+        WALIterator it = null;
+
         if (getBoolean("IGNITE_IGNORE_PERFORM_BINARY_RESTORE", false)){
 
+            it = new WALIterator() {
+
+                private boolean closed = false;
+
+                @Override
+                public Iterator<IgniteBiTuple<WALPointer, WALRecord>> iterator() {
+                    return null;
+                }
+
+                @Override
+                public boolean hasNextX() throws IgniteCheckedException {
+                    return false;
+                }
+
+                @Override
+                public IgniteBiTuple<WALPointer, WALRecord> nextX() throws IgniteCheckedException {
+                    return null;
+                }
+
+                @Override
+                public void removeX() throws IgniteCheckedException {
+
+                }
+
+                @Override
+                public void close() throws IgniteCheckedException {
+                    closed = true;
+                }
+
+                @Override
+                public boolean isClosed() {
+                    return closed;
+                }
+
+                @Override
+                public boolean hasNext() {
+                    return false;
+                }
+
+                @Override
+                public IgniteBiTuple<WALPointer, WALRecord> next() {
+                    return null;
+                }
+
+                @Override
+                public Optional<WALPointer> lastRead() {
+                    return Optional.ofNullable(status.endPtr);
+                }
+            };
+
             CheckpointStatus statusNoNeedBinaryRecovery = new CheckpointStatus(status.cpStartTs, status.cpEndId, status.endPtr, status.cpEndId, status.endPtr);
-           return new RestoreBinaryState(statusNoNeedBinaryRecovery, new WALIterator() {
-               @Override
-               public Iterator<IgniteBiTuple<WALPointer, WALRecord>> iterator() {
-                   return null;
-               }
 
-               @Override
-               public boolean hasNextX() throws IgniteCheckedException {
-                   return false;
-               }
+            restoreBinaryState=  new RestoreBinaryState(statusNoNeedBinaryRecovery, it , lastArchivedSegment, cacheGroupsPredicate);
 
-               @Override
-               public IgniteBiTuple<WALPointer, WALRecord> nextX() throws IgniteCheckedException {
-                   return null;
-               }
-
-               @Override
-               public void removeX() throws IgniteCheckedException {
-
-               }
-
-               @Override
-               public void close() throws IgniteCheckedException {
-
-               }
-
-               @Override
-               public boolean isClosed() {
-                   return true;
-               }
-
-               @Override
-               public boolean hasNext() {
-                   return false;
-               }
-
-               @Override
-               public IgniteBiTuple<WALPointer, WALRecord> next() {
-                   return null;
-               }
-
-               @Override
-               public Optional<WALPointer> lastRead() {
-                   return Optional.ofNullable(status.endPtr);
-               }
-           }, lastArchivedSegment, cacheGroupsPredicate);
+        } else {
+             it = cctx.wal().replay(recPtr, recordTypePredicate);
+             restoreBinaryState = new RestoreBinaryState(status, it, lastArchivedSegment, cacheGroupsPredicate);
         }
-
-        WALIterator it = cctx.wal().replay(recPtr, recordTypePredicate);
-
-        RestoreBinaryState restoreBinaryState = new RestoreBinaryState(status, it, lastArchivedSegment, cacheGroupsPredicate);
 
         AtomicLong applied = new AtomicLong();
 
