@@ -41,6 +41,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
@@ -2276,6 +2277,55 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
         long start = U.currentTimeMillis();
 
         long lastArchivedSegment = cctx.wal().lastArchivedSegment();
+
+        if (getBoolean("IGNITE_IGNORE_PERFORM_BINARY_RESTORE", false)){
+           return new RestoreBinaryState(status, new WALIterator() {
+               @Override
+               public Iterator<IgniteBiTuple<WALPointer, WALRecord>> iterator() {
+                   return null;
+               }
+
+               @Override
+               public boolean hasNextX() throws IgniteCheckedException {
+                   return false;
+               }
+
+               @Override
+               public IgniteBiTuple<WALPointer, WALRecord> nextX() throws IgniteCheckedException {
+                   return null;
+               }
+
+               @Override
+               public void removeX() throws IgniteCheckedException {
+
+               }
+
+               @Override
+               public void close() throws IgniteCheckedException {
+
+               }
+
+               @Override
+               public boolean isClosed() {
+                   return false;
+               }
+
+               @Override
+               public boolean hasNext() {
+                   return false;
+               }
+
+               @Override
+               public IgniteBiTuple<WALPointer, WALRecord> next() {
+                   return null;
+               }
+
+               @Override
+               public Optional<WALPointer> lastRead() {
+                   return Optional.ofNullable(status.endPtr);
+               }
+           }, lastArchivedSegment, cacheGroupsPredicate);
+        }
 
         WALIterator it = cctx.wal().replay(recPtr, recordTypePredicate);
 
