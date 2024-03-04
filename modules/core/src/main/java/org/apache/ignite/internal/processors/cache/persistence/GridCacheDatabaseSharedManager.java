@@ -2801,11 +2801,14 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
      * @throws StorageException If IO exception occurred while reading write-ahead log.
      */
     private RestoreLogicalState applyLogicalUpdates(
-        CheckpointStatus status,
+        CheckpointStatus originalStatus,
         IgnitePredicate<Integer> cacheGroupsPredicate,
         IgniteBiPredicate<WALRecord.RecordType, WALPointer> recordTypePredicate,
         boolean skipFieldLookup
     ) throws IgniteCheckedException {
+
+        CheckpointStatus status = originalStatus;
+
         if (log.isInfoEnabled())
             log.info("Applying lost cache updates since last checkpoint record [lastMarked="
                 + status.startPtr + ", lastCheckpointId=" + status.cpStartId + ']');
@@ -2827,7 +2830,64 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
 
         Map<GroupPartitionId, Integer> partitionRecoveryStates = new HashMap<>();
 
-        WALIterator it = cctx.wal().replay(status.startPtr, recordTypePredicate);
+        WALIterator it = null;
+
+        if (getBoolean("IGNITE_IGNORE_PERFORM_BINARY_RESTORE", false)){
+
+            it = new WALIterator() {
+
+                private boolean closed = false;
+
+                @Override
+                public Iterator<IgniteBiTuple<WALPointer, WALRecord>> iterator() {
+                    return null;
+                }
+
+                @Override
+                public boolean hasNextX() throws IgniteCheckedException {
+                    return false;
+                }
+
+                @Override
+                public IgniteBiTuple<WALPointer, WALRecord> nextX() throws IgniteCheckedException {
+                    return null;
+                }
+
+                @Override
+                public void removeX() throws IgniteCheckedException {
+
+                }
+
+                @Override
+                public void close() throws IgniteCheckedException {
+                    closed = true;
+                }
+
+                @Override
+                public boolean isClosed() {
+                    return closed;
+                }
+
+                @Override
+                public boolean hasNext() {
+                    return false;
+                }
+
+                @Override
+                public IgniteBiTuple<WALPointer, WALRecord> next() {
+                    return null;
+                }
+
+                @Override
+                public Optional<WALPointer> lastRead() {
+                    return Optional.ofNullable(originalStatus.endPtr);
+                }
+            };
+
+            status = new CheckpointStatus(status.cpStartTs, status.cpEndId, status.endPtr, status.cpEndId, status.endPtr);
+        } else {
+            it = cctx.wal().replay(status.startPtr, recordTypePredicate);
+        }
 
         RestoreLogicalState restoreLogicalState =
             new RestoreLogicalState(status, it, lastArchivedSegment, cacheGroupsPredicate, partitionRecoveryStates);
