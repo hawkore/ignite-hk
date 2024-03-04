@@ -2211,14 +2211,14 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
 
         WALPointer recPtr = status.endPtr;
 
-        boolean apply = status.needRestoreMemory();
+        boolean apply = status.needRestoreMemory() || !CheckpointStatus.NULL_PTR.equals(status.startPtr);
 
         if (getBoolean("IGNITE_IGNORE_PERFORM_BINARY_RESTORE", false)){
             apply = false;
         }
 
         try {
-            WALRecord startRec = !CheckpointStatus.NULL_PTR.equals(status.startPtr) || apply ? cctx.wal().read(status.startPtr) : null;
+            WALRecord startRec = apply ? cctx.wal().read(status.startPtr) : null;
 
             if (apply) {
                 if (finalizeState)
