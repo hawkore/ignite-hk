@@ -2338,11 +2338,11 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
 
                 @Override
                 public Optional<WALPointer> lastRead() {
-                    return Optional.ofNullable(originalStatus.startPtr);
+                    return Optional.ofNullable(originalStatus.endPtr);
                 }
             };
 
-            status = new CheckpointStatus(status.cpStartTs, status.cpStartId, status.startPtr, status.cpStartId, status.startPtr);
+            status = new CheckpointStatus(status.cpStartTs, status.cpEndId, status.endPtr, status.cpEndId, status.endPtr);
 
         } else {
              it = cctx.wal().replay(recPtr, recordTypePredicate);
@@ -2884,11 +2884,11 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
 
                 @Override
                 public Optional<WALPointer> lastRead() {
-                    return Optional.ofNullable(originalStatus.startPtr);
+                    return Optional.ofNullable(originalStatus.endPtr);
                 }
             };
 
-            status = new CheckpointStatus(status.cpStartTs, status.cpStartId, status.startPtr, status.cpStartId, status.startPtr);
+            status = new CheckpointStatus(status.cpStartTs, status.cpEndId, status.endPtr, status.cpEndId, status.endPtr);
         } else {
             it = cctx.wal().replay(status.startPtr, recordTypePredicate);
         }
