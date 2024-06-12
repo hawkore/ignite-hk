@@ -53,6 +53,7 @@ import org.apache.ignite.events.Event;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.IgniteInterruptedCheckedException;
+import org.apache.ignite.internal.NodeStoppingException;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.cluster.ClusterTopologyServerNotFoundException;
 import org.apache.ignite.internal.managers.eventstorage.GridLocalEventListener;
@@ -327,6 +328,8 @@ public final class DataStructuresProcessor extends GridProcessorAdapter implemen
 
     /** {@inheritDoc} */
     @Override public IgniteInternalFuture<?> onReconnected(boolean clusterRestarted) throws IgniteCheckedException {
+        UUID nodeId = ctx.localNodeId();
+
         for (Map.Entry<GridCacheInternalKey, GridCacheRemovable> e : dsMap.entrySet()) {
             GridCacheRemovable obj = e.getValue();
 
@@ -337,6 +340,9 @@ public final class DataStructuresProcessor extends GridProcessorAdapter implemen
             }
             else
                 obj.needCheckNotRemoved();
+
+            if (obj instanceof GridCacheLockEx)
+                ((GridCacheLockEx)obj).onReconnected(nodeId);
         }
 
         for (GridCacheContext cctx : ctx.cache().context().cacheContexts())
@@ -1672,6 +1678,9 @@ public final class DataStructuresProcessor extends GridProcessorAdapter implemen
         for (int i = 0; i < GridCacheAdapter.MAX_RETRIES; i++) {
             try {
                 return c.applyx();
+            }
+            catch (NodeStoppingException e) {
+                throw e;
             }
             catch (IgniteCheckedException e) {
                 if (i == GridCacheAdapter.MAX_RETRIES - 1)

@@ -72,7 +72,7 @@ ipch/
 [Rr]elease*/
 packages
 *.nupkg
-
+*.crc
 #Autotools temp files
 /modules/platforms/cpp/**/Makefile
 /modules/platforms/cpp/**/Makefile.in
