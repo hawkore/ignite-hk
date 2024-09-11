@@ -2046,19 +2046,12 @@ public abstract class IgniteUtils {
      * @throws SocketException the socket exception
      */
     public static Iterable<NetworkInterface> getFilteredNetworkInterfaces(final String regexPattern) throws SocketException {
-
         if (F.isEmpty(regexPattern))
             return asIterable(NetworkInterface.getNetworkInterfaces());
 
-        System.out.println("IGNITE_NETWORK_INTERFACES_REGEXP = " + regexPattern);
-
-        List<NetworkInterface> list=  StreamSupport.stream(asIterable(NetworkInterface.getNetworkInterfaces()).spliterator(), false)
+        return StreamSupport.stream(asIterable(NetworkInterface.getNetworkInterfaces()).spliterator(), false)
             .filter(s -> s.getName().matches(regexPattern))
             .collect(Collectors.toList());
-
-        list.forEach(c-> System.out.println(c.getName()));
-
-        return list;
     }
 
     public static Iterable<NetworkInterface> getFilteredNetworkInterfaces() throws SocketException {
