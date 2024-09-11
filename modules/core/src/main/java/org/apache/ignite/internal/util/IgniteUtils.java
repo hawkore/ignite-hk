@@ -146,6 +146,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 import java.util.zip.Deflater;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -2034,6 +2035,30 @@ public abstract class IgniteUtils {
     }
 
     /**
+     * Gets network interfaces filtered by pattern
+     *
+     * This is used to avoid load IPs from undesired network interfaces, for example VPN tunnels (tun0)
+     *
+     * String regexPattern = "^(?!tun).*"; // Patrón de expresión regular para no empezar con "tun"
+     *
+     * @param regexPattern the regex pattern
+     * @return the network interfaces
+     * @throws SocketException the socket exception
+     */
+    public static Iterable<NetworkInterface> getFilteredNetworkInterfaces(final String regexPattern) throws SocketException {
+        if (F.isEmpty(regexPattern))
+            return asIterable(NetworkInterface.getNetworkInterfaces());
+
+        return StreamSupport.stream(asIterable(NetworkInterface.getNetworkInterfaces()).spliterator(), false)
+            .filter(s -> s.getName().matches(regexPattern))
+            .collect(Collectors.toList());
+    }
+
+    public static Iterable<NetworkInterface> getFilteredNetworkInterfaces() throws SocketException {
+        return getFilteredNetworkInterfaces(IgniteSystemProperties.getString("IGNITE_NETWORK_INTERFACES_REGEXP", null));
+    }
+
+    /**
      * Gets display name of the network interface this IP address belongs to.
      *
      * @param addr IP address for which to find network interface name.
@@ -2045,7 +2070,7 @@ public abstract class IgniteUtils {
         try {
             InetAddress inetAddr = InetAddress.getByName(addr);
 
-            for (NetworkInterface itf : asIterable(NetworkInterface.getNetworkInterfaces()))
+            for (NetworkInterface itf : getFilteredNetworkInterfaces())
                 for (InetAddress itfAddr : asIterable(itf.getInetAddresses()))
                     if (itfAddr.equals(inetAddr))
                         return itf.getDisplayName();
@@ -2188,7 +2213,7 @@ public abstract class IgniteUtils {
             if (res == null) {
                 List<InetAddress> locAddrs = new ArrayList<>();
 
-                for (NetworkInterface itf : asIterable(NetworkInterface.getNetworkInterfaces())) {
+                for (NetworkInterface itf : getFilteredNetworkInterfaces()) {
                     for (InetAddress addr : asIterable(itf.getInetAddresses())) {
                         if (!addr.isLinkLocalAddress())
                             locAddrs.add(addr);
@@ -2274,7 +2299,7 @@ public abstract class IgniteUtils {
         else {
             List<NetworkInterface> itfs = new ArrayList<>();
 
-            for (NetworkInterface itf : asIterable(NetworkInterface.getNetworkInterfaces()))
+            for (NetworkInterface itf : getFilteredNetworkInterfaces())
                 itfs.add(itf);
 
             Collections.sort(itfs, new Comparator<NetworkInterface>() {
@@ -2374,7 +2399,7 @@ public abstract class IgniteUtils {
             Enumeration<NetworkInterface> itfs = NetworkInterface.getNetworkInterfaces();
 
             if (itfs != null) {
-                for (NetworkInterface itf : asIterable(itfs)) {
+                for (NetworkInterface itf : getFilteredNetworkInterfaces()) {
                     if (!itf.isLoopback()) {
                         Enumeration<InetAddress> addrs = itf.getInetAddresses();
 
@@ -2439,7 +2464,7 @@ public abstract class IgniteUtils {
             Enumeration<NetworkInterface> itfs = NetworkInterface.getNetworkInterfaces();
 
             if (itfs != null) {
-                for (NetworkInterface itf : asIterable(itfs)) {
+                for (NetworkInterface itf : getFilteredNetworkInterfaces()) {
                     byte[] hwAddr = itf.getHardwareAddress();
 
                     // Loopback produces empty MAC.
