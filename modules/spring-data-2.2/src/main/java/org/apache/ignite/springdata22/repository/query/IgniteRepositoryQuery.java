@@ -729,8 +729,14 @@ public class IgniteRepositoryQuery implements RepositoryQuery {
         List<ParameterBinding> queryBindings) {
 
         // no binding params then exit
-        if (queryBindings.isEmpty())
+        if (queryBindings.isEmpty()) {
+            // remove dynamic projection from parameters
+            // when query method contains only a dynamic projection,
+            // this value must be removed from sql query arguments
+            if (hasDynamicProjection)
+                return ArrayUtils.remove(values, dynamicProjectionIndex);
             return values;
+        }
 
         Object[] newValues = new Object[queryBindings.size()];
 
