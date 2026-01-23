@@ -215,19 +215,19 @@
             <scope>provided</scope>
         </dependency>
 
-        <dependency>
-            <groupId>org.apache.ignite.binary</groupId>
-            <artifactId>test1</artifactId>
-            <version>1.1</version>
-            <scope>test</scope>
-        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>org.apache.ignite.binary</groupId>-->
+<!--            <artifactId>test1</artifactId>-->
+<!--            <version>1.1</version>-->
+<!--            <scope>test</scope>-->
+<!--        </dependency>-->
 
-        <dependency>
-            <groupId>org.apache.ignite.binary</groupId>
-            <artifactId>test2</artifactId>
-            <version>1.1</version>
-            <scope>test</scope>
-        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>org.apache.ignite.binary</groupId>-->
+<!--            <artifactId>test2</artifactId>-->
+<!--            <version>1.1</version>-->
+<!--            <scope>test</scope>-->
+<!--        </dependency>-->
 
         <dependency>
             <groupId>com.google.guava</groupId>
