@@ -20,7 +20,7 @@ deploy:
     - /^release.*$/
   script:
     # deploy ignite to internal repository
-    - mvn clean deploy -Dignite.edition=apache-ignite-lgpl -Prelease,all-java,all-scala,licenses,lgpl,tensorflow,web-console,docker-image -DskipTests -Dmaven.javadoc.skip=true -DaltReleaseDeploymentRepository=hawkore.releases::default::http://nexus3:8081/repository/hawkore.releases/ -DaltSnapshotDeploymentRepository=hawkore.snapshots::default::http://nexus3:8081/repository/hawkore.snapshots/
+    - mvn clean deploy -Dignite.edition=apache-ignite-lgpl -Prelease,all-java,all-scala,licenses,lgpl,tensorflow,web-console,docker-image -DskipTests -Dmaven.test.skip=true -Dmaven.javadoc.skip=true -DaltReleaseDeploymentRepository=hawkore.releases::default::http://nexus3:8081/repository/hawkore.releases/ -DaltSnapshotDeploymentRepository=hawkore.snapshots::default::http://nexus3:8081/repository/hawkore.snapshots/
 
 deployPublic:
   stage: deploy_public
