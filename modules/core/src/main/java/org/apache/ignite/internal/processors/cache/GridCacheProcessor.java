@@ -5433,7 +5433,8 @@ public class GridCacheProcessor extends GridProcessorAdapter {
                         totalProcessed += grp.offheap().restorePartitionStates(partitionStates);
                         ok++;
                     } catch (Exception e){
-                        if (getBoolean("IGNITE_IGNORE_PERFORM_BINARY_RESTORE", false)){
+                        if (getBoolean("IGNITE_PARTITION_STATUS_IGNORE_ERRORS", false)){
+                            // TODO sacar esto fuera a una lista de errores y luego lanzar on no la excepcion para seguir adelante
                             log.error("Error restoring partition state for group [" +
                                          "grp=" + grp.name() +
                                          ", caches=" + grp.caches().stream().map(s->s.cache().name()).collect(Collectors.joining()) +
