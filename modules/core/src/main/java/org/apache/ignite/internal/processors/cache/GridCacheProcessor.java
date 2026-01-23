@@ -5427,13 +5427,26 @@ public class GridCacheProcessor extends GridProcessorAdapter {
                 log.info("Restoring partition state for local groups.");
 
             long totalProcessed = 0;
-
-            for (CacheGroupContext grp : forGroups)
-                totalProcessed += grp.offheap().restorePartitionStates(partitionStates);
+            long ok = 0;
+                for (CacheGroupContext grp : forGroups)
+                    try {
+                        totalProcessed += grp.offheap().restorePartitionStates(partitionStates);
+                        ok++;
+                    } catch (Exception e){
+                        if (getBoolean("IGNITE_IGNORE_PERFORM_BINARY_RESTORE", false)){
+                            log.error("Error restoring partition state for group [" +
+                                         "grp=" + grp.name() +
+                                         ", caches=" + grp.caches().stream().map(s->s.cache().name()).collect(Collectors.joining()) +
+                                          ", error= "+ e.getMessage() +
+                                         ", time=" + (U.currentTimeMillis() - startRestorePart) + "ms]");
+                        } else {
+                            throw e;
+                        }
+                    }
 
             if (log.isInfoEnabled())
                 log.info("Finished restoring partition state for local groups [" +
-                    "groupsProcessed=" + forGroups.size() +
+                    "groupsProcessed=" + forGroups.size() +"/"+ ok +
                     ", partitionsProcessed=" + totalProcessed +
                     ", time=" + (U.currentTimeMillis() - startRestorePart) + "ms]");
         }
